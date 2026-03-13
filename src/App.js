@@ -6,7 +6,7 @@ import Employees from './Employees';
 import Bardana from './Bardana';
 import Dashboard from './components/Dashboard';
 import { db } from './firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
 import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,6 +16,31 @@ function App() {
     const [user, setUser] = useState(null);
     const [loginId, setLoginId] = useState('');
     const [loginError, setLoginError] = useState('');
+    const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+    React.useEffect(() => {
+        const bootstrap = async () => {
+            try {
+                const q = query(collection(db, 'employees'), where('role', '==', 'admin'));
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    await setDoc(doc(db, 'employees', 'ADMIN'), {
+                        name: 'Admin User',
+                        employeeId: 'ADMIN',
+                        role: 'admin',
+                        joiningYear: new Date().getFullYear(),
+                        phone: '0000000000',
+                        timestamp: new Date()
+                    });
+                }
+            } catch (e) {
+                console.error("Bootstrap error", e);
+            } finally {
+                setIsBootstrapping(false);
+            }
+        };
+        bootstrap();
+    }, []);
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -50,7 +75,9 @@ function App() {
     };
 
     const renderView = () => {
-        if (['aavak', 'javak', 'bardana'].includes(view) && !user) {
+        if (isBootstrapping) return <div className="flex items-center justify-center p-8 text-slate-400">Initializing...</div>;
+
+        if (['aavak', 'javak', 'bardana', 'employees'].includes(view) && !user) {
             return (
                 <div className="flex items-center justify-center p-8">
                     <motion.div 
@@ -93,7 +120,7 @@ function App() {
             case 'bardana':
                 return <Bardana currentUser={user} />;
             case 'employees':
-                return <Employees />;
+                return <Employees currentUser={user} />;
             default:
                 return <Dashboard />;
         }

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { UserPlus, Trash2, User, Calendar, ShieldCheck } from 'lucide-react';
+import { UserPlus, Trash2, User, Calendar, ShieldCheck, Phone } from 'lucide-react';
 
-function Employees() {
+function Employees({ currentUser }) {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
+    const [phone, setPhone] = useState('');
     const [joiningYear, setJoiningYear] = useState(new Date().getFullYear().toString());
     const [employees, setEmployees] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN';
 
     useEffect(() => {
         if (statusMessage.text) {
@@ -31,28 +34,41 @@ function Employees() {
         return () => unsubscribe();
     }, []);
 
-    const generateEmployeeId = (name, year) => {
+    const generateUniqueId = (name, year, existingEmployees) => {
         const prefix = name.substring(0, 4).toUpperCase().padEnd(4, 'X');
-        const suffix = year.substring(year.length - 2);
-        return `${prefix}${suffix}`;
+        const baseSuffix = parseInt(year.substring(year.length - 2), 10);
+        
+        let currentSuffix = baseSuffix;
+        let finalId = `${prefix}${currentSuffix}`;
+        
+        const existingIds = existingEmployees.map(emp => emp.employeeId);
+        
+        while (existingIds.includes(finalId)) {
+            currentSuffix++;
+            finalId = `${prefix}${currentSuffix}`;
+        }
+        
+        return finalId;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!firstName.trim() || !lastName.trim() || !joiningYear) {
-            setStatusMessage({ text: 'Please provide both First Name and Last Name', type: 'error' });
+        if (!firstName.trim() || !lastName.trim() || !joiningYear || !phone.trim()) {
+            setStatusMessage({ text: 'All fields (Name, Phone, Year) are compulsory', type: 'error' });
             return;
         }
 
         const fullName = `${firstName.trim()} ${lastName.trim()}`;
-        const empId = generateEmployeeId(fullName, joiningYear);
+        const empId = generateUniqueId(fullName, joiningYear, employees);
         
         const newEmployee = {
             name: fullName,
             firstName: firstName.trim(),
             lastName: lastName.trim(),
+            phone: phone.trim(),
             joiningYear: parseInt(joiningYear, 10),
             employeeId: empId,
+            role: 'staff', // Default role
             timestamp: serverTimestamp()
         };
 
@@ -60,6 +76,7 @@ function Employees() {
             await setDoc(doc(db, 'employees', empId), newEmployee);
             setFirstName('');
             setLastName('');
+            setPhone('');
             setJoiningYear(new Date().getFullYear().toString());
             setIsFormOpen(false);
             setStatusMessage({ text: `Employee registered! ID: ${empId}`, type: 'success' });
@@ -83,7 +100,7 @@ function Employees() {
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-slate-900">Employee Management</h2>
+                <h2 className="text-2xl font-bold text-slate-900">Employee List</h2>
                 <div className="flex items-center gap-4">
                     {statusMessage.text && (
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 ${
@@ -92,17 +109,19 @@ function Employees() {
                             {statusMessage.text}
                         </div>
                     )}
-                    <button 
-                        onClick={() => setIsFormOpen(!isFormOpen)} 
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        {isFormOpen ? <ShieldCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                        {isFormOpen ? 'Close Form' : 'Add New Employee'}
-                    </button>
+                    {isAdmin && (
+                        <button 
+                            onClick={() => setIsFormOpen(!isFormOpen)} 
+                            className="btn-primary flex items-center gap-2"
+                        >
+                            {isFormOpen ? <ShieldCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                            {isFormOpen ? 'Close Form' : 'Add New Employee'}
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {isFormOpen && (
+            {isFormOpen && isAdmin && (
                 <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1">
@@ -134,6 +153,20 @@ function Employees() {
                             </div>
                         </div>
                         <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600">Phone Number</label>
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input 
+                                    type="tel" 
+                                    className="input-field pl-10" 
+                                    value={phone} 
+                                    onChange={(e) => setPhone(e.target.value)} 
+                                    required 
+                                    placeholder="e.g., 9876543210"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Year of Joining</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
@@ -160,43 +193,48 @@ function Employees() {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                                <th className="px-6 py-4 font-semibold">Employee ID</th>
-                                <th className="px-6 py-4 font-semibold">Name</th>
-                                <th className="px-6 py-4 font-semibold">Joined</th>
-                                <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                                <th className="px-6 py-4 font-semibold">Employee Name</th>
+                                <th className="px-6 py-4 font-semibold">Year of Joining</th>
+                                {isAdmin && <th className="px-6 py-4 font-semibold text-right">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {employees.map(emp => (
                                 <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-mono font-bold text-indigo-600">{emp.employeeId}</td>
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{emp.name}</td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{emp.joiningYear}</td>
-                                    <td className="px-6 py-4 text-right">
-                                        {deleteConfirmId === emp.id ? (
-                                            <div className="flex justify-end gap-2 animate-in zoom-in-95 duration-200">
-                                                <button 
-                                                    onClick={() => handleDelete(emp.id)}
-                                                    className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors"
-                                                >
-                                                    Confirm
-                                                </button>
-                                                <button 
-                                                    onClick={() => setDeleteConfirmId(null)}
-                                                    className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <button 
-                                                onClick={() => setDeleteConfirmId(emp.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                            >
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
-                                        )}
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                                        <div className="flex flex-col">
+                                            <span>{emp.name}</span>
+                                            {isAdmin && <span className="text-[10px] text-indigo-500 font-mono">{emp.employeeId}</span>}
+                                        </div>
                                     </td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">{emp.joiningYear}</td>
+                                    {isAdmin && (
+                                        <td className="px-6 py-4 text-right">
+                                            {deleteConfirmId === emp.id ? (
+                                                <div className="flex justify-end gap-2 animate-in zoom-in-95 duration-200">
+                                                    <button 
+                                                        onClick={() => handleDelete(emp.id)}
+                                                        className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setDeleteConfirmId(null)}
+                                                        className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => setDeleteConfirmId(emp.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
