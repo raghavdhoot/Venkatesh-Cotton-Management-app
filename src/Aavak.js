@@ -158,14 +158,14 @@ function Aavak({ currentUser }) {
 
         if (parsedRate && netWtAfterDeduction) {
             grossAmount = parsedRate * netWtAfterDeduction;
-            netAmount = grossAmount - hamaliDeduction - weighmentCharges;
+            netAmount = Math.round(grossAmount - hamaliDeduction - weighmentCharges);
         }
         
         if (parsedAmountPaid > netAmount) {
-            alert(`Warning: Amount Paid (₹${parsedAmountPaid}) is more than Net Amount (₹${netAmount.toFixed(2)})`);
+            alert(`Warning: Amount Paid (₹${parsedAmountPaid}) is more than Net Amount (₹${netAmount})`);
         }
 
-        balanceAmount = netAmount - parsedAmountPaid;
+        balanceAmount = Math.round(netAmount - parsedAmountPaid);
 
         const entryData = {
             billingDate: billingDate || null,
@@ -181,9 +181,9 @@ function Aavak({ currentUser }) {
             netWtAfterDeduction: parseFloat(netWtAfterDeduction.toFixed(2)) || null,
             hamaliDeduction: parseFloat(hamaliDeduction.toFixed(2)) || null,
             grossAmount: parseFloat(grossAmount.toFixed(2)) || null,
-            netAmount: parseFloat(netAmount.toFixed(2)) || null,
-            amountPaid: parseFloat(parsedAmountPaid.toFixed(2)) || null,
-            balanceAmount: parseFloat(balanceAmount.toFixed(2)) || null,
+            netAmount: netAmount || null,
+            amountPaid: Math.round(parsedAmountPaid) || null,
+            balanceAmount: balanceAmount || null,
             paymentMode: paymentMode || null,
             accountantName: accountantName || null,
             makerName: makerName || null,
@@ -206,98 +206,127 @@ function Aavak({ currentUser }) {
 
     const generatePdf = async (entryToPrint) => {
         const pdfContentElement = document.createElement('div');
-        pdfContentElement.className = "p-8 bg-white w-[210mm]";
-        pdfContentElement.innerHTML = `
-            <div class="border-4 border-slate-900 p-6 space-y-6">
-                <div class="text-center border-b-2 border-slate-900 pb-4">
-                    <h1 class="text-3xl font-bold">VENKATESH COTTON COMPANY</h1>
-                    <p class="text-sm">NH752, Pomnala, Maharashtra 431801</p>
-                    <h2 class="text-xl font-bold mt-2 underline">FARMER PURCHASE BILL</h2>
+        pdfContentElement.className = "p-4 bg-white w-[210mm]";
+        
+        const createSlipHtml = (copyType, copyColor) => `
+            <div class="border-2 border-slate-900 mb-4 overflow-hidden font-sans text-slate-900">
+                <div class="text-center py-4 border-b-2 border-slate-900">
+                    <h1 class="text-2xl font-bold uppercase tracking-tight">VENKATESH COTTON COMPANY</h1>
+                    <p class="text-[10px] font-medium mt-1">NH752, Pomnala, Maharashtra 431801</p>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-8">
+                <div class="flex justify-between px-4 py-1 border-b-2 border-slate-900 bg-white">
+                    <span class="font-bold uppercase text-[10px]">FARMER PURCHASE BILL</span>
+                    <span class="font-bold uppercase text-[10px]" style="color: ${copyColor}">${copyType}</span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-x-4 px-4 py-2 text-[10px] border-b-2 border-slate-900">
                     <div class="space-y-2">
-                        <p><strong>Token No:</strong> ${entryToPrint.tokenNo}</p>
-                        <p><strong>Farmer Name:</strong> ${entryToPrint.Name}</p>
-                        <p><strong>Village:</strong> ${entryToPrint.Village}</p>
-                        <p><strong>Vehicle No:</strong> ${entryToPrint.vehicleNo}</p>
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">TOKEN NO.</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.tokenNo}</div>
+                        </div>
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">VILLAGE</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.Village}</div>
+                        </div>
                     </div>
-                    <div class="text-right space-y-2">
-                        <p><strong>Date:</strong> ${entryToPrint.billingDate}</p>
-                        <p><strong>Item:</strong> ${entryToPrint.itemName}</p>
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">DATE</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.billingDate}</div>
+                        </div>
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">VEHICLE NO.</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.vehicleNo}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">FARMER NAME</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.Name}</div>
+                        </div>
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">ITEM</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.itemName}</div>
+                        </div>
                     </div>
                 </div>
 
-                <table class="w-full border-collapse border-2 border-slate-900">
+                <table class="w-full border-collapse text-[10px]">
                     <thead>
-                        <tr class="bg-slate-100">
-                            <th class="border border-slate-900 p-2">Description</th>
-                            <th class="border border-slate-900 p-2">Weight/Rate</th>
-                            <th class="border border-slate-900 p-2">Amount</th>
+                        <tr class="border-b-2 border-slate-900">
+                            <th class="border-r-2 border-slate-900 p-1 text-left w-[50%] uppercase font-bold">Description</th>
+                            <th class="border-r-2 border-slate-900 p-1 text-left w-[25%] uppercase font-bold">Weight/Rate</th>
+                            <th class="p-1 text-left w-[25%] uppercase font-bold">Amount</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr>
-                            <td class="border border-slate-900 p-2">Gross Weight</td>
-                            <td class="border border-slate-900 p-2 text-right">${entryToPrint.grossWt} kg</td>
-                            <td class="border border-slate-900 p-2"></td>
+                    <tbody class="font-bold">
+                        <tr class="border-b border-slate-300">
+                            <td class="border-r-2 border-slate-900 p-1 py-2">Gross Weight / Tare Weight</td>
+                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">${entryToPrint.grossWt} / ${entryToPrint.tareWt} kg</td>
+                            <td class="p-1 py-2"></td>
                         </tr>
-                        <tr>
-                            <td class="border border-slate-900 p-2">Tare Weight</td>
-                            <td class="border border-slate-900 p-2 text-right">${entryToPrint.tareWt} kg</td>
-                            <td class="border border-slate-900 p-2"></td>
+                        <tr class="border-b border-slate-300">
+                            <td class="border-r-2 border-slate-900 p-1 py-2">Net Weight</td>
+                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">${entryToPrint.netWt} kg</td>
+                            <td class="p-1 py-2"></td>
                         </tr>
-                        <tr class="font-bold">
-                            <td class="border border-slate-900 p-2">Net Weight</td>
-                            <td class="border border-slate-900 p-2 text-right">${entryToPrint.netWt} kg</td>
-                            <td class="border border-slate-900 p-2"></td>
+                        <tr class="border-b border-slate-300">
+                            <td class="border-r-2 border-slate-900 p-1 py-2">Net Wt (After 1.4% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">${entryToPrint.netWtAfterDeduction} kg</td>
+                            <td class="p-1 py-2"></td>
                         </tr>
-                        <tr>
-                            <td class="border border-slate-900 p-2">Net Wt (After 1.4% Ded.)</td>
-                            <td class="border border-slate-900 p-2 text-right">${entryToPrint.netWtAfterDeduction} kg</td>
-                            <td class="border border-slate-900 p-2"></td>
-                        </tr>
-                        <tr>
-                            <td class="border border-slate-900 p-2">Rate</td>
-                            <td class="border border-slate-900 p-2 text-right">₹${entryToPrint.rate}</td>
-                            <td class="border border-slate-900 p-2 text-right">₹${entryToPrint.grossAmount}</td>
-                        </tr>
-                        <tr>
-                            <td class="border border-slate-900 p-2">Less: Hamali & Weighment</td>
-                            <td class="border border-slate-900 p-2 text-right">₹${entryToPrint.hamaliDeduction} + ₹50</td>
-                            <td class="border border-slate-900 p-2 text-right">- ₹${entryToPrint.hamaliDeduction + 50}</td>
-                        </tr>
-                        <tr class="text-xl font-bold bg-slate-50">
-                            <td colspan="2" class="border border-slate-900 p-2 text-right">NET PAYABLE</td>
-                            <td class="border border-slate-900 p-2 text-right">₹${entryToPrint.netAmount}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="2" class="border border-slate-900 p-2 text-right">Amount Paid (${entryToPrint.paymentMode || 'CASH'})</td>
-                            <td class="border border-slate-900 p-2 text-right">₹${entryToPrint.amountPaid}</td>
-                        </tr>
-                        <tr class="font-bold">
-                            <td colspan="2" class="border border-slate-900 p-2 text-right">Balance Amount</td>
-                            <td class="border border-slate-900 p-2 text-right">₹${entryToPrint.balanceAmount}</td>
+                        <tr class="border-b-2 border-slate-900">
+                            <td class="border-r-2 border-slate-900 p-1 py-2">Rate / Hamali & Weighment</td>
+                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">₹${entryToPrint.rate} / ₹${entryToPrint.hamaliDeduction + 50}</td>
+                            <td class="p-1 py-2 text-right">₹${entryToPrint.grossAmount} / -₹${entryToPrint.hamaliDeduction + 50}</td>
                         </tr>
                     </tbody>
                 </table>
 
-                <div class="grid grid-cols-2 gap-4 text-xs">
-                    <p><strong>Payment Mode:</strong> ${entryToPrint.paymentMode || 'CASH'}</p>
-                    <p class="text-right"><strong>${entryToPrint.paymentMode === 'RTGS' ? 'Maker' : 'Accountant'}:</strong> ${entryToPrint.paymentMode === 'RTGS' ? entryToPrint.makerName : entryToPrint.accountantName}</p>
-                </div>
-
-                <div class="flex justify-between mt-12">
-                    <div class="text-center">
-                        <div class="w-32 border-b border-slate-900 mb-2"></div>
-                        <p class="text-xs">Farmer Signature</p>
+                <div class="grid grid-cols-12 text-[10px]">
+                    <div class="col-span-7 p-2 space-y-2 border-r-2 border-slate-900">
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">PAYMENT MODE</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.paymentMode || 'CASH'}</div>
+                        </div>
+                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap">ACCOUNTANT NAME</span>
+                            <div class="flex-1 font-bold px-1">${entryToPrint.accountantName || entryToPrint.makerName || ''}</div>
+                        </div>
                     </div>
-                    <div class="text-center">
-                        <div class="w-32 border-b border-slate-900 mb-2"></div>
-                        <p class="text-xs">Authorized Signatory</p>
+                    <div class="col-span-5 p-2 space-y-1">
+                        <div class="flex justify-between font-bold">
+                            <span class="uppercase">Net Payable</span>
+                            <span>₹ ${entryToPrint.netAmount}</span>
+                        </div>
+                        <div class="flex justify-between font-bold">
+                            <span class="uppercase">Amount Paid</span>
+                            <span>₹ ${entryToPrint.amountPaid}</span>
+                        </div>
+                        <div class="flex justify-between border-t border-slate-900 pt-1 text-xs font-black">
+                            <span class="uppercase">Balance</span>
+                            <span>₹ ${entryToPrint.balanceAmount}</span>
+                        </div>
                     </div>
                 </div>
             </div>
+        `;
+        
+        pdfContentElement.innerHTML = `
+            ${createSlipHtml('APMC COPY', '#ef4444')}
+            <div class="border-b border-dashed border-slate-300 my-8"></div>
+            ${createSlipHtml('FARMER COPY', '#ef4444')}
+        `;
+        
+        pdfContentElement.innerHTML = `
+            ${createSlipHtml('APMC COPY', '#ef4444', 'Accountant Signature')}
+            <div class="text-center my-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                ✂ CUT ALONG THIS LINE ✂
+                <div class="border-b border-dashed border-slate-300 mt-1"></div>
+            </div>
+            ${createSlipHtml('FARMER COPY', '#ef4444', 'Farmer Signature')}
         `;
 
         document.body.appendChild(pdfContentElement);
