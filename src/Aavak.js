@@ -424,8 +424,18 @@ function Aavak({ currentUser }) {
                             <input type="text" className="input-field" value={Village} onChange={(e) => setVillage(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Vehicle No</label>
-                            <input type="text" className="input-field" value={vehicleNo} onChange={(e) => setVehicleNo(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                            <label className="text-sm font-semibold text-slate-600">Vehicle No (e.g., MH-12-AB-1234)</label>
+                            <input 
+                                type="text" 
+                                className="input-field uppercase" 
+                                value={vehicleNo} 
+                                onChange={(e) => setVehicleNo(e.target.value.toUpperCase())} 
+                                required 
+                                disabled={hasTareWtBeenEntered && !isNewEntry}
+                                pattern="^[A-Z]{2}[ -][0-9]{1,2}[ -][A-Z]{1,2}[ -][0-9]{4}$"
+                                title="Please enter vehicle number in format: MH-12-AB-1234"
+                                placeholder="MH-12-AB-1234"
+                            />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Gross Weight (kg)</label>

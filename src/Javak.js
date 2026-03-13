@@ -320,10 +320,19 @@ function Javak({ currentUser }) {
                             <input type="date" className="input-field" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} required />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Vehicle Number</label>
+                            <label className="text-sm font-semibold text-slate-600">Vehicle Number (e.g., MH-12-AB-1234)</label>
                             <div className="relative">
                                 <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} required placeholder="MH-12-AB-1234" />
+                                <input 
+                                    type="text" 
+                                    className="input-field pl-10 uppercase" 
+                                    value={vehicleNumber} 
+                                    onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())} 
+                                    required 
+                                    placeholder="MH-12-AB-1234"
+                                    pattern="^[A-Z]{2}[ -][0-9]{1,2}[ -][A-Z]{1,2}[ -][0-9]{4}$"
+                                    title="Please enter vehicle number in format: MH-12-AB-1234"
+                                />
                             </div>
                         </div>
                         <div className="space-y-1">
