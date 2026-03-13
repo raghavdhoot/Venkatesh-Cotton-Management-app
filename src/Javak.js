@@ -23,6 +23,15 @@ function Javak({ currentUser }) {
     
     const [recentJavakEntries, setRecentJavakEntries] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+
+    useEffect(() => {
+        if (statusMessage.text) {
+            const timer = setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
 
     useEffect(() => {
         const q = query(collection(db, 'javakEntries'), orderBy('timestamp', 'desc'));
@@ -115,27 +124,26 @@ function Javak({ currentUser }) {
             const entryRef = doc(db, 'javakEntries', gatePassNo);
             if (currentEntryId) {
                 await updateDoc(entryRef, entryData);
-                alert('Entry updated successfully');
+                setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
             } else {
                 await setDoc(entryRef, entryData);
-                alert('New entry created successfully');
+                setStatusMessage({ text: 'New entry created successfully', type: 'success' });
             }
             resetForm();
         } catch (error) {
             console.error("Error saving/updating document: ", error);
-            alert('Error saving entry');
+            setStatusMessage({ text: 'Error saving entry', type: 'error' });
         }
     };
 
     const handleDeleteEntry = async (id) => {
-        if (window.confirm(`Are you sure you want to delete Gate Pass No: ${id}?`)) {
-            try {
-                await deleteDoc(doc(db, 'javakEntries', String(id)));
-                alert('Entry deleted successfully');
-            } catch (error) {
-                console.error("Error deleting entry: ", error);
-                alert('Error deleting entry');
-            }
+        try {
+            await deleteDoc(doc(db, 'javakEntries', String(id)));
+            setDeleteConfirmId(null);
+            setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
+        } catch (error) {
+            console.error("Error deleting entry: ", error);
+            setStatusMessage({ text: 'Error deleting entry', type: 'error' });
         }
     };
 
@@ -258,16 +266,25 @@ function Javak({ currentUser }) {
         <div className="space-y-8">
             {/* Action Header */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                    <input 
-                        type="text" 
-                        placeholder="Search Gate Pass No..." 
-                        className="input-field pl-10"
-                        value={searchGatePass}
-                        onChange={(e) => setSearchGatePass(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
-                    />
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="relative w-full md:w-96">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                        <input 
+                            type="text" 
+                            placeholder="Search Gate Pass No..." 
+                            className="input-field pl-10"
+                            value={searchGatePass}
+                            onChange={(e) => setSearchGatePass(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
+                        />
+                    </div>
+                    {statusMessage.text && (
+                        <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 whitespace-nowrap ${
+                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                            {statusMessage.text}
+                        </div>
+                    )}
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <button onClick={handleLookupEntry} className="btn-primary flex-1 md:flex-none flex items-center justify-center gap-2">
@@ -413,13 +430,30 @@ function Javak({ currentUser }) {
                                         >
                                             <FileText className="w-5 h-5" />
                                         </button>
-                                        <button 
-                                            onClick={() => handleDeleteEntry(entry.gatePassNo || entry.id)}
-                                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                            title="Delete Entry"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
+                                        {deleteConfirmId === (entry.gatePassNo || entry.id) ? (
+                                            <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200">
+                                                <button 
+                                                    onClick={() => handleDeleteEntry(entry.gatePassNo || entry.id)}
+                                                    className="px-2 py-1 bg-red-600 text-white text-[10px] font-bold rounded hover:bg-red-700 transition-colors"
+                                                >
+                                                    Confirm
+                                                </button>
+                                                <button 
+                                                    onClick={() => setDeleteConfirmId(null)}
+                                                    className="px-2 py-1 bg-slate-200 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-300 transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => setDeleteConfirmId(entry.gatePassNo || entry.id)}
+                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                title="Delete Entry"
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

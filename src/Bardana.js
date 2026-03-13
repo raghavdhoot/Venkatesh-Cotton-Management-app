@@ -9,6 +9,15 @@ function Bardana() {
     const [type, setType] = useState('IN'); // IN or OUT
     const [bardanaEntries, setBardanaEntries] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+
+    useEffect(() => {
+        if (statusMessage.text) {
+            const timer = setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
 
     useEffect(() => {
         const q = query(collection(db, 'bardanaEntries'), orderBy('timestamp', 'desc'));
@@ -38,20 +47,21 @@ function Bardana() {
             setItemName('');
             setQuantity('');
             setIsFormOpen(false);
+            setStatusMessage({ text: 'Entry added successfully', type: 'success' });
         } catch (error) {
             console.error("Error adding bardana: ", error);
+            setStatusMessage({ text: 'Error adding entry', type: 'error' });
         }
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm('Delete this entry?')) {
-            try {
-                await deleteDoc(doc(db, 'bardanaEntries', id));
-                alert('Entry deleted successfully');
-            } catch (error) {
-                console.error("Error deleting bardana: ", error);
-                alert('Error deleting entry');
-            }
+        try {
+            await deleteDoc(doc(db, 'bardanaEntries', id));
+            setDeleteConfirmId(null);
+            setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
+        } catch (error) {
+            console.error("Error deleting bardana: ", error);
+            setStatusMessage({ text: 'Error deleting entry', type: 'error' });
         }
     };
 
@@ -72,13 +82,22 @@ function Bardana() {
         <div className="space-y-8">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-900">Bardana Management</h2>
-                <button 
-                    onClick={() => setIsFormOpen(!isFormOpen)} 
-                    className="btn-primary flex items-center gap-2"
-                >
-                    {isFormOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    {isFormOpen ? 'Close Form' : 'New Bardana Entry'}
-                </button>
+                <div className="flex items-center gap-4">
+                    {statusMessage.text && (
+                        <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 ${
+                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                            {statusMessage.text}
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => setIsFormOpen(!isFormOpen)} 
+                        className="btn-primary flex items-center gap-2"
+                    >
+                        {isFormOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        {isFormOpen ? 'Close Form' : 'New Bardana Entry'}
+                    </button>
+                </div>
             </div>
 
             {isFormOpen && (
@@ -165,12 +184,30 @@ function Bardana() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <button 
-                                                onClick={() => handleDelete(entry.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                            >
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
+                                            {deleteConfirmId === entry.id ? (
+                                                <div className="flex items-center justify-end gap-2 animate-in zoom-in-95 duration-200">
+                                                    <button 
+                                                        onClick={() => handleDelete(entry.id)}
+                                                        className="px-2 py-1 bg-red-600 text-white text-[10px] font-bold rounded hover:bg-red-700 transition-colors"
+                                                    >
+                                                        Confirm
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setDeleteConfirmId(null)}
+                                                        className="px-2 py-1 bg-slate-200 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-300 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => setDeleteConfirmId(entry.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                    title="Delete Entry"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
