@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
-import { Plus, Trash2, X, Save } from 'lucide-react';
+import { Plus, Trash2, X, Save, User } from 'lucide-react';
 
-function Bardana() {
+function Bardana({ currentUser }) {
     const [itemName, setItemName] = useState('');
     const [quantity, setQuantity] = useState('');
+    const [personName, setPersonName] = useState('');
+    const [employeeName, setEmployeeName] = useState(currentUser?.name || '');
     const [type, setType] = useState('IN'); // IN or OUT
     const [bardanaEntries, setBardanaEntries] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -18,6 +20,12 @@ function Bardana() {
             return () => clearTimeout(timer);
         }
     }, [statusMessage]);
+
+    useEffect(() => {
+        if (currentUser) {
+            setEmployeeName(currentUser.name);
+        }
+    }, [currentUser]);
 
     useEffect(() => {
         const q = query(collection(db, 'bardanaEntries'), orderBy('timestamp', 'desc'));
@@ -38,7 +46,10 @@ function Bardana() {
         const newEntry = {
             itemName,
             quantity: parseInt(quantity, 10),
+            personName: personName || 'N/A',
+            employeeName: employeeName || currentUser?.name || 'N/A',
             type,
+            entryMaker: currentUser?.name || 'Unknown',
             timestamp: serverTimestamp()
         };
 
@@ -46,6 +57,8 @@ function Bardana() {
             await addDoc(collection(db, 'bardanaEntries'), newEntry);
             setItemName('');
             setQuantity('');
+            setPersonName('');
+            setEmployeeName(currentUser?.name || '');
             setIsFormOpen(false);
             setStatusMessage({ text: 'Entry added successfully', type: 'success' });
         } catch (error) {
@@ -125,6 +138,34 @@ function Bardana() {
                             />
                         </div>
                         <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600">
+                                {type === 'IN' ? 'Driver Name' : 'Given to'}
+                            </label>
+                            <div className="relative">
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <input 
+                                    type="text" 
+                                    className="input-field pl-10" 
+                                    value={personName} 
+                                    onChange={(e) => setPersonName(e.target.value)} 
+                                    required 
+                                    placeholder={type === 'IN' ? "e.g., Driver Name" : "e.g., Person Name"}
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600">
+                                {type === 'IN' ? 'Received by (Employee)' : 'Given by (Employee)'}
+                            </label>
+                            <input 
+                                type="text" 
+                                className="input-field bg-slate-50" 
+                                value={employeeName} 
+                                onChange={(e) => setEmployeeName(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Type</label>
                             <select 
                                 className="input-field" 
@@ -169,6 +210,8 @@ function Bardana() {
                                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                     <th className="px-6 py-4 font-semibold">Item</th>
                                     <th className="px-6 py-4 font-semibold">Qty</th>
+                                    <th className="px-6 py-4 font-semibold">Person</th>
+                                    <th className="px-6 py-4 font-semibold">Employee</th>
                                     <th className="px-6 py-4 font-semibold">Type</th>
                                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                                 </tr>
@@ -178,6 +221,8 @@ function Bardana() {
                                     <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-6 py-4 text-sm font-medium text-slate-900">{entry.itemName}</td>
                                         <td className="px-6 py-4 text-sm font-bold">{entry.quantity}</td>
+                                        <td className="px-6 py-4 text-sm">{entry.personName || 'N/A'}</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-indigo-600">{entry.employeeName || 'N/A'}</td>
                                         <td className="px-6 py-4 text-sm">
                                             <span className={`px-2 py-1 rounded text-xs font-bold ${entry.type === 'IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
                                                 {entry.type}

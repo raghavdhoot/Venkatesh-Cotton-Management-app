@@ -91,7 +91,7 @@ function App() {
             case 'javak':
                 return <Javak currentUser={user} />;
             case 'bardana':
-                return <Bardana />;
+                return <Bardana currentUser={user} />;
             case 'employees':
                 return <Employees />;
             default:
