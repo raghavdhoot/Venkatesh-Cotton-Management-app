@@ -25,10 +25,12 @@ function Employees({ currentUser }) {
     useEffect(() => {
         const q = query(collection(db, 'employees'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const empData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+            const empData = snapshot.docs
+                .map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }))
+                .filter(emp => emp.employeeId !== 'ADMIN' && emp.role !== 'admin');
             setEmployees(empData);
         });
         return () => unsubscribe();
@@ -86,7 +88,12 @@ function Employees({ currentUser }) {
         }
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (id, role) => {
+        if (role === 'admin' || id === 'ADMIN') {
+            setStatusMessage({ text: 'Cannot delete Admin accounts', type: 'error' });
+            setDeleteConfirmId(null);
+            return;
+        }
         try {
             await deleteDoc(doc(db, 'employees', id));
             setDeleteConfirmId(null);
@@ -213,7 +220,7 @@ function Employees({ currentUser }) {
                                             {deleteConfirmId === emp.id ? (
                                                 <div className="flex justify-end gap-2 animate-in zoom-in-95 duration-200">
                                                     <button 
-                                                        onClick={() => handleDelete(emp.id)}
+                                                        onClick={() => handleDelete(emp.id, emp.role)}
                                                         className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors"
                                                     >
                                                         Confirm
