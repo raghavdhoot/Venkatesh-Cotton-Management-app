@@ -153,20 +153,25 @@ function Aavak({ currentUser }) {
         let netWt = 0;
         let netWtAfterDeduction = 0;
         let hamaliDeduction = 0;
+        let weighmentDeduction = 0;
         let grossAmount = 0;
         let netAmount = 0;
         let balanceAmount = 0;
-        const weighmentCharges = 50;
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
+            // 1.4% moisture/dirt deduction (standard practice)
             netWtAfterDeduction = netWt * 0.986;
-            hamaliDeduction = netWt * 15;
+            
+            // Deductions are per Quintal (100 KG)
+            const netWtInQuintals = netWt / 100;
+            hamaliDeduction = netWtInQuintals * 15;
+            weighmentDeduction = netWtInQuintals * 50;
         }
 
         if (parsedRate && netWtAfterDeduction) {
-            grossAmount = parsedRate * netWtAfterDeduction;
-            netAmount = Math.round(grossAmount - hamaliDeduction - weighmentCharges);
+            grossAmount = (parsedRate / 100) * netWtAfterDeduction; // Rate is also usually per Quintal
+            netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
         }
         
         if (parsedAmountPaid > netAmount) {
@@ -188,6 +193,7 @@ function Aavak({ currentUser }) {
             netWt: parseFloat(netWt.toFixed(2)) || null,
             netWtAfterDeduction: parseFloat(netWtAfterDeduction.toFixed(2)) || null,
             hamaliDeduction: parseFloat(hamaliDeduction.toFixed(2)) || null,
+            weighmentDeduction: parseFloat(weighmentDeduction.toFixed(2)) || null,
             grossAmount: parseFloat(grossAmount.toFixed(2)) || null,
             netAmount: netAmount || null,
             amountPaid: Math.round(parsedAmountPaid) || null,
@@ -290,8 +296,8 @@ function Aavak({ currentUser }) {
                         </tr>
                         <tr class="border-b-2 border-slate-900">
                             <td class="border-r-2 border-slate-900 p-1 py-2">Rate / Hamali & Weighment</td>
-                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">₹${entryToPrint.rate} / ₹${entryToPrint.hamaliDeduction + 50}</td>
-                            <td class="p-1 py-2 text-right">₹${entryToPrint.grossAmount} / -₹${entryToPrint.hamaliDeduction + 50}</td>
+                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">₹${entryToPrint.rate} / ₹${(entryToPrint.hamaliDeduction + (entryToPrint.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="p-1 py-2 text-right">₹${entryToPrint.grossAmount} / -₹${(entryToPrint.hamaliDeduction + (entryToPrint.weighmentDeduction || 0)).toFixed(2)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -430,7 +436,7 @@ function Aavak({ currentUser }) {
                             <input type="number" step="0.01" className="input-field" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Rate (₹)</label>
+                            <label className="text-sm font-semibold text-slate-600">Rate (₹ per Quintal)</label>
                             <input type="number" step="0.01" className="input-field" value={rate} onChange={(e) => setRate(e.target.value)} />
                         </div>
                         <div className="space-y-1">
