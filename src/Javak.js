@@ -3,7 +3,7 @@ import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2 } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera } from 'lucide-react';
 
 function Javak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -19,7 +19,7 @@ function Javak({ currentUser }) {
     const [tareWt, setTareWt] = useState('');
     const [numberOfBags, setNumberOfBags] = useState('');
     const [driverName, setDriverName] = useState('');
-    const [transportName, setTransportName] = useState('');
+    const [driverPhoto, setDriverPhoto] = useState(null);
     
     const [recentJavakEntries, setRecentJavakEntries] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -51,7 +51,7 @@ function Javak({ currentUser }) {
         setTareWt('');
         setNumberOfBags('');
         setDriverName('');
-        setTransportName('');
+        setDriverPhoto(null);
         setIsFormOpen(false);
     };
 
@@ -74,7 +74,7 @@ function Javak({ currentUser }) {
                 setTareWt(entryData.tareWt || '');
                 setNumberOfBags(entryData.numberOfBags || '');
                 setDriverName(entryData.driverName || '');
-                setTransportName(entryData.transportName || '');
+                setDriverPhoto(entryData.driverPhoto || null);
                 setIsFormOpen(true);
             } else {
                 resetForm();
@@ -106,7 +106,7 @@ function Javak({ currentUser }) {
             netWt: parseFloat(netWt.toFixed(2)),
             numberOfBags: parseInt(numberOfBags, 10),
             driverName: driverName || null,
-            transportName: transportName || null,
+            driverPhoto: driverPhoto || null,
             entryMaker: currentUser.name,
             timestamp: serverTimestamp()
         };
@@ -139,47 +139,99 @@ function Javak({ currentUser }) {
         }
     };
 
+    const handlePhotoChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setDriverPhoto(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const generateJavakPdf = async (entryToPrint) => {
         const pdfContentElement = document.createElement('div');
-        pdfContentElement.className = "p-8 bg-white w-[210mm]";
+        pdfContentElement.className = "p-2 bg-white w-[210mm]";
         
         const slipHtml = `
-            <div class="border-2 border-slate-900 p-6 space-y-4 mb-8">
-                <div class="text-center border-b border-slate-900 pb-2">
-                    <h2 class="text-2xl font-bold">VENKATESH COTTON CO.</h2>
-                    <p class="text-xs">NH752, Pomnala, Maharashtra 431801</p>
-                    <h3 class="text-lg font-bold mt-1 underline uppercase">Outgoing Gate Pass</h3>
-                </div>
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                        <div class="space-y-2">
-                            <p><strong>Gate Pass No:</strong> ${entryToPrint.gatePassNo || entryToPrint.id}</p>
-                            <p><strong>Vehicle No:</strong> ${entryToPrint.vehicleNumber}</p>
-                            <p><strong>Driver:</strong> ${entryToPrint.driverName || 'N/A'}</p>
-                            <p><strong>Transport:</strong> ${entryToPrint.transportName || 'N/A'}</p>
-                            <p><strong>Destination:</strong> ${entryToPrint.destination}</p>
-                            <p><strong>Commodity:</strong> ${entryToPrint.commodity}</p>
+            <div class="border-2 border-slate-900 p-3 mb-2 relative overflow-hidden flex gap-4">
+                <!-- Left Side: Main Details -->
+                <div class="flex-1">
+                    <div class="text-center mb-3">
+                        <h1 class="text-xl font-bold text-blue-700 uppercase">Venkatesh Cotton Co.</h1>
+                        <p class="text-[9px] text-slate-600">NH752, Pomnala, Maharashtra 431801</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <div class="border border-slate-300 p-1.5 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Vehicle no.</p>
+                            <p class="text-xs font-semibold">${entryToPrint.vehicleNumber}</p>
                         </div>
-                    <div class="text-right space-y-2">
-                        <p><strong>Date:</strong> ${entryToPrint.date}</p>
-                        <p><strong>No. of Bags:</strong> ${entryToPrint.numberOfBags}</p>
+                        <div class="border border-slate-300 p-1.5 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Date</p>
+                            <p class="text-xs font-semibold">${entryToPrint.date}</p>
+                        </div>
+                        <div class="border border-slate-300 p-1.5 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Destination</p>
+                            <p class="text-xs font-semibold">${entryToPrint.destination}</p>
+                        </div>
+                        <div class="border border-slate-300 p-1.5 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Driver Name</p>
+                            <p class="text-xs font-semibold">${entryToPrint.driverName || 'N/A'}</p>
+                        </div>
+                        <div class="border border-slate-300 p-1.5 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Commodity</p>
+                            <p class="text-xs font-semibold">${entryToPrint.commodity}</p>
+                        </div>
+                        <div class="border border-slate-300 p-1.5 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Bags</p>
+                            <p class="text-xs font-bold">${entryToPrint.numberOfBags}</p>
+                        </div>
+                        <div class="border border-slate-300 p-1.5 rounded col-span-2">
+                            <div class="grid grid-cols-3 gap-1">
+                                <div>
+                                    <p class="text-[8px] text-slate-500 uppercase font-bold">Gross</p>
+                                    <p class="text-[10px] font-semibold">${entryToPrint.grossWt} kg</p>
+                                </div>
+                                <div>
+                                    <p class="text-[8px] text-slate-500 uppercase font-bold">Tare</p>
+                                    <p class="text-[10px] font-semibold">${entryToPrint.tareWt} kg</p>
+                                </div>
+                                <div>
+                                    <p class="text-[8px] text-slate-500 uppercase font-bold">Net</p>
+                                    <p class="text-[10px] font-bold text-indigo-700">${entryToPrint.netWt} kg</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="grid grid-cols-3 gap-4 pt-4 border-t border-slate-900 text-center font-bold">
-                    <div class="border border-slate-900 p-2">Gross: ${entryToPrint.grossWt} kg</div>
-                    <div class="border border-slate-900 p-2">Tare: ${entryToPrint.tareWt} kg</div>
-                    <div class="border border-slate-900 p-2 bg-slate-50">Net: ${entryToPrint.netWt} kg</div>
-                </div>
-                <div class="flex justify-between pt-8 text-xs font-bold">
-                    <p>Driver Signature</p>
-                    <p>Security Signature</p>
-                    <p>Authorized Signatory</p>
+
+                <!-- Right Side: Gate Pass & Photo -->
+                <div class="w-32 flex flex-col items-center">
+                    <div class="border border-slate-900 p-1 mb-2 w-full text-center">
+                        <p class="text-[7px] text-slate-500 uppercase font-bold">Gate Pass No.</p>
+                        <p class="text-sm font-bold text-blue-700">${entryToPrint.gatePassNo || entryToPrint.id}</p>
+                    </div>
+                    ${entryToPrint.driverPhoto ? `
+                    <div class="border border-slate-900 p-0.5 bg-slate-50">
+                        <img src="${entryToPrint.driverPhoto}" class="w-[30mm] h-[40mm] object-cover" />
+                        <p class="text-[7px] text-center font-bold mt-0.5 uppercase">Driver Photo</p>
+                    </div>
+                    ` : `
+                    <div class="w-[30mm] h-[40mm] border-2 border-dashed border-slate-300 flex items-center justify-center">
+                        <p class="text-[8px] text-slate-300 uppercase font-bold text-center">No Photo<br>Available</p>
+                    </div>
+                    `}
                 </div>
             </div>
         `;
-
+        
         pdfContentElement.innerHTML = `
             ${slipHtml}
-            <div class="border-b-2 border-dashed border-slate-300 my-8"></div>
+            <div class="border-b border-dashed border-slate-300 my-2"></div>
+            ${slipHtml}
+            <div class="border-b border-dashed border-slate-300 my-2"></div>
             ${slipHtml}
         `;
 
@@ -292,8 +344,22 @@ function Javak({ currentUser }) {
                             <input type="text" className="input-field" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g., Rajesh Kumar" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Transport Name</label>
-                            <input type="text" className="input-field" value={transportName} onChange={(e) => setTransportName(e.target.value)} placeholder="e.g., VCC Logistics" />
+                            <label className="text-sm font-semibold text-slate-600">Driver Photo</label>
+                            <div className="flex items-center gap-4">
+                                <label className="flex-1 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-slate-50 transition-all">
+                                    <Camera className="w-5 h-5 text-slate-400" />
+                                    <span className="text-sm text-slate-500">Upload Photo</span>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
+                                </label>
+                                {driverPhoto && (
+                                    <div className="relative w-12 h-12">
+                                        <img src={driverPhoto} alt="Preview" className="w-full h-full object-cover rounded-lg border border-slate-200" />
+                                        <button type="button" onClick={() => setDriverPhoto(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-sm">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="lg:col-span-3 flex justify-end gap-3 pt-4 border-t border-slate-100">
