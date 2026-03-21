@@ -5,6 +5,7 @@ import { Plus, Trash2, X, Save, User } from 'lucide-react';
 
 function Bardana({ currentUser }) {
     const [itemName, setItemName] = useState('');
+    const [customItemName, setCustomItemName] = useState('');
     const [quantity, setQuantity] = useState('');
     const [personName, setPersonName] = useState('');
     const [employeeName, setEmployeeName] = useState(currentUser?.name || '');
@@ -41,10 +42,11 @@ function Bardana({ currentUser }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!itemName || !quantity) return;
+        const finalItemName = itemName === 'OTHER' ? customItemName : itemName;
+        if (!finalItemName || !quantity) return;
 
         const newEntry = {
-            itemName,
+            itemName: finalItemName,
             quantity: parseInt(quantity, 10),
             personName: personName || 'N/A',
             employeeName: employeeName || currentUser?.name || 'N/A',
@@ -61,6 +63,7 @@ function Bardana({ currentUser }) {
             setEmployeeName(currentUser?.name || '');
             setIsFormOpen(false);
             setStatusMessage({ text: 'Entry added successfully', type: 'success' });
+            setCustomItemName('');
         } catch (error) {
             console.error("Error adding bardana: ", error);
             setStatusMessage({ text: 'Error adding entry', type: 'error' });
@@ -118,15 +121,34 @@ function Bardana({ currentUser }) {
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Item Name</label>
-                            <input 
-                                type="text" 
+                            <select 
                                 className="input-field uppercase" 
                                 value={itemName} 
-                                onChange={(e) => setItemName(e.target.value.toUpperCase())} 
-                                required 
-                                placeholder="e.g., Gunny Bags"
-                            />
+                                onChange={(e) => setItemName(e.target.value)} 
+                                required
+                            >
+                                <option value="">Select Item</option>
+                                <option value="BARDANA">BARDANA (GUNNY BAGS)</option>
+                                <option value="PLASTIC BARDANA">PLASTIC BARDANA</option>
+                                <option value="SUTLI">SUTLI</option>
+                                <option value="GATHAAN PATTI">GATHAAN PATTI</option>
+                                <option value="GATHAN KAPDA">GATHAN KAPDA</option>
+                                <option value="OTHER">OTHER</option>
+                            </select>
                         </div>
+                        {itemName === 'OTHER' && (
+                            <div className="space-y-1 animate-in fade-in slide-in-from-left-4">
+                                <label className="text-sm font-semibold text-slate-600">Specify Other Item</label>
+                                <input 
+                                    type="text" 
+                                    className="input-field uppercase" 
+                                    value={customItemName}
+                                    onChange={(e) => setCustomItemName(e.target.value.toUpperCase())} 
+                                    required 
+                                    placeholder="Enter Item Name"
+                                />
+                            </div>
+                        )}
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Quantity</label>
                             <input 

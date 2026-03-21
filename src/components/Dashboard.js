@@ -55,7 +55,7 @@ function Dashboard() {
           breakdown[item] = (breakdown[item] || 0) - qty;
         }
 
-        if (item === 'GUNNY BAGS' || item === 'GUNNY BAG') {
+        if (item === 'GUNNY BAGS' || item === 'GUNNY BAG' || item === 'BARDANA') {
           totalGunny += qty * (data.type === 'IN' ? 1 : -1);
         }
       });
@@ -159,7 +159,7 @@ function Dashboard() {
                   </p>
                 </div>
                 <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                  <p className="text-sm text-red-600 font-bold uppercase tracking-widest mb-1">Gunny Bags Stock</p>
+                  <p className="text-sm text-red-600 font-bold uppercase tracking-widest mb-1">Bardana Stock</p>
                   <p className="text-5xl font-black text-red-700">{bardanaStock}</p>
                   <p className="text-xs text-red-400 mt-2 font-semibold italic">Minimum required: 100 Bags</p>
                 </div>

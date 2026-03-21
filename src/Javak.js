@@ -20,7 +20,7 @@ function Javak({ currentUser }) {
     const [numberOfBags, setNumberOfBags] = useState('');
     const [driverName, setDriverName] = useState('');
     const [driverPhoto, setDriverPhoto] = useState(null);
-    const [bardanaType, setBardanaType] = useState('GUNNY BAGS');
+    const [bardanaType, setBardanaType] = useState('BARDANA');
     const [sutliCount, setSutliCount] = useState('');
     
     const [recentJavakEntries, setRecentJavakEntries] = useState([]);
@@ -63,7 +63,7 @@ function Javak({ currentUser }) {
         setNumberOfBags('');
         setDriverName('');
         setDriverPhoto(null);
-        setBardanaType('GUNNY BAGS');
+        setBardanaType('BARDANA');
         setSutliCount('');
         setIsFormOpen(false);
     };
@@ -88,7 +88,7 @@ function Javak({ currentUser }) {
                 setNumberOfBags(entryData.numberOfBags || '');
                 setDriverName(entryData.driverName || '');
                 setDriverPhoto(entryData.driverPhoto || null);
-                setBardanaType(entryData.bardanaType || 'GUNNY BAGS');
+                setBardanaType(entryData.bardanaType || 'BARDANA');
                 setSutliCount(entryData.sutliCount || '');
                 setIsFormOpen(true);
             } else {
@@ -416,8 +416,8 @@ function Javak({ currentUser }) {
                                 value={bardanaType} 
                                 onChange={(e) => setBardanaType(e.target.value)}
                             >
-                                <option value="GUNNY BAGS">GUNNY BAGS</option>
-                                <option value="PLASTIC BAGS">PLASTIC BAGS</option>
+                                <option value="BARDANA">BARDANA (GUNNY BAGS)</option>
+                                <option value="PLASTIC BARDANA">PLASTIC BARDANA</option>
                                 <option value="OLD BAGS">OLD BAGS</option>
                                 <option value="NEW BAGS">NEW BAGS</option>
                             </select>
