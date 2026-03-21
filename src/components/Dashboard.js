@@ -27,6 +27,7 @@ function Dashboard() {
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
   const [selectedItem, setSelectedItem] = useState(null);
   const [bardanaStock, setBardanaStock] = useState(0);
+  const [bardanaBreakdown, setBardanaBreakdown] = useState({});
   const [showAlert, setShowAlert] = useState(false);
   const [adminNotes, setAdminNotes] = useState([]);
   const [rateChart, setRateChart] = useState([]);
@@ -41,16 +42,27 @@ function Dashboard() {
     });
 
     const unsubscribeBardana = onSnapshot(collection(db, 'bardanaEntries'), (snapshot) => {
-      let total = 0;
+      let totalGunny = 0;
+      const breakdown = {};
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        if (data.itemName === 'Gunny Bags') {
-          if (data.type === 'IN') total += parseInt(data.quantity || 0, 10);
-          else total -= parseInt(data.quantity || 0, 10);
+        const item = data.itemName?.toUpperCase() || 'UNKNOWN';
+        const qty = parseInt(data.quantity || 0, 10);
+        
+        if (data.type === 'IN') {
+          breakdown[item] = (breakdown[item] || 0) + qty;
+        } else {
+          breakdown[item] = (breakdown[item] || 0) - qty;
+        }
+
+        if (item === 'GUNNY BAGS' || item === 'GUNNY BAG') {
+          totalGunny += qty * (data.type === 'IN' ? 1 : -1);
         }
       });
-      setBardanaStock(total);
-      if (total < 100) {
+      setBardanaStock(totalGunny);
+      setBardanaBreakdown(breakdown);
+      
+      if (totalGunny < 100) {
         setShowAlert(true);
       } else {
         setShowAlert(false);
@@ -141,13 +153,13 @@ function Dashboard() {
                   <AlertTriangle className="w-12 h-12 text-red-600" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Critical Warning!</h3>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Stock Warning!</h3>
                   <p className="text-slate-600 font-medium">
-                    Bardana (Gunny Bags) stock is dangerously low!
+                    Bardana stock is dangerously low!
                   </p>
                 </div>
                 <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                  <p className="text-sm text-red-600 font-bold uppercase tracking-widest mb-1">Current Stock</p>
+                  <p className="text-sm text-red-600 font-bold uppercase tracking-widest mb-1">Gunny Bags Stock</p>
                   <p className="text-5xl font-black text-red-700">{bardanaStock}</p>
                   <p className="text-xs text-red-400 mt-2 font-semibold italic">Minimum required: 100 Bags</p>
                 </div>
@@ -230,6 +242,32 @@ function Dashboard() {
               ))
             ) : (
               <p className="text-slate-400 text-sm italic text-center py-4">No recent announcements</p>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-4">Bardana Stock</h3>
+          <div className="space-y-3">
+            {Object.entries(bardanaBreakdown).length > 0 ? (
+              Object.entries(bardanaBreakdown)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([item, qty]) => (
+                <div 
+                  key={item} 
+                  className="flex justify-between items-center p-3 border border-slate-100 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${qty < 100 ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+                    <span className="font-medium text-slate-700">{item}</span>
+                  </div>
+                  <span className={`font-bold ${qty < 100 ? 'text-red-600' : 'text-slate-900'}`}>
+                    {qty.toLocaleString()} Bags
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400 text-sm italic py-4 text-center">No Bardana data</p>
             )}
           </div>
         </div>
