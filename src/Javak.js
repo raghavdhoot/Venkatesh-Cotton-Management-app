@@ -20,6 +20,8 @@ function Javak({ currentUser }) {
     const [numberOfBags, setNumberOfBags] = useState('');
     const [driverName, setDriverName] = useState('');
     const [driverPhoto, setDriverPhoto] = useState(null);
+    const [bardanaType, setBardanaType] = useState('GUNNY BAGS');
+    const [sutliCount, setSutliCount] = useState('');
     
     const [recentJavakEntries, setRecentJavakEntries] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -61,6 +63,8 @@ function Javak({ currentUser }) {
         setNumberOfBags('');
         setDriverName('');
         setDriverPhoto(null);
+        setBardanaType('GUNNY BAGS');
+        setSutliCount('');
         setIsFormOpen(false);
     };
 
@@ -84,6 +88,8 @@ function Javak({ currentUser }) {
                 setNumberOfBags(entryData.numberOfBags || '');
                 setDriverName(entryData.driverName || '');
                 setDriverPhoto(entryData.driverPhoto || null);
+                setBardanaType(entryData.bardanaType || 'GUNNY BAGS');
+                setSutliCount(entryData.sutliCount || '');
                 setIsFormOpen(true);
             } else {
                 resetForm();
@@ -114,6 +120,8 @@ function Javak({ currentUser }) {
             tareWt: parsedTareWt,
             netWt: parseFloat(netWt.toFixed(2)),
             numberOfBags: parseInt(numberOfBags, 10),
+            bardanaType,
+            sutliCount: parseInt(sutliCount || 0, 10),
             driverName: driverName || null,
             driverPhoto: driverPhoto || null,
             entryMaker: currentUser.name,
@@ -130,7 +138,7 @@ function Javak({ currentUser }) {
                 
                 // Automatically subtract from Bardana
                 await addDoc(collection(db, 'bardanaEntries'), {
-                    itemName: 'Gunny Bags',
+                    itemName: bardanaType,
                     quantity: parseInt(numberOfBags, 10),
                     personName: driverName || 'N/A',
                     employeeName: currentUser.name,
@@ -138,6 +146,19 @@ function Javak({ currentUser }) {
                     entryMaker: 'System (Javak)',
                     timestamp: serverTimestamp()
                 });
+
+                // Also subtract Sutli if provided
+                if (sutliCount && parseInt(sutliCount, 10) > 0) {
+                    await addDoc(collection(db, 'bardanaEntries'), {
+                        itemName: 'SUTLI',
+                        quantity: parseInt(sutliCount, 10),
+                        personName: driverName || 'N/A',
+                        employeeName: currentUser.name,
+                        type: 'OUT',
+                        entryMaker: 'System (Javak)',
+                        timestamp: serverTimestamp()
+                    });
+                }
                 
                 setStatusMessage({ text: 'New entry created successfully', type: 'success' });
             }
@@ -267,6 +288,19 @@ function Javak({ currentUser }) {
         }
     };
 
+    const formatVehicleNumber = (val) => {
+        const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        if (cleaned.length <= 2) return cleaned;
+        if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`;
+        if (cleaned.length <= 6) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4)}`;
+        return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
+    };
+
+    const handleVehicleChange = (e) => {
+        const formatted = formatVehicleNumber(e.target.value);
+        setVehicleNumber(formatted);
+    };
+
     const calculateNetWt = () => {
         const gross = parseFloat(grossWt);
         const tare = parseFloat(tareWt);
@@ -332,18 +366,16 @@ function Javak({ currentUser }) {
                             <input type="date" className="input-field" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} required />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Vehicle Number (e.g., MH-12-AB-1234)</label>
+                            <label className="text-sm font-semibold text-slate-600">Vehicle Number</label>
                             <div className="relative">
                                 <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                                 <input 
                                     type="text" 
                                     className="input-field pl-10 uppercase" 
                                     value={vehicleNumber} 
-                                    onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())} 
+                                    onChange={handleVehicleChange} 
                                     required 
-                                    placeholder="MH-12-AB-1234"
-                                    pattern="^[A-Z]{2}[ -][0-9]{1,2}[ -][A-Z]{1,2}[ -][0-9]{4}$"
-                                    title="Please enter vehicle number in format: MH-12-AB-1234"
+                                    placeholder="MH-26-BS-4852"
                                 />
                             </div>
                         </div>
@@ -351,14 +383,14 @@ function Javak({ currentUser }) {
                             <label className="text-sm font-semibold text-slate-600">Destination</label>
                             <div className="relative">
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10" value={destination} onChange={(e) => setDestination(e.target.value)} required placeholder="e.g., Mumbai" />
+                                <input type="text" className="input-field pl-10 uppercase" value={destination} onChange={(e) => setDestination(e.target.value.toUpperCase())} required placeholder="E.G., MUMBAI" />
                             </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Commodity</label>
                             <div className="relative">
                                 <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10" value={commodity} onChange={(e) => setCommodity(e.target.value)} required placeholder="e.g., Cotton Bales" />
+                                <input type="text" className="input-field pl-10 uppercase" value={commodity} onChange={(e) => setCommodity(e.target.value.toUpperCase())} required placeholder="E.G., COTTON BALES" />
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -378,8 +410,31 @@ function Javak({ currentUser }) {
                             <input type="number" className="input-field" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} required />
                         </div>
                         <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600">Bardana Type</label>
+                            <select 
+                                className="input-field" 
+                                value={bardanaType} 
+                                onChange={(e) => setBardanaType(e.target.value)}
+                            >
+                                <option value="GUNNY BAGS">GUNNY BAGS</option>
+                                <option value="PLASTIC BAGS">PLASTIC BAGS</option>
+                                <option value="OLD BAGS">OLD BAGS</option>
+                                <option value="NEW BAGS">NEW BAGS</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600">Sutli Used (Qty)</label>
+                            <input 
+                                type="number" 
+                                className="input-field" 
+                                value={sutliCount} 
+                                onChange={(e) => setSutliCount(e.target.value)} 
+                                placeholder="0"
+                            />
+                        </div>
+                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Given to</label>
-                            <input type="text" className="input-field" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g., Rajesh Kumar" />
+                            <input type="text" className="input-field uppercase" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Driver Photo</label>

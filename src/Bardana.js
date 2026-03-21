@@ -120,9 +120,9 @@ function Bardana({ currentUser }) {
                             <label className="text-sm font-semibold text-slate-600">Item Name</label>
                             <input 
                                 type="text" 
-                                className="input-field" 
+                                className="input-field uppercase" 
                                 value={itemName} 
-                                onChange={(e) => setItemName(e.target.value)} 
+                                onChange={(e) => setItemName(e.target.value.toUpperCase())} 
                                 required 
                                 placeholder="e.g., Gunny Bags"
                             />
@@ -145,9 +145,9 @@ function Bardana({ currentUser }) {
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10" 
+                                    className="input-field pl-10 uppercase" 
                                     value={personName} 
-                                    onChange={(e) => setPersonName(e.target.value)} 
+                                    onChange={(e) => setPersonName(e.target.value.toUpperCase())} 
                                     required 
                                     placeholder={type === 'IN' ? "e.g., Driver Name" : "e.g., Person Name"}
                                 />
@@ -159,9 +159,9 @@ function Bardana({ currentUser }) {
                             </label>
                             <input 
                                 type="text" 
-                                className="input-field bg-slate-50" 
+                                className="input-field bg-slate-50 uppercase" 
                                 value={employeeName} 
-                                onChange={(e) => setEmployeeName(e.target.value)}
+                                onChange={(e) => setEmployeeName(e.target.value.toUpperCase())}
                                 required
                             />
                         </div>

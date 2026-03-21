@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, MessageSquare, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -28,8 +28,18 @@ function Dashboard() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [bardanaStock, setBardanaStock] = useState(0);
   const [showAlert, setShowAlert] = useState(false);
+  const [adminNotes, setAdminNotes] = useState([]);
+  const [rateChart, setRateChart] = useState([]);
 
   useEffect(() => {
+    const unsubscribeNotes = onSnapshot(query(collection(db, 'adminNotes'), orderBy('timestamp', 'desc')), (snapshot) => {
+      setAdminNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubscribeRates = onSnapshot(query(collection(db, 'rateChart'), orderBy('timestamp', 'desc')), (snapshot) => {
+      setRateChart(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
     const unsubscribeBardana = onSnapshot(collection(db, 'bardanaEntries'), (snapshot) => {
       let total = 0;
       snapshot.docs.forEach(doc => {
@@ -101,6 +111,8 @@ function Dashboard() {
     return () => {
       unsubscribeAavak();
       unsubscribeBardana();
+      unsubscribeNotes();
+      unsubscribeRates();
     };
   }, []);
 
@@ -179,6 +191,49 @@ function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Rate Chart Section */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <IndianRupee className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-lg font-bold">Current Rate Chart</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {rateChart.length > 0 ? (
+              rateChart.map(rate => (
+                <div key={rate.id} className="flex justify-between items-center p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                  <span className="font-bold text-slate-700 uppercase text-xs tracking-wider">{rate.itemName}</span>
+                  <span className="font-black text-emerald-700">₹{rate.rate}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400 text-sm italic col-span-2 text-center py-4">No rates published yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Admin Notes Section */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <MessageSquare className="w-5 h-5 text-indigo-600" />
+            <h3 className="text-lg font-bold">Admin Announcements</h3>
+          </div>
+          <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
+            {adminNotes.length > 0 ? (
+              adminNotes.map(note => (
+                <div key={note.id} className="p-3 bg-indigo-50 border-l-4 border-indigo-500 rounded-r-lg">
+                  <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{note.content}</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-bold uppercase">
+                    <Clock className="w-3 h-3" />
+                    {note.timestamp?.toDate().toLocaleString()}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400 text-sm italic text-center py-4">No recent announcements</p>
+            )}
+          </div>
+        </div>
+
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Current Stock by Item</h3>
           <div className="space-y-3">

@@ -4,10 +4,11 @@ import Aavak from './Aavak';
 import Javak from './Javak';
 import Employees from './Employees';
 import Bardana from './Bardana';
+import AdminPanel from './AdminPanel';
 import Dashboard from './components/Dashboard';
 import { db } from './firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
-import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key } from 'lucide-react';
+import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Flower2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
@@ -48,6 +49,7 @@ function App() {
         { id: 'javak', label: 'जावक (Outgoing)', icon: ArrowUpRight },
         { id: 'bardana', label: 'Bardana', icon: Package },
         { id: 'employees', label: 'Employees', icon: Users },
+        ...(user?.role === 'admin' || user?.employeeId === 'ADMIN' ? [{ id: 'admin', label: 'Admin Panel', icon: Shield }] : []),
     ];
 
     const handleLogin = async (e) => {
@@ -121,6 +123,8 @@ function App() {
                 return <Bardana currentUser={user} />;
             case 'employees':
                 return <Employees currentUser={user} />;
+            case 'admin':
+                return <AdminPanel currentUser={user} />;
             default:
                 return <Dashboard />;
         }
@@ -131,10 +135,15 @@ function App() {
             {/* Sidebar */}
             <aside className={`bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
                 <div className="p-6 border-b border-slate-200 flex items-center gap-3">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                        <span className="text-white font-bold">V</span>
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                        <Flower2 className="text-white w-6 h-6" />
                     </div>
-                    {isSidebarOpen && <span className="font-bold text-slate-900 truncate">VCC Management</span>}
+                    {isSidebarOpen && (
+                        <div className="flex flex-col">
+                            <span className="font-black text-slate-900 leading-none tracking-tight">VENKATESH</span>
+                            <span className="text-[10px] font-bold text-indigo-600 tracking-[0.2em] mt-1">COTTON CO.</span>
+                        </div>
+                    )}
                 </div>
                 
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -202,7 +211,7 @@ function App() {
                         </h1>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-sm text-slate-500 hidden sm:inline">Venkatesh Cotton Company</span>
+                        <span className="text-sm font-black text-slate-900 hidden sm:inline tracking-widest">VENKATESH COTTON COMPANY</span>
                     </div>
                 </header>
 
@@ -225,5 +234,3 @@ function App() {
 }
 
 export default App;
-
-
