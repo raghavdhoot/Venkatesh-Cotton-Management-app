@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -26,8 +26,27 @@ function Dashboard() {
   const [itemBreakdown, setItemBreakdown] = useState({});
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
   const [selectedItem, setSelectedItem] = useState(null);
+  const [bardanaStock, setBardanaStock] = useState(0);
+  const [showAlert, setShowAlert] = useState(false);
 
   useEffect(() => {
+    const unsubscribeBardana = onSnapshot(collection(db, 'bardanaEntries'), (snapshot) => {
+      let total = 0;
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.itemName === 'Gunny Bags') {
+          if (data.type === 'IN') total += parseInt(data.quantity || 0, 10);
+          else total -= parseInt(data.quantity || 0, 10);
+        }
+      });
+      setBardanaStock(total);
+      if (total < 100) {
+        setShowAlert(true);
+      } else {
+        setShowAlert(false);
+      }
+    });
+
     const unsubscribeAavak = onSnapshot(collection(db, 'cottonEntries'), (snapshot) => {
       const aavakData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
@@ -79,7 +98,10 @@ function Dashboard() {
       return () => unsubscribeJavak();
     });
 
-    return () => unsubscribeAavak();
+    return () => {
+      unsubscribeAavak();
+      unsubscribeBardana();
+    };
   }, []);
 
   const getFilteredDetails = (itemName) => {
@@ -91,6 +113,43 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
+      
+      {/* Bardana Alert Modal */}
+      <AnimatePresence>
+        {showAlert && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8, y: 50 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 50 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border-4 border-red-500"
+            >
+              <div className="p-8 text-center space-y-6">
+                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                  <AlertTriangle className="w-12 h-12 text-red-600" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Critical Warning!</h3>
+                  <p className="text-slate-600 font-medium">
+                    Bardana (Gunny Bags) stock is dangerously low!
+                  </p>
+                </div>
+                <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                  <p className="text-sm text-red-600 font-bold uppercase tracking-widest mb-1">Current Stock</p>
+                  <p className="text-5xl font-black text-red-700">{bardanaStock}</p>
+                  <p className="text-xs text-red-400 mt-2 font-semibold italic">Minimum required: 100 Bags</p>
+                </div>
+                <button 
+                  onClick={() => setShowAlert(false)}
+                  className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-red-200 active:scale-95 text-lg uppercase tracking-widest"
+                >
+                  I Understand
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 

@@ -201,6 +201,7 @@ function Employees({ currentUser }) {
                         <thead>
                             <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                 <th className="px-6 py-4 font-semibold">Employee Name</th>
+                                <th className="px-6 py-4 font-semibold">Phone Number</th>
                                 <th className="px-6 py-4 font-semibold">Year of Joining</th>
                                 {isAdmin && <th className="px-6 py-4 font-semibold text-right">Actions</th>}
                             </tr>
@@ -214,6 +215,7 @@ function Employees({ currentUser }) {
                                             {isAdmin && <span className="text-[10px] text-indigo-500 font-mono">{emp.employeeId}</span>}
                                         </div>
                                     </td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">{emp.phone || 'N/A'}</td>
                                     <td className="px-6 py-4 text-sm text-slate-600">{emp.joiningYear}</td>
                                     {isAdmin && (
                                         <td className="px-6 py-4 text-right">

@@ -127,6 +127,18 @@ function Javak({ currentUser }) {
                 setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
             } else {
                 await setDoc(entryRef, entryData);
+                
+                // Automatically subtract from Bardana
+                await addDoc(collection(db, 'bardanaEntries'), {
+                    itemName: 'Gunny Bags',
+                    quantity: parseInt(numberOfBags, 10),
+                    personName: driverName || 'N/A',
+                    employeeName: currentUser.name,
+                    type: 'OUT',
+                    entryMaker: 'System (Javak)',
+                    timestamp: serverTimestamp()
+                });
+                
                 setStatusMessage({ text: 'New entry created successfully', type: 'success' });
             }
             resetForm();
@@ -185,7 +197,7 @@ function Javak({ currentUser }) {
                             <p class="text-xs font-semibold">${entryToPrint.destination}</p>
                         </div>
                         <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Driver Name</p>
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Given to</p>
                             <p class="text-xs font-semibold">${entryToPrint.driverName || 'N/A'}</p>
                         </div>
                         <div class="border border-slate-300 p-1.5 rounded">
@@ -366,7 +378,7 @@ function Javak({ currentUser }) {
                             <input type="number" className="input-field" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} required />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Driver Name</label>
+                            <label className="text-sm font-semibold text-slate-600">Given to</label>
                             <input type="text" className="input-field" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="e.g., Rajesh Kumar" />
                         </div>
                         <div className="space-y-1">
