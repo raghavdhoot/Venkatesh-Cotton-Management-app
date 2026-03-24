@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, doc, addDoc, deleteDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import { Save, Trash2, Plus, MessageSquare, IndianRupee, Shield } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, limit } from 'firebase/firestore';
+import { Save, Trash2, Plus, MessageSquare, IndianRupee, Shield, History } from 'lucide-react';
 
 function AdminPanel({ currentUser }) {
     const [note, setNote] = useState('');
@@ -9,6 +9,7 @@ function AdminPanel({ currentUser }) {
     const [itemName, setItemName] = useState('');
     const [itemRate, setItemRate] = useState('');
     const [rateChart, setRateChart] = useState([]);
+    const [auditLogs, setAuditLogs] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
 
     const isAdmin = currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN';
@@ -24,9 +25,14 @@ function AdminPanel({ currentUser }) {
             setRateChart(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
+        const unsubscribeLogs = onSnapshot(query(collection(db, 'auditLogs'), orderBy('timestamp', 'desc'), limit(50)), (snapshot) => {
+            setAuditLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+
         return () => {
             unsubscribeNotes();
             unsubscribeRates();
+            unsubscribeLogs();
         };
     }, [isAdmin]);
 
@@ -200,6 +206,55 @@ function AdminPanel({ currentUser }) {
                             ))}
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Audit Logs Section */}
+            <div className="card !p-0 overflow-hidden">
+                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                        <History className="w-5 h-5 text-slate-600" />
+                        System Audit Logs
+                    </h3>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Showing Last 50 Activities</span>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-100/50 text-slate-500 text-[10px] uppercase tracking-widest font-black">
+                                <th className="px-6 py-3 border-b border-slate-100">Timestamp</th>
+                                <th className="px-6 py-3 border-b border-slate-100">User</th>
+                                <th className="px-6 py-3 border-b border-slate-100">Action</th>
+                                <th className="px-6 py-3 border-b border-slate-100">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {auditLogs.map(log => (
+                                <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-6 py-3 text-[10px] font-mono text-slate-500">
+                                        {log.timestamp?.toDate().toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-3 text-xs font-bold text-slate-900 uppercase">
+                                        {log.userName}
+                                        <span className="block text-[8px] text-slate-400 font-mono">{log.employeeId}</span>
+                                    </td>
+                                    <td className="px-6 py-3">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                            log.action === 'CREATE' ? 'bg-emerald-100 text-emerald-700' :
+                                            log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
+                                            log.action === 'DELETE' ? 'bg-red-100 text-red-700' :
+                                            'bg-slate-100 text-slate-700'
+                                        }`}>
+                                            {log.action}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-3 text-xs text-slate-600 uppercase">
+                                        {log.details}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, getDocs, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera } from 'lucide-react';
@@ -132,6 +132,38 @@ function Javak({ currentUser }) {
             const entryRef = doc(db, 'javakEntries', gatePassNo);
             if (currentEntryId) {
                 await updateDoc(entryRef, entryData);
+                
+                // Update Bardana entries: Delete old ones and add new ones
+                const q = query(collection(db, 'bardanaEntries'), where('javakId', '==', gatePassNo));
+                const snap = await getDocs(q);
+                for (const d of snap.docs) {
+                    await deleteDoc(doc(db, 'bardanaEntries', d.id));
+                }
+
+                await addDoc(collection(db, 'bardanaEntries'), {
+                    itemName: bardanaType,
+                    quantity: parseInt(numberOfBags, 10),
+                    personName: driverName || 'N/A',
+                    employeeName: currentUser.name,
+                    type: 'OUT',
+                    entryMaker: 'System (Javak Update)',
+                    javakId: gatePassNo,
+                    timestamp: serverTimestamp()
+                });
+
+                if (sutliCount && parseInt(sutliCount, 10) > 0) {
+                    await addDoc(collection(db, 'bardanaEntries'), {
+                        itemName: 'SUTLI',
+                        quantity: parseInt(sutliCount, 10),
+                        personName: driverName || 'N/A',
+                        employeeName: currentUser.name,
+                        type: 'OUT',
+                        entryMaker: 'System (Javak Update)',
+                        javakId: gatePassNo,
+                        timestamp: serverTimestamp()
+                    });
+                }
+
                 setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
             } else {
                 await setDoc(entryRef, entryData);
@@ -144,6 +176,7 @@ function Javak({ currentUser }) {
                     employeeName: currentUser.name,
                     type: 'OUT',
                     entryMaker: 'System (Javak)',
+                    javakId: gatePassNo,
                     timestamp: serverTimestamp()
                 });
 
@@ -156,6 +189,7 @@ function Javak({ currentUser }) {
                         employeeName: currentUser.name,
                         type: 'OUT',
                         entryMaker: 'System (Javak)',
+                        javakId: gatePassNo,
                         timestamp: serverTimestamp()
                     });
                 }
@@ -218,7 +252,7 @@ function Javak({ currentUser }) {
                             <p class="text-xs font-semibold">${entryToPrint.destination}</p>
                         </div>
                         <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Given to</p>
+                            <p class="text-[8px] text-slate-500 uppercase font-bold">Driver Name</p>
                             <p class="text-xs font-semibold">${entryToPrint.driverName || 'N/A'}</p>
                         </div>
                         <div class="border border-slate-300 p-1.5 rounded">
@@ -336,6 +370,22 @@ function Javak({ currentUser }) {
                     <button onClick={handleLookupEntry} className="btn-primary flex-1 md:flex-none flex items-center justify-center gap-2">
                         <Plus className="w-4 h-4" /> Load/Create
                     </button>
+                    {(currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN') && (
+                        <button onClick={() => generateJavakPdf({
+                            gatePassNo: '__________',
+                            date: '__________',
+                            vehicleNumber: '__________',
+                            destination: '__________',
+                            commodity: '__________',
+                            numberOfBags: '_____',
+                            grossWt: '_____',
+                            tareWt: '_____',
+                            netWt: '_____',
+                            driverName: '____________________'
+                        })} className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2">
+                            <FileText className="w-4 h-4" /> Blank Print
+                        </button>
+                    )}
                     <button onClick={resetForm} className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2">
                         <X className="w-4 h-4" /> Clear
                     </button>
@@ -433,7 +483,7 @@ function Javak({ currentUser }) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Given to</label>
+                            <label className="text-sm font-semibold text-slate-600">Driver Name</label>
                             <input type="text" className="input-field uppercase" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" />
                         </div>
                         <div className="space-y-1">

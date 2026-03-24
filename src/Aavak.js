@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { logActivity } from './auditLogger';
 
@@ -19,7 +19,6 @@ function Aavak({ currentUser }) {
     const [Name, setName] = useState('');    
     const [Village, setVillage] = useState('');    
     const [vehicleNo, setVehicleNo] = useState('');
-    const [driverName, setDriverName] = useState('');
     const [grossWt, setGrossWt] = useState('');
     const [tareWt, setTareWt] = useState('');
     const [moisture, setMoisture] = useState('');
@@ -78,7 +77,6 @@ function Aavak({ currentUser }) {
         setName('');
         setVillage('');
         setVehicleNo('');
-        setDriverName('');
         setGrossWt('');
         setTareWt('');
         setMoisture('');
@@ -95,7 +93,6 @@ function Aavak({ currentUser }) {
         setVillage(lastEntry.Village || '');
         setItemName(lastEntry.itemName || 'KAPAS');
         setVehicleNo(lastEntry.vehicleNo || '');
-        setDriverName(lastEntry.driverName || '');
         setRate(lastEntry.rate || '');
         setBillingDate(new Date().toISOString().split('T')[0]);
         setStatusMessage({ text: 'Last entry details copied', type: 'success' });
@@ -117,7 +114,6 @@ function Aavak({ currentUser }) {
                 setName(entryData.Name || '');
                 setVillage(entryData.Village || '');
                 setVehicleNo(entryData.vehicleNo || '');
-                setDriverName(entryData.driverName || '');
                 setGrossWt(entryData.grossWt || '');
                 setTareWt(entryData.tareWt || '');
                 setMoisture(entryData.moisture || '');
@@ -157,7 +153,6 @@ function Aavak({ currentUser }) {
             Farmer: data.Name || '',
             Village: data.Village || '',
             Vehicle: data.vehicleNo || '',
-            Driver: data.driverName || '',
             Item: data.itemName || '',
             GrossWt: data.grossWt || 0,
             TareWt: data.tareWt || 0,
@@ -231,26 +226,15 @@ function Aavak({ currentUser }) {
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
-            
-            // Moisture handling: 
-            // If moisture is provided, we use it for deduction. 
-            // Standard is 1.4% if not provided or if it's the base.
-            // Let's assume the user wants: netWt * (1 - (moisture / 100))
-            // But usually there's a base moisture (e.g. 8%). 
-            // If moisture is 10%, deduction is 2%.
-            // For now, let's use the moisture value directly as deduction percentage if > 0, 
-            // otherwise fallback to 1.4% standard.
             const deductionRate = parsedMoisture > 0 ? (parsedMoisture / 100) : 0.014;
             netWtAfterDeduction = netWt * (1 - deductionRate);
-            
-            // Deductions are per Quintal (100 KG)
             const netWtInQuintals = netWt / 100;
             hamaliDeduction = netWtInQuintals * 15;
             weighmentDeduction = netWtInQuintals * 50;
         }
 
         if (parsedRate && netWtAfterDeduction) {
-            grossAmount = (parsedRate / 100) * netWtAfterDeduction; // Rate is also usually per Quintal
+            grossAmount = (parsedRate / 100) * netWtAfterDeduction;
             netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
         }
         
@@ -260,6 +244,17 @@ function Aavak({ currentUser }) {
 
         balanceAmount = Math.round(netAmount - parsedAmountPaid);
 
+        // Accountant/Maker logic
+        let finalAccountant = '';
+        let finalMaker = '';
+        if (parsedAmountPaid > 0) {
+            if (paymentMode === 'CASH') {
+                finalAccountant = currentUser.name;
+            } else {
+                finalMaker = currentUser.name;
+            }
+        }
+
         const entryData = {
             billingDate: billingDate || null,
             tokenNo: tokenNo || null,
@@ -267,7 +262,6 @@ function Aavak({ currentUser }) {
             Name: Name || null,
             Village: Village || null,
             vehicleNo: vehicleNo || null,
-            driverName: driverName || null,
             grossWt: parsedGrossWt || null,
             tareWt: parsedTareWt || null,
             moisture: moisture || null,
@@ -281,8 +275,8 @@ function Aavak({ currentUser }) {
             amountPaid: Math.round(parsedAmountPaid) || null,
             balanceAmount: balanceAmount || null,
             paymentMode: paymentMode || null,
-            accountantName: accountantName || null,
-            makerName: makerName || null,
+            accountantName: finalAccountant || null,
+            makerName: finalMaker || null,
             entryMaker: currentUser.name,
             timestamp: serverTimestamp(),
         };
@@ -316,7 +310,6 @@ function Aavak({ currentUser }) {
             billingDate: '__________',
             vehicleNo: '__________',
             Name: '____________________',
-            driverName: '__________',
             itemName: '__________',
             grossWt: '_____',
             tareWt: '_____',
@@ -371,10 +364,6 @@ function Aavak({ currentUser }) {
                         <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
                             <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">FARMER NAME</span>
                             <div class="flex-1 font-black px-1 text-sm">${data.Name}</div>
-                        </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">DRIVER NAME</span>
-                            <div class="flex-1 font-black px-1 text-sm">${data.driverName || 'N/A'}</div>
                         </div>
                     </div>
                 </div>
@@ -512,6 +501,11 @@ function Aavak({ currentUser }) {
                     <button onClick={handleLookupEntry} className="btn-primary flex-shrink-0 flex items-center justify-center gap-2">
                         <Plus className="w-4 h-4" /> Load/Create
                     </button>
+                    {lastEntry && (
+                        <button onClick={handleRepeatLastEntry} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
+                            <History className="w-4 h-4" /> Repeat Last
+                        </button>
+                    )}
                     <button onClick={() => setShowExportModal(true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                         <Download className="w-4 h-4" /> Export
                     </button>
@@ -586,10 +580,6 @@ function Aavak({ currentUser }) {
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Driver Name</label>
-                            <input type="text" className="input-field uppercase" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} disabled={hasTareWtBeenEntered && !isNewEntry} placeholder="E.G., RAJESH KUMAR" />
-                        </div>
-                        <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Gross Weight (kg)</label>
                             <input type="number" step="0.01" className="input-field" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
@@ -607,7 +597,32 @@ function Aavak({ currentUser }) {
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Amount Paid (₹)</label>
-                            <input type="number" step="0.01" className="input-field" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                            <div className="flex gap-2">
+                                <input type="number" step="0.01" className="input-field" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        const parsedGrossWt = parseFloat(grossWt || 0);
+                                        const parsedTareWt = parseFloat(tareWt || 0);
+                                        const parsedRate = parseFloat(rate || 0);
+                                        const parsedMoisture = parseFloat(moisture || 0);
+                                        if (parsedGrossWt && parsedTareWt && parsedRate) {
+                                            const netWt = parsedGrossWt - parsedTareWt;
+                                            const deductionRate = parsedMoisture > 0 ? (parsedMoisture / 100) : 0.014;
+                                            const netWtAfterDeduction = netWt * (1 - deductionRate);
+                                            const netWtInQuintals = netWt / 100;
+                                            const hamaliDeduction = netWtInQuintals * 15;
+                                            const weighmentDeduction = netWtInQuintals * 50;
+                                            const grossAmount = (parsedRate / 100) * netWtAfterDeduction;
+                                            const netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
+                                            setAmountPaid(netAmount.toString());
+                                        }
+                                    }}
+                                    className="px-3 py-2 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-lg hover:bg-indigo-200 transition-colors uppercase whitespace-nowrap"
+                                >
+                                    Full Pay
+                                </button>
+                            </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Mode of Payment</label>
@@ -616,17 +631,17 @@ function Aavak({ currentUser }) {
                                 <option value="RTGS">RTGS</option>
                             </select>
                         </div>
-                        {paymentMode === 'CASH' ? (
-                            <div className="space-y-1">
-                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Accountant Name</label>
-                                <input type="text" className="input-field bg-slate-50 dark:bg-slate-800 uppercase" value={accountantName} readOnly disabled />
-                            </div>
-                        ) : (
-                            <div className="space-y-1">
-                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Maker Name</label>
-                                <input type="text" className="input-field bg-slate-50 dark:bg-slate-800 uppercase" value={makerName} readOnly disabled />
-                            </div>
-                        )}
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Accountant / Maker</label>
+                            <input 
+                                type="text" 
+                                className="input-field bg-slate-50 dark:bg-slate-800 uppercase" 
+                                value={parseFloat(amountPaid) > 0 ? (paymentMode === 'CASH' ? accountantName : makerName) : ''} 
+                                readOnly 
+                                disabled 
+                                placeholder="AUTO-FILLED ON PAYMENT"
+                            />
+                        </div>
 
                         <div className="lg:col-span-3 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                             <button type="button" onClick={resetForm} className="btn-secondary uppercase">Cancel</button>

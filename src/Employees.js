@@ -60,13 +60,13 @@ function Employees({ currentUser }) {
             return;
         }
 
-        const fullName = `${firstName.trim()} ${lastName.trim()}`;
+        const fullName = `${firstName.trim().toUpperCase()} ${lastName.trim().toUpperCase()}`;
         const empId = generateUniqueId(fullName, joiningYear, employees);
         
         const newEmployee = {
             name: fullName,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
+            firstName: firstName.trim().toUpperCase(),
+            lastName: lastName.trim().toUpperCase(),
             phone: phone.trim(),
             joiningYear: parseInt(joiningYear, 10),
             employeeId: empId,
@@ -137,11 +137,11 @@ function Employees({ currentUser }) {
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10" 
+                                    className="input-field pl-10 uppercase" 
                                     value={firstName} 
-                                    onChange={(e) => setFirstName(e.target.value)} 
+                                    onChange={(e) => setFirstName(e.target.value.toUpperCase())} 
                                     required 
-                                    placeholder="e.g., Shivanand"
+                                    placeholder="E.G., SHIVANAND"
                                 />
                             </div>
                         </div>
@@ -151,11 +151,11 @@ function Employees({ currentUser }) {
                                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10" 
+                                    className="input-field pl-10 uppercase" 
                                     value={lastName} 
-                                    onChange={(e) => setLastName(e.target.value)} 
+                                    onChange={(e) => setLastName(e.target.value.toUpperCase())} 
                                     required 
-                                    placeholder="e.g., Shinde"
+                                    placeholder="E.G., SHINDE"
                                 />
                             </div>
                         </div>
@@ -209,7 +209,7 @@ function Employees({ currentUser }) {
                         <tbody className="divide-y divide-slate-100">
                             {employees.map(emp => (
                                 <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 uppercase">
                                         <div className="flex flex-col">
                                             <span>{emp.name}</span>
                                             {isAdmin && <span className="text-[10px] text-indigo-500 font-mono">{emp.employeeId}</span>}
