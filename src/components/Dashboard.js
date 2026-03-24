@@ -10,8 +10,8 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
       <Icon className="w-6 h-6 text-white" />
     </div>
     <div>
-      <p className="text-sm text-slate-500 font-medium">{title}</p>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">{title}</p>
+      <p className="text-2xl font-black text-slate-900 dark:text-white">{value}</p>
     </div>
   </div>
 );
@@ -24,6 +24,7 @@ function Dashboard() {
     totalJavakBags: 0,
     todayAavakWt: 0,
     todayJavakTrucks: 0,
+    todayAavakAmount: 0,
   });
   const [itemBreakdown, setItemBreakdown] = useState({});
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
@@ -33,7 +34,6 @@ function Dashboard() {
   const [showAlert, setShowAlert] = useState(false);
   const [adminNotes, setAdminNotes] = useState([]);
   const [rateChart, setRateChart] = useState([]);
-  const [todayBales, setTodayBales] = useState('');
   
   // Out-turn Calculator State
   const [calcKapas, setCalcKapas] = useState('');
@@ -90,16 +90,19 @@ function Dashboard() {
         let totalJavakBags = 0;
         let todayAavakWt = 0;
         let todayJavakTrucks = 0;
+        let todayAavakAmt = 0;
         const breakdown = {};
 
         aavakData.forEach(data => {
           const weight = parseFloat(data.netWt || 0);
           const item = data.itemName || 'Uncategorized';
+          const amt = parseFloat(data.amountPaid || 0);
           totalAavakWt += weight;
-          totalAavakAmt += parseFloat(data.amountPaid || 0);
+          totalAavakAmt += amt;
           
           if (data.billingDate === today) {
             todayAavakWt += weight;
+            todayAavakAmt += amt;
           }
 
           if (breakdown[item]) {
@@ -132,7 +135,8 @@ function Dashboard() {
           totalJavakNetWt: totalJavakWt,
           totalJavakBags: totalJavakBags,
           todayAavakWt,
-          todayJavakTrucks
+          todayJavakTrucks,
+          todayAavakAmount: todayAavakAmt
         });
         setItemBreakdown(breakdown);
         setRawData({ aavak: aavakData, javak: javakData });
@@ -154,9 +158,8 @@ function Dashboard() {
     const aavakQuintals = (stats.todayAavakWt / 100).toFixed(1);
     const summaryText = `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
       `📥 *AAVAK:* ${aavakQuintals} QNTL\n` +
-      `📦 *BALES PRESSED:* ${todayBales || 0}\n` +
       `🚚 *DISPATCH:* ${stats.todayJavakTrucks} TRUCKS\n` +
-      `💰 *TODAY'S PAYOUT:* ₹${stats.totalAavakAmount.toLocaleString()}\n\n` +
+      `💰 *TODAY'S PAYOUT:* ₹${stats.todayAavakAmount.toLocaleString()}\n\n` +
       `_Generated via VCC Cotton App_`;
     
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
@@ -206,24 +209,30 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-40">
-            <input 
-              type="number" 
-              placeholder="Today's Bales" 
-              className="input-field pr-10 text-sm"
-              value={todayBales}
-              onChange={(e) => setTodayBales(e.target.value)}
-            />
-            <Package className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          </div>
           <button 
             onClick={handleShareSummary}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            className="btn-primary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
           >
             <Share2 className="w-4 h-4" /> Share Summary
           </button>
+        </div>
+      </div>
+      
+      {/* Today's Summary Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Aavak</p>
+          <p className="text-3xl font-black">{(stats.todayAavakWt / 100).toFixed(1)} <span className="text-sm font-bold opacity-60">QNTL</span></p>
+        </div>
+        <div className="bg-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Payout</p>
+          <p className="text-3xl font-black">₹{stats.todayAavakAmount.toLocaleString()}</p>
+        </div>
+        <div className="bg-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-orange-200 dark:shadow-none">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Dispatch</p>
+          <p className="text-3xl font-black">{stats.todayJavakTrucks} <span className="text-sm font-bold opacity-60">TRUCKS</span></p>
         </div>
       </div>
       
