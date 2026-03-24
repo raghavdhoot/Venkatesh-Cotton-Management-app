@@ -328,120 +328,110 @@ function Aavak({ currentUser }) {
         } : entryToPrint;
 
         const createSlipHtml = (copyType, copyColor, sigLabel) => `
-            <div class="border-2 border-slate-900 mb-8 overflow-hidden font-sans text-slate-900 bg-white">
-                <div class="text-center py-6 border-b-2 border-slate-900">
-                    <h1 class="text-3xl font-black uppercase tracking-tighter">VENKATESH COTTON COMPANY</h1>
-                    <p class="text-xs font-bold mt-1">NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</p>
+            <div class="border-2 border-slate-900 mb-4 overflow-hidden font-sans text-slate-900 bg-white">
+                <div class="text-center py-3 border-b-2 border-slate-900">
+                    <h1 class="text-2xl font-black uppercase tracking-tighter">VENKATESH COTTON COMPANY</h1>
+                    <p class="text-[10px] font-bold mt-0.5">NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</p>
                 </div>
                 
-                <div class="flex justify-between px-6 py-2 border-b-2 border-slate-900 bg-slate-50">
-                    <span class="font-black uppercase text-xs tracking-widest">FARMER PURCHASE BILL</span>
-                    <span class="font-black uppercase text-xs tracking-widest" style="color: ${copyColor}">${copyType}</span>
+                <div class="flex justify-between px-4 py-1.5 border-b-2 border-slate-900 bg-slate-50">
+                    <span class="font-black uppercase text-[10px] tracking-widest">FARMER PURCHASE BILL</span>
+                    <span class="font-black uppercase text-[10px] tracking-widest" style="color: ${copyColor}">${copyType}</span>
                 </div>
 
-                <div class="grid grid-cols-3 gap-x-8 px-6 py-4 text-xs border-b-2 border-slate-900">
-                    <div class="space-y-3">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">TOKEN NO.</span>
-                            <div class="flex-1 font-black px-1 text-sm">${data.tokenNo}</div>
+                <div class="grid grid-cols-3 gap-x-6 px-4 py-2 text-[10px] border-b-2 border-slate-900">
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">TOKEN NO.</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.tokenNo}</div>
                         </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">VILLAGE</span>
-                            <div class="flex-1 font-black px-1 text-sm">${data.Village}</div>
-                        </div>
-                    </div>
-                    <div class="space-y-3">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">DATE</span>
-                            <div class="flex-1 font-black px-1 text-sm">${data.billingDate}</div>
-                        </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">VEHICLE NO.</span>
-                            <div class="flex-1 font-black px-1 text-sm">${data.vehicleNo}</div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">VILLAGE</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.Village}</div>
                         </div>
                     </div>
-                    <div class="space-y-3">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">FARMER NAME</span>
-                            <div class="flex-1 font-black px-1 text-sm">${data.Name}</div>
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">DATE</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.billingDate}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">VEHICLE NO.</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.vehicleNo}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">FARMER NAME</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.Name}</div>
                         </div>
                     </div>
                 </div>
 
-                <table class="w-full border-collapse text-xs">
+                <table class="w-full border-collapse text-[10px]">
                     <thead>
                         <tr class="border-b-2 border-slate-900 bg-slate-50">
-                            <th class="border-r-2 border-slate-900 p-2 text-left w-[50%] uppercase font-black">Description</th>
-                            <th class="border-r-2 border-slate-900 p-2 text-right w-[25%] uppercase font-black">Weight/Rate</th>
-                            <th class="p-2 text-right w-[25%] uppercase font-black">Amount</th>
+                            <th class="border-r-2 border-slate-900 p-1.5 text-left w-[50%] uppercase font-black">Description</th>
+                            <th class="border-r-2 border-slate-900 p-1.5 text-right w-[25%] uppercase font-black">Weight/Rate</th>
+                            <th class="p-1.5 text-right w-[25%] uppercase font-black">Amount</th>
                         </tr>
                     </thead>
                     <tbody class="font-bold">
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-2 py-3">Gross Weight / Tare Weight</td>
-                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">${data.grossWt} / ${data.tareWt} kg</td>
-                            <td class="p-2 py-3"></td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Gross Weight / Tare Weight</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.grossWt} / ${data.tareWt} kg</td>
+                            <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-2 py-3">Net Weight</td>
-                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">${data.netWt} kg</td>
-                            <td class="p-2 py-3"></td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Weight</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWt} kg</td>
+                            <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-2 py-3">Net Wt (After ${data.moisture || '1.4'}% Ded.)</td>
-                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">${data.netWtAfterDeduction} kg</td>
-                            <td class="p-2 py-3"></td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.moisture || '1.4'}% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
+                            <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b-2 border-slate-900">
-                            <td class="border-r-2 border-slate-900 p-2 py-3">Rate / Hamali & Weighment</td>
-                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">₹${data.rate} / ₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
-                            <td class="p-2 py-3 text-right font-black">₹${data.grossAmount} / -₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Rate / Hamali & Weighment</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">₹${data.rate} / ₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="p-1.5 py-2 text-right font-black">₹${data.grossAmount} / -₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
                         </tr>
                     </tbody>
                 </table>
 
-                <div class="grid grid-cols-12 text-xs">
-                    <div class="col-span-7 p-4 space-y-4 border-r-2 border-slate-900">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">PAYMENT MODE</span>
+                <div class="grid grid-cols-12 text-[10px]">
+                    <div class="col-span-7 p-3 space-y-2 border-r-2 border-slate-900">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">PAYMENT MODE</span>
                             <div class="flex-1 font-black px-1">${data.paymentMode || 'CASH'}</div>
                         </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
-                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">ACCOUNTANT</span>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">ACCOUNTANT</span>
                             <div class="flex-1 font-black px-1">${data.accountantName || data.makerName || ''}</div>
                         </div>
-                        <div class="pt-8 flex justify-between items-end">
-                            <div class="text-center">
-                                <div class="w-32 border-b border-slate-900 mb-1"></div>
-                                <span class="text-[8px] font-black uppercase tracking-tighter">${sigLabel}</span>
-                            </div>
-                            <div class="text-center">
-                                <div class="w-32 border-b border-slate-900 mb-1"></div>
-                                <span class="text-[8px] font-black uppercase tracking-tighter">Authorized Signatory</span>
-                            </div>
-                        </div>
                     </div>
-                    <div class="col-span-5 p-4 space-y-2 bg-slate-50">
+                    <div class="col-span-5 p-3 space-y-1 bg-slate-50">
                         <div class="flex justify-between font-bold">
-                            <span class="uppercase text-[10px] text-slate-500">Net Payable</span>
-                            <span class="text-sm">₹ ${data.netAmount}</span>
+                            <span class="uppercase text-[8px] text-slate-500">Net Payable</span>
+                            <span class="text-xs">₹ ${data.netAmount}</span>
                         </div>
                         <div class="flex justify-between font-bold">
-                            <span class="uppercase text-[10px] text-slate-500">Amount Paid</span>
-                            <span class="text-sm">₹ ${data.amountPaid}</span>
+                            <span class="uppercase text-[8px] text-slate-500">Amount Paid</span>
+                            <span class="text-xs">₹ ${data.amountPaid}</span>
                         </div>
-                        <div class="flex justify-between border-t-2 border-slate-900 pt-2 mt-2">
-                            <span class="uppercase font-black text-xs">Balance</span>
-                            <span class="text-lg font-black">₹ ${data.balanceAmount}</span>
+                        <div class="flex justify-between border-t-2 border-slate-900 pt-1 mt-1">
+                            <span class="uppercase font-black text-[10px]">Balance</span>
+                            <span class="text-sm font-black">₹ ${data.balanceAmount}</span>
                         </div>
                     </div>
                 </div>
             </div>
         `;
-        
+
         pdfContentElement.innerHTML = `
             ${createSlipHtml('OFFICE COPY', '#1e293b', 'Receiver Signature')}
-            <div class="text-center my-6 text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-4">
+            <div class="text-center my-4 text-[8px] text-slate-400 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-4">
                 <div class="h-px bg-slate-200 flex-1"></div>
                 ✂ CUT ALONG THIS LINE ✂
                 <div class="h-px bg-slate-200 flex-1"></div>
