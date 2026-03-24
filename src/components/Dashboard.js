@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, MessageSquare, Clock } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, where, getDocs, setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, MessageSquare, Clock, Share2, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -22,6 +22,8 @@ function Dashboard() {
     totalAavakAmount: 0,
     totalJavakNetWt: 0,
     totalJavakBags: 0,
+    todayAavakWt: 0,
+    todayJavakTrucks: 0,
   });
   const [itemBreakdown, setItemBreakdown] = useState({});
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
@@ -31,8 +33,15 @@ function Dashboard() {
   const [showAlert, setShowAlert] = useState(false);
   const [adminNotes, setAdminNotes] = useState([]);
   const [rateChart, setRateChart] = useState([]);
+  const [todayBales, setTodayBales] = useState('');
+  
+  // Out-turn Calculator State
+  const [calcKapas, setCalcKapas] = useState('');
+  const [outTurnResults, setOutTurnResults] = useState(null);
 
   useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    
     const unsubscribeNotes = onSnapshot(query(collection(db, 'adminNotes'), orderBy('timestamp', 'desc')), (snapshot) => {
       setAdminNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -79,6 +88,8 @@ function Dashboard() {
         let totalAavakAmt = 0;
         let totalJavakWt = 0;
         let totalJavakBags = 0;
+        let todayAavakWt = 0;
+        let todayJavakTrucks = 0;
         const breakdown = {};
 
         aavakData.forEach(data => {
@@ -87,6 +98,10 @@ function Dashboard() {
           totalAavakWt += weight;
           totalAavakAmt += parseFloat(data.amountPaid || 0);
           
+          if (data.billingDate === today) {
+            todayAavakWt += weight;
+          }
+
           if (breakdown[item]) {
             breakdown[item] += weight;
           } else {
@@ -100,6 +115,10 @@ function Dashboard() {
           totalJavakWt += weight;
           totalJavakBags += parseInt(data.numberOfBags || 0, 10);
           
+          if (data.date === today) {
+            todayJavakTrucks += 1;
+          }
+
           if (breakdown[item]) {
             breakdown[item] -= weight;
           } else {
@@ -112,6 +131,8 @@ function Dashboard() {
           totalAavakAmount: totalAavakAmt,
           totalJavakNetWt: totalJavakWt,
           totalJavakBags: totalJavakBags,
+          todayAavakWt,
+          todayJavakTrucks
         });
         setItemBreakdown(breakdown);
         setRawData({ aavak: aavakData, javak: javakData });
@@ -128,6 +149,35 @@ function Dashboard() {
     };
   }, []);
 
+  const handleShareSummary = () => {
+    const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
+    const aavakQuintals = (stats.todayAavakWt / 100).toFixed(1);
+    const summaryText = `DATE: ${today.toUpperCase()} | AAVAK: ${aavakQuintals}Q | BALES PRESSED: ${todayBales || 0} | DISPATCH: ${stats.todayJavakTrucks} TRUCKS.`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const calculateOutTurn = (val) => {
+    const kapas = parseFloat(val);
+    if (isNaN(kapas) || kapas <= 0) {
+      setOutTurnResults(null);
+      return;
+    }
+    // Standard Out-turn Ratios (Approximate)
+    // Lint (Bales): ~34%
+    // Seed: ~63%
+    // Trash/Loss: ~3%
+    const lint = kapas * 0.34;
+    const seed = kapas * 0.63;
+    const bales = lint / 170; // 1 Bale = 170kg approx
+    
+    setOutTurnResults({
+      lint: lint.toFixed(2),
+      seed: seed.toFixed(2),
+      bales: bales.toFixed(1)
+    });
+  };
+
   const getFilteredDetails = (itemName) => {
     const aavakDetails = rawData.aavak.filter(d => (d.itemName || 'Uncategorized') === itemName);
     const javakDetails = rawData.javak.filter(d => (d.commodity || 'Uncategorized') === itemName);
@@ -136,7 +186,27 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h2 className="text-2xl font-bold text-slate-900">Dashboard Overview</h2>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-40">
+            <input 
+              type="number" 
+              placeholder="Today's Bales" 
+              className="input-field pr-10 text-sm"
+              value={todayBales}
+              onChange={(e) => setTodayBales(e.target.value)}
+            />
+            <Package className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          </div>
+          <button 
+            onClick={handleShareSummary}
+            className="btn-primary flex items-center gap-2 whitespace-nowrap"
+          >
+            <Share2 className="w-4 h-4" /> Share Summary
+          </button>
+        </div>
+      </div>
       
       {/* Bardana Alert Modal */}
       <AnimatePresence>
@@ -310,6 +380,49 @@ function Dashboard() {
             </div>
             <p className="text-xs text-slate-400 italic">
               * Stock calculation is based on total incoming minus total outgoing net weight.
+            </p>
+          </div>
+        </div>
+
+        {/* Out-turn Ratio Calculator */}
+        <div className="card bg-gradient-to-br from-indigo-600 to-indigo-800 text-white border-none">
+          <div className="flex items-center gap-2 mb-4">
+            <Calculator className="w-5 h-5" />
+            <h3 className="text-lg font-bold uppercase tracking-tight">Out-turn Calculator</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-70">Raw Kapas (KG)</label>
+              <input 
+                type="number" 
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all font-bold"
+                placeholder="Enter weight..."
+                value={calcKapas}
+                onChange={(e) => {
+                  setCalcKapas(e.target.value);
+                  calculateOutTurn(e.target.value);
+                }}
+              />
+            </div>
+            
+            {outTurnResults && (
+              <div className="grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-2">
+                <div className="bg-white/10 p-2 rounded-lg text-center">
+                  <p className="text-[8px] font-bold uppercase opacity-70">Lint</p>
+                  <p className="text-sm font-black">{outTurnResults.lint} kg</p>
+                </div>
+                <div className="bg-white/10 p-2 rounded-lg text-center">
+                  <p className="text-[8px] font-bold uppercase opacity-70">Seed</p>
+                  <p className="text-sm font-black">{outTurnResults.seed} kg</p>
+                </div>
+                <div className="bg-white/10 p-2 rounded-lg text-center">
+                  <p className="text-[8px] font-bold uppercase opacity-70">Bales</p>
+                  <p className="text-sm font-black">~{outTurnResults.bales}</p>
+                </div>
+              </div>
+            )}
+            <p className="text-[9px] opacity-50 italic">
+              * Based on standard 34% Lint and 63% Seed yield ratios.
             </p>
           </div>
         </div>

@@ -8,12 +8,15 @@ import AdminPanel from './AdminPanel';
 import Dashboard from './components/Dashboard';
 import { db } from './firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
-import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Flower2 } from 'lucide-react';
+import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Flower2, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from './ThemeContext';
 
 function App() {
+    const { darkMode, toggleDarkMode } = useTheme();
     const [view, setView] = useState('dashboard');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [loginId, setLoginId] = useState('');
     const [loginError, setLoginError] = useState('');
@@ -74,6 +77,12 @@ function App() {
         setUser(null);
         setLoginId('');
         setView('dashboard');
+        setIsMobileMenuOpen(false);
+    };
+
+    const handleViewChange = (newView) => {
+        setView(newView);
+        setIsMobileMenuOpen(false);
     };
 
     const renderView = () => {
@@ -132,16 +141,84 @@ function App() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex">
+            {/* Mobile Menu Overlay */}
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden"
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* Mobile Sidebar */}
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <motion.aside 
+                        initial={{ x: '-100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '-100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                        className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 z-50 md:hidden flex flex-col shadow-2xl"
+                    >
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
+                                    <Flower2 className="text-white w-6 h-6" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="font-black text-slate-900 dark:text-white leading-none tracking-tight">VENKATESH</span>
+                                    <span className="text-[10px] font-bold text-indigo-600 tracking-[0.2em] mt-1">COTTON CO.</span>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-2">
+                            {navItems.map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => handleViewChange(item.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                                        view === item.id 
+                                        ? 'bg-indigo-50 text-indigo-600 font-semibold dark:bg-indigo-900/30 dark:text-indigo-400' 
+                                        : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    <item.icon className="w-5 h-5" />
+                                    <span>{item.label}</span>
+                                </button>
+                            ))}
+                        </nav>
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                            {user && (
+                                <button 
+                                    onClick={handleLogout}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
+                                >
+                                    <LogOut className="w-5 h-5" />
+                                    <span className="font-semibold">Logout</span>
+                                </button>
+                            )}
+                        </div>
+                    </motion.aside>
+                )}
+            </AnimatePresence>
+
             {/* Sidebar */}
-            <aside className={`bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
-                <div className="p-6 border-b border-slate-200 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+            <aside className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
+                <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100 dark:shadow-none">
                         <Flower2 className="text-white w-6 h-6" />
                     </div>
                     {isSidebarOpen && (
                         <div className="flex flex-col">
-                            <span className="font-black text-slate-900 leading-none tracking-tight">VENKATESH</span>
-                            <span className="text-[10px] font-bold text-indigo-600 tracking-[0.2em] mt-1">COTTON CO.</span>
+                            <span className="font-black text-slate-900 dark:text-white leading-none tracking-tight uppercase">VENKATESH</span>
+                            <span className="text-[10px] font-bold text-indigo-600 tracking-[0.2em] mt-1 uppercase">COTTON CO.</span>
                         </div>
                     )}
                 </div>
@@ -150,11 +227,11 @@ function App() {
                     {navItems.map((item) => (
                         <button
                             key={item.id}
-                            onClick={() => setView(item.id)}
+                            onClick={() => handleViewChange(item.id)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                                 view === item.id 
-                                ? 'bg-indigo-50 text-indigo-600 font-semibold' 
-                                : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-indigo-50 text-indigo-600 font-semibold dark:bg-indigo-900/30 dark:text-indigo-400' 
+                                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800'
                             }`}
                         >
                             <item.icon className="w-5 h-5" />
@@ -163,36 +240,36 @@ function App() {
                     ))}
                 </nav>
 
-                <div className="p-4 border-t border-slate-200 space-y-2">
+                <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
                     {user ? (
                         <>
                             <div className={`flex items-center gap-3 px-4 py-2 ${isSidebarOpen ? '' : 'justify-center'}`}>
-                                <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-xs">
+                                <div className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-400 font-bold text-xs uppercase">
                                     {user.name.substring(0, 2).toUpperCase()}
                                 </div>
                                 {isSidebarOpen && (
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
-                                        <p className="text-[10px] text-slate-400 font-mono">{user.employeeId}</p>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate uppercase">{user.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-mono uppercase">{user.employeeId}</p>
                                     </div>
                                 )}
                             </div>
                             <button 
                                 onClick={handleLogout}
-                                className={`w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-all ${isSidebarOpen ? '' : 'justify-center'}`}
+                                className={`w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all ${isSidebarOpen ? '' : 'justify-center'}`}
                             >
                                 <LogOut className="w-5 h-5" />
-                                {isSidebarOpen && <span className="text-sm font-semibold">Logout</span>}
+                                {isSidebarOpen && <span className="text-sm font-semibold uppercase">Logout</span>}
                             </button>
                         </>
                     ) : (
-                        <div className={`p-2 text-center text-xs text-slate-400 ${isSidebarOpen ? '' : 'hidden'}`}>
-                            Login required for data entry
+                        <div className={`p-2 text-center text-xs text-slate-400 uppercase ${isSidebarOpen ? '' : 'hidden'}`}>
+                            Login required
                         </div>
                     )}
                     <button 
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className="w-full flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="w-full flex items-center justify-center p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                     >
                         {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                     </button>
@@ -200,18 +277,25 @@ function App() {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col min-w-0">
-                <header className="bg-white border-b border-slate-200 p-4 md:p-6 flex justify-between items-center sticky top-0 z-10">
+            <main className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950">
+                <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 md:p-6 flex justify-between items-center sticky top-0 z-30">
                     <div className="flex items-center gap-4">
-                        <button className="md:hidden text-slate-600">
+                        <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden text-slate-600 dark:text-slate-400">
                             <Menu className="w-6 h-6" />
                         </button>
-                        <h1 className="text-xl font-bold text-slate-900">
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white uppercase">
                             {navItems.find(i => i.id === view)?.label}
                         </h1>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-sm font-black text-slate-900 hidden sm:inline tracking-widest">VENKATESH COTTON COMPANY</span>
+                        <button 
+                            onClick={toggleDarkMode}
+                            className="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors"
+                            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                        >
+                            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                        </button>
+                        <span className="text-sm font-black text-slate-900 dark:text-white hidden sm:inline tracking-widest uppercase">VENKATESH COTTON COMPANY</span>
                     </div>
                 </header>
 
