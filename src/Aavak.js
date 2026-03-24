@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, Filter, Share2, Calculator, Package } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { logActivity } from './auditLogger';
 
@@ -94,6 +94,9 @@ function Aavak({ currentUser }) {
         setName(lastEntry.Name || '');
         setVillage(lastEntry.Village || '');
         setItemName(lastEntry.itemName || 'KAPAS');
+        setVehicleNo(lastEntry.vehicleNo || '');
+        setDriverName(lastEntry.driverName || '');
+        setRate(lastEntry.rate || '');
         setBillingDate(new Date().toISOString().split('T')[0]);
         setStatusMessage({ text: 'Last entry details copied', type: 'success' });
     };
@@ -216,6 +219,7 @@ function Aavak({ currentUser }) {
         const parsedTareWt = parseFloat(tareWt || 0);
         const parsedRate = parseFloat(rate || 0);
         const parsedAmountPaid = parseFloat(amountPaid || 0);
+        const parsedMoisture = parseFloat(moisture || 0);
 
         let netWt = 0;
         let netWtAfterDeduction = 0;
@@ -227,8 +231,17 @@ function Aavak({ currentUser }) {
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
-            // 1.4% moisture/dirt deduction (standard practice)
-            netWtAfterDeduction = netWt * 0.986;
+            
+            // Moisture handling: 
+            // If moisture is provided, we use it for deduction. 
+            // Standard is 1.4% if not provided or if it's the base.
+            // Let's assume the user wants: netWt * (1 - (moisture / 100))
+            // But usually there's a base moisture (e.g. 8%). 
+            // If moisture is 10%, deduction is 2%.
+            // For now, let's use the moisture value directly as deduction percentage if > 0, 
+            // otherwise fallback to 1.4% standard.
+            const deductionRate = parsedMoisture > 0 ? (parsedMoisture / 100) : 0.014;
+            netWtAfterDeduction = netWt * (1 - deductionRate);
             
             // Deductions are per Quintal (100 KG)
             const netWtInQuintals = netWt / 100;
@@ -295,7 +308,7 @@ function Aavak({ currentUser }) {
 
     const generatePdf = async (entryToPrint, isBlank = false) => {
         const pdfContentElement = document.createElement('div');
-        pdfContentElement.className = "p-4 bg-white w-[210mm]";
+        pdfContentElement.className = "p-8 bg-white w-[210mm]";
         
         const data = isBlank ? {
             tokenNo: '__________',
@@ -308,6 +321,7 @@ function Aavak({ currentUser }) {
             grossWt: '_____',
             tareWt: '_____',
             netWt: '_____',
+            moisture: '_____',
             netWtAfterDeduction: '_____',
             rate: '_____',
             hamaliDeduction: 0,
@@ -320,112 +334,116 @@ function Aavak({ currentUser }) {
             balanceAmount: '_____'
         } : entryToPrint;
 
-        const createSlipHtml = (copyType, copyColor) => `
-            <div class="border-2 border-slate-900 mb-4 overflow-hidden font-sans text-slate-900">
-                <div class="text-center py-4 border-b-2 border-slate-900">
-                    <h1 class="text-2xl font-bold uppercase tracking-tight">VENKATESH COTTON COMPANY</h1>
-                    <p class="text-[10px] font-medium mt-1">NH752, Pomnala, Maharashtra 431801</p>
+        const createSlipHtml = (copyType, copyColor, sigLabel) => `
+            <div class="border-2 border-slate-900 mb-8 overflow-hidden font-sans text-slate-900 bg-white">
+                <div class="text-center py-6 border-b-2 border-slate-900">
+                    <h1 class="text-3xl font-black uppercase tracking-tighter">VENKATESH COTTON COMPANY</h1>
+                    <p class="text-xs font-bold mt-1">NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</p>
                 </div>
                 
-                <div class="flex justify-between px-4 py-1 border-b-2 border-slate-900 bg-white">
-                    <span class="font-bold uppercase text-[10px]">FARMER PURCHASE BILL</span>
-                    <span class="font-bold uppercase text-[10px]" style="color: ${copyColor}">${copyType}</span>
+                <div class="flex justify-between px-6 py-2 border-b-2 border-slate-900 bg-slate-50">
+                    <span class="font-black uppercase text-xs tracking-widest">FARMER PURCHASE BILL</span>
+                    <span class="font-black uppercase text-xs tracking-widest" style="color: ${copyColor}">${copyType}</span>
                 </div>
 
-                <div class="grid grid-cols-3 gap-x-4 px-4 py-2 text-[10px] border-b-2 border-slate-900">
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">TOKEN NO.</span>
-                            <div class="flex-1 font-bold px-1">${data.tokenNo}</div>
+                <div class="grid grid-cols-3 gap-x-8 px-6 py-4 text-xs border-b-2 border-slate-900">
+                    <div class="space-y-3">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">TOKEN NO.</span>
+                            <div class="flex-1 font-black px-1 text-sm">${data.tokenNo}</div>
                         </div>
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">VILLAGE</span>
-                            <div class="flex-1 font-bold px-1">${data.Village}</div>
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">DATE</span>
-                            <div class="flex-1 font-bold px-1">${data.billingDate}</div>
-                        </div>
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">VEHICLE NO.</span>
-                            <div class="flex-1 font-bold px-1">${data.vehicleNo}</div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">VILLAGE</span>
+                            <div class="flex-1 font-black px-1 text-sm">${data.Village}</div>
                         </div>
                     </div>
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">FARMER NAME</span>
-                            <div class="flex-1 font-bold px-1">${data.Name}</div>
+                    <div class="space-y-3">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">DATE</span>
+                            <div class="flex-1 font-black px-1 text-sm">${data.billingDate}</div>
                         </div>
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">DRIVER NAME</span>
-                            <div class="flex-1 font-bold px-1">${data.driverName || 'N/A'}</div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">VEHICLE NO.</span>
+                            <div class="flex-1 font-black px-1 text-sm">${data.vehicleNo}</div>
                         </div>
                     </div>
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">ITEM</span>
-                            <div class="flex-1 font-bold px-1">${data.itemName}</div>
+                    <div class="space-y-3">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">FARMER NAME</span>
+                            <div class="flex-1 font-black px-1 text-sm">${data.Name}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">DRIVER NAME</span>
+                            <div class="flex-1 font-black px-1 text-sm">${data.driverName || 'N/A'}</div>
                         </div>
                     </div>
                 </div>
 
-                <table class="w-full border-collapse text-[10px]">
+                <table class="w-full border-collapse text-xs">
                     <thead>
-                        <tr class="border-b-2 border-slate-900">
-                            <th class="border-r-2 border-slate-900 p-1 text-left w-[50%] uppercase font-bold">Description</th>
-                            <th class="border-r-2 border-slate-900 p-1 text-left w-[25%] uppercase font-bold">Weight/Rate</th>
-                            <th class="p-1 text-left w-[25%] uppercase font-bold">Amount</th>
+                        <tr class="border-b-2 border-slate-900 bg-slate-50">
+                            <th class="border-r-2 border-slate-900 p-2 text-left w-[50%] uppercase font-black">Description</th>
+                            <th class="border-r-2 border-slate-900 p-2 text-right w-[25%] uppercase font-black">Weight/Rate</th>
+                            <th class="p-2 text-right w-[25%] uppercase font-black">Amount</th>
                         </tr>
                     </thead>
                     <tbody class="font-bold">
-                        <tr class="border-b border-slate-300">
-                            <td class="border-r-2 border-slate-900 p-1 py-2">Gross Weight / Tare Weight</td>
-                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">${data.grossWt} / ${data.tareWt} kg</td>
-                            <td class="p-1 py-2"></td>
+                        <tr class="border-b border-slate-200">
+                            <td class="border-r-2 border-slate-900 p-2 py-3">Gross Weight / Tare Weight</td>
+                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">${data.grossWt} / ${data.tareWt} kg</td>
+                            <td class="p-2 py-3"></td>
                         </tr>
-                        <tr class="border-b border-slate-300">
-                            <td class="border-r-2 border-slate-900 p-1 py-2">Net Weight</td>
-                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">${data.netWt} kg</td>
-                            <td class="p-1 py-2"></td>
+                        <tr class="border-b border-slate-200">
+                            <td class="border-r-2 border-slate-900 p-2 py-3">Net Weight</td>
+                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">${data.netWt} kg</td>
+                            <td class="p-2 py-3"></td>
                         </tr>
-                        <tr class="border-b border-slate-300">
-                            <td class="border-r-2 border-slate-900 p-1 py-2">Net Wt (After 1.4% Ded.)</td>
-                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">${data.netWtAfterDeduction} kg</td>
-                            <td class="p-1 py-2"></td>
+                        <tr class="border-b border-slate-200">
+                            <td class="border-r-2 border-slate-900 p-2 py-3">Net Wt (After ${data.moisture || '1.4'}% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">${data.netWtAfterDeduction} kg</td>
+                            <td class="p-2 py-3"></td>
                         </tr>
                         <tr class="border-b-2 border-slate-900">
-                            <td class="border-r-2 border-slate-900 p-1 py-2">Rate / Hamali & Weighment</td>
-                            <td class="border-r-2 border-slate-900 p-1 py-2 text-right">₹${data.rate} / ₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
-                            <td class="p-1 py-2 text-right">₹${data.grossAmount} / -₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="border-r-2 border-slate-900 p-2 py-3">Rate / Hamali & Weighment</td>
+                            <td class="border-r-2 border-slate-900 p-2 py-3 text-right">₹${data.rate} / ₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="p-2 py-3 text-right font-black">₹${data.grossAmount} / -₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
                         </tr>
                     </tbody>
                 </table>
 
-                <div class="grid grid-cols-12 text-[10px]">
-                    <div class="col-span-7 p-2 space-y-2 border-r-2 border-slate-900">
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">PAYMENT MODE</span>
-                            <div class="flex-1 font-bold px-1">${data.paymentMode || 'CASH'}</div>
+                <div class="grid grid-cols-12 text-xs">
+                    <div class="col-span-7 p-4 space-y-4 border-r-2 border-slate-900">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">PAYMENT MODE</span>
+                            <div class="flex-1 font-black px-1">${data.paymentMode || 'CASH'}</div>
                         </div>
-                        <div class="flex items-end gap-1 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap">ACCOUNTANT NAME</span>
-                            <div class="flex-1 font-bold px-1">${data.accountantName || data.makerName || ''}</div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-1">
+                            <span class="font-bold uppercase whitespace-nowrap text-[10px] text-slate-500">ACCOUNTANT</span>
+                            <div class="flex-1 font-black px-1">${data.accountantName || data.makerName || ''}</div>
+                        </div>
+                        <div class="pt-8 flex justify-between items-end">
+                            <div class="text-center">
+                                <div class="w-32 border-b border-slate-900 mb-1"></div>
+                                <span class="text-[8px] font-black uppercase tracking-tighter">${sigLabel}</span>
+                            </div>
+                            <div class="text-center">
+                                <div class="w-32 border-b border-slate-900 mb-1"></div>
+                                <span class="text-[8px] font-black uppercase tracking-tighter">Authorized Signatory</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-span-5 p-2 space-y-1">
+                    <div class="col-span-5 p-4 space-y-2 bg-slate-50">
                         <div class="flex justify-between font-bold">
-                            <span class="uppercase">Net Payable</span>
-                            <span>₹ ${data.netAmount}</span>
+                            <span class="uppercase text-[10px] text-slate-500">Net Payable</span>
+                            <span class="text-sm">₹ ${data.netAmount}</span>
                         </div>
                         <div class="flex justify-between font-bold">
-                            <span class="uppercase">Amount Paid</span>
-                            <span>₹ ${data.amountPaid}</span>
+                            <span class="uppercase text-[10px] text-slate-500">Amount Paid</span>
+                            <span class="text-sm">₹ ${data.amountPaid}</span>
                         </div>
-                        <div class="flex justify-between border-t border-slate-900 pt-1 text-xs font-black">
-                            <span class="uppercase">Balance</span>
-                            <span>₹ ${data.balanceAmount}</span>
+                        <div class="flex justify-between border-t-2 border-slate-900 pt-2 mt-2">
+                            <span class="uppercase font-black text-xs">Balance</span>
+                            <span class="text-lg font-black">₹ ${data.balanceAmount}</span>
                         </div>
                     </div>
                 </div>
@@ -433,16 +451,11 @@ function Aavak({ currentUser }) {
         `;
         
         pdfContentElement.innerHTML = `
-            ${createSlipHtml('APMC COPY', '#ef4444')}
-            <div class="border-b border-dashed border-slate-300 my-8"></div>
-            ${createSlipHtml('FARMER COPY', '#ef4444')}
-        `;
-        
-        pdfContentElement.innerHTML = `
-            ${createSlipHtml('APMC COPY', '#ef4444', 'Accountant Signature')}
-            <div class="text-center my-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            ${createSlipHtml('OFFICE COPY', '#1e293b', 'Receiver Signature')}
+            <div class="text-center my-6 text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-4">
+                <div class="h-px bg-slate-200 flex-1"></div>
                 ✂ CUT ALONG THIS LINE ✂
-                <div class="border-b border-dashed border-slate-300 mt-1"></div>
+                <div class="h-px bg-slate-200 flex-1"></div>
             </div>
             ${createSlipHtml('FARMER COPY', '#ef4444', 'Farmer Signature')}
         `;

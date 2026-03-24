@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, query, orderBy, where, getDocs, setDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, MessageSquare, Clock, Share2, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -152,9 +152,28 @@ function Dashboard() {
   const handleShareSummary = () => {
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
     const aavakQuintals = (stats.todayAavakWt / 100).toFixed(1);
-    const summaryText = `DATE: ${today.toUpperCase()} | AAVAK: ${aavakQuintals}Q | BALES PRESSED: ${todayBales || 0} | DISPATCH: ${stats.todayJavakTrucks} TRUCKS.`;
+    const summaryText = `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
+      `📥 *AAVAK:* ${aavakQuintals} QNTL\n` +
+      `📦 *BALES PRESSED:* ${todayBales || 0}\n` +
+      `🚚 *DISPATCH:* ${stats.todayJavakTrucks} TRUCKS\n` +
+      `💰 *TODAY'S PAYOUT:* ₹${stats.totalAavakAmount.toLocaleString()}\n\n` +
+      `_Generated via VCC Cotton App_`;
+    
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
     window.open(whatsappUrl, '_blank');
+  };
+
+  const copyOutTurnToClipboard = () => {
+    if (!outTurnResults) return;
+    const text = `*VCC OUT-TURN ESTIMATE*\n` +
+      `Kapas: ${calcKapas} kg\n` +
+      `Lint: ${outTurnResults.lint} kg\n` +
+      `Seed: ${outTurnResults.seed} kg\n` +
+      `Bales: ~${outTurnResults.bales}`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Results copied to clipboard!');
+    });
   };
 
   const calculateOutTurn = (val) => {
@@ -406,19 +425,27 @@ function Dashboard() {
             </div>
             
             {outTurnResults && (
-              <div className="grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-bottom-2">
-                <div className="bg-white/10 p-2 rounded-lg text-center">
-                  <p className="text-[8px] font-bold uppercase opacity-70">Lint</p>
-                  <p className="text-sm font-black">{outTurnResults.lint} kg</p>
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-white/10 p-2 rounded-lg text-center">
+                    <p className="text-[8px] font-bold uppercase opacity-70">Lint</p>
+                    <p className="text-sm font-black">{outTurnResults.lint} kg</p>
+                  </div>
+                  <div className="bg-white/10 p-2 rounded-lg text-center">
+                    <p className="text-[8px] font-bold uppercase opacity-70">Seed</p>
+                    <p className="text-sm font-black">{outTurnResults.seed} kg</p>
+                  </div>
+                  <div className="bg-white/10 p-2 rounded-lg text-center">
+                    <p className="text-[8px] font-bold uppercase opacity-70">Bales</p>
+                    <p className="text-sm font-black">~{outTurnResults.bales}</p>
+                  </div>
                 </div>
-                <div className="bg-white/10 p-2 rounded-lg text-center">
-                  <p className="text-[8px] font-bold uppercase opacity-70">Seed</p>
-                  <p className="text-sm font-black">{outTurnResults.seed} kg</p>
-                </div>
-                <div className="bg-white/10 p-2 rounded-lg text-center">
-                  <p className="text-[8px] font-bold uppercase opacity-70">Bales</p>
-                  <p className="text-sm font-black">~{outTurnResults.bales}</p>
-                </div>
+                <button 
+                  onClick={copyOutTurnToClipboard}
+                  className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                >
+                  Copy Results
+                </button>
               </div>
             )}
             <p className="text-[9px] opacity-50 italic">
