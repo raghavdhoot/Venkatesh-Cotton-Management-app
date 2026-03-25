@@ -23,6 +23,7 @@ function Aavak({ currentUser }) {
     const [moisture, setMoisture] = useState('');
     const [rate, setRate] = useState('');
     const [amountPaid, setAmountPaid] = useState('');
+    const [originalAmountPaid, setOriginalAmountPaid] = useState(0);
     const [paymentMode, setPaymentMode] = useState('CASH');
     const [accountantName, setAccountantName] = useState('');
     const [makerName, setMakerName] = useState('');
@@ -41,7 +42,7 @@ function Aavak({ currentUser }) {
     }, [statusMessage]);
 
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser && isNewEntry) {
             if (paymentMode === 'CASH') {
                 setAccountantName(currentUser.name);
                 setMakerName('');
@@ -50,7 +51,7 @@ function Aavak({ currentUser }) {
                 setAccountantName('');
             }
         }
-    }, [paymentMode, currentUser]);
+    }, [paymentMode, currentUser, isNewEntry]);
 
     useEffect(() => {
         const q = query(collection(db, 'cottonEntries'), orderBy('timestamp', 'desc'), limit(20));
@@ -84,6 +85,7 @@ function Aavak({ currentUser }) {
         setMoisture('');
         setRate('');
         setAmountPaid('');
+        setOriginalAmountPaid(0);
         setPaymentMode('CASH');
         setAccountantName(currentUser?.name || '');
         setMakerName('');
@@ -121,6 +123,7 @@ function Aavak({ currentUser }) {
                 setMoisture(entryData.moisture || '');
                 setRate(entryData.rate || '');
                 setAmountPaid(entryData.amountPaid || '');
+                setOriginalAmountPaid(entryData.amountPaid || 0);
                 setPaymentMode(entryData.paymentMode || 'CASH');
                 setAccountantName(entryData.accountantName || '');
                 setMakerName(entryData.makerName || '');
@@ -244,13 +247,20 @@ function Aavak({ currentUser }) {
         balanceAmount = Math.round(netAmount - parsedAmountPaid);
 
         // Accountant/Maker logic
-        let finalAccountant = '';
-        let finalMaker = '';
-        if (parsedAmountPaid > 0) {
-            if (paymentMode === 'CASH') {
-                finalAccountant = currentUser.name;
-            } else {
-                finalMaker = currentUser.name;
+        let finalAccountant = accountantName;
+        let finalMaker = makerName;
+        
+        const isAmountIncreased = parsedAmountPaid > (originalAmountPaid || 0);
+
+        if (isNewEntry || isAmountIncreased) {
+            if (parsedAmountPaid > 0) {
+                if (paymentMode === 'CASH') {
+                    finalAccountant = currentUser.name;
+                    finalMaker = '';
+                } else {
+                    finalMaker = currentUser.name;
+                    finalAccountant = '';
+                }
             }
         }
 
@@ -584,7 +594,25 @@ function Aavak({ currentUser }) {
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Amount Paid (₹)</label>
                             <div className="flex gap-2">
-                                <input type="number" step="0.01" className="input-field" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    className="input-field" 
+                                    value={amountPaid} 
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setAmountPaid(val);
+                                        if (parseFloat(val || 0) > originalAmountPaid) {
+                                            if (paymentMode === 'CASH') {
+                                                setAccountantName(currentUser.name);
+                                                setMakerName('');
+                                            } else {
+                                                setMakerName(currentUser.name);
+                                                setAccountantName('');
+                                            }
+                                        }
+                                    }} 
+                                />
                                 <button 
                                     type="button"
                                     onClick={() => {
@@ -601,6 +629,16 @@ function Aavak({ currentUser }) {
                                             const grossAmount = (parsedRate / 100) * netWtAfterDeduction;
                                             const netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
                                             setAmountPaid(netAmount.toString());
+                                            
+                                            if (netAmount > originalAmountPaid) {
+                                                if (paymentMode === 'CASH') {
+                                                    setAccountantName(currentUser.name);
+                                                    setMakerName('');
+                                                } else {
+                                                    setMakerName(currentUser.name);
+                                                    setAccountantName('');
+                                                }
+                                            }
                                         }
                                     }}
                                     className="px-3 py-2 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-lg hover:bg-indigo-200 transition-colors uppercase whitespace-nowrap"
