@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { UserPlus, Trash2, User, Calendar, ShieldCheck, Phone, X } from 'lucide-react';
-import { logActivity } from './auditLogger';
 
 function Employees({ currentUser }) {
     const [firstName, setFirstName] = useState('');
@@ -85,7 +84,6 @@ function Employees({ currentUser }) {
                     lastUpdated: serverTimestamp()
                 };
                 await setDoc(doc(db, 'employees', editingEmployee.employeeId), updatedEmployee);
-                await logActivity(currentUser, 'UPDATE', `Updated employee: ${fullName} (${editingEmployee.employeeId})`);
                 setStatusMessage({ text: `Employee ${editingEmployee.employeeId} updated!`, type: 'success' });
             } else {
                 const empId = generateUniqueId(fullName, joiningYear, employees);
@@ -100,7 +98,6 @@ function Employees({ currentUser }) {
                     timestamp: serverTimestamp()
                 };
                 await setDoc(doc(db, 'employees', empId), newEmployee);
-                await logActivity(currentUser, 'CREATE', `Registered new employee: ${fullName} (${empId})`);
                 setStatusMessage({ text: `Employee registered! ID: ${empId}`, type: 'success' });
             }
             resetForm();
@@ -157,7 +154,6 @@ function Employees({ currentUser }) {
         }
         try {
             await deleteDoc(doc(db, 'employees', id));
-            await logActivity(currentUser, 'DELETE', `Deleted employee ID: ${id}`);
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Employee deleted successfully', type: 'success' });
         } catch (error) {

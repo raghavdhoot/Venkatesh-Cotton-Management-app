@@ -4,7 +4,6 @@ import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, u
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy } from 'lucide-react';
-import { logActivity } from './auditLogger';
 
 function Javak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -148,7 +147,6 @@ function Javak({ currentUser }) {
             const entryRef = doc(db, 'javakEntries', gatePassNo);
             if (currentEntryId) {
                 await updateDoc(entryRef, entryData);
-                logActivity(currentUser, 'UPDATE', `Updated Javak entry GP: ${gatePassNo}`);
                 
                 // Update Bardana entries: Delete old ones and add new ones
                 const q = query(collection(db, 'bardanaEntries'), where('javakId', '==', gatePassNo));
@@ -186,7 +184,6 @@ function Javak({ currentUser }) {
                 setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
             } else {
                 await setDoc(entryRef, entryData);
-                logActivity(currentUser, 'CREATE', `Created Javak entry GP: ${gatePassNo}`);
                 
                 // Automatically subtract from Bardana
                 if (numberOfBags) {
@@ -228,7 +225,6 @@ function Javak({ currentUser }) {
     const handleDeleteEntry = async (id) => {
         try {
             await deleteDoc(doc(db, 'javakEntries', String(id)));
-            logActivity(currentUser, 'DELETE', `Deleted Javak entry GP: ${id}`);
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
         } catch (error) {

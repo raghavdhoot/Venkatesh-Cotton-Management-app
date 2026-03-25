@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, MessageSquare, Clock, Share2, Calculator } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -33,7 +33,11 @@ function Dashboard({ currentUser }) {
   const [bardanaBreakdown, setBardanaBreakdown] = useState({});
   const [showAlert, setShowAlert] = useState(false);
   const [adminNotes, setAdminNotes] = useState([]);
+  const [adminTasks, setAdminTasks] = useState([]);
   const [rateChart, setRateChart] = useState([]);
+  const [employeeMessage, setEmployeeMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [messageStatus, setMessageStatus] = useState({ text: '', type: '' });
   
   // Out-turn Calculator State
   const [calcKapas, setCalcKapas] = useState('');
@@ -49,13 +53,16 @@ function Dashboard({ currentUser }) {
     const today = getLocalDate();
     
     const unsubscribeNotes = onSnapshot(query(collection(db, 'adminNotes'), orderBy('timestamp', 'desc')), (snapshot) => {
-      const allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const filteredNotes = allNotes.filter(note => {
-        if (note.assignedTo === 'ALL' || !note.assignedTo) return true;
+      setAdminNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubscribeTasks = onSnapshot(query(collection(db, 'adminTasks'), orderBy('timestamp', 'desc')), (snapshot) => {
+      const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const myTasks = allTasks.filter(task => {
         if (currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') return true;
-        return note.assignedTo === currentUser?.employeeId;
+        return task.assignedTo === currentUser?.employeeId;
       });
-      setAdminNotes(filteredNotes);
+      setAdminTasks(myTasks);
     });
 
     const unsubscribeRates = onSnapshot(query(collection(db, 'rateChart'), orderBy('timestamp', 'desc')), (snapshot) => {
@@ -161,9 +168,33 @@ function Dashboard({ currentUser }) {
       unsubscribeAavak();
       unsubscribeBardana();
       unsubscribeNotes();
+      unsubscribeTasks();
       unsubscribeRates();
     };
   }, [currentUser?.employeeId, currentUser?.role]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!employeeMessage.trim() || !currentUser) return;
+    
+    setIsSending(true);
+    try {
+      await addDoc(collection(db, 'employeeMessages'), {
+        content: employeeMessage.toUpperCase(),
+        senderName: currentUser.name,
+        senderId: currentUser.employeeId,
+        timestamp: serverTimestamp()
+      });
+      setEmployeeMessage('');
+      setMessageStatus({ text: 'Message sent to Admin!', type: 'success' });
+      setTimeout(() => setMessageStatus({ text: '', type: '' }), 3000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setMessageStatus({ text: 'Failed to send message', type: 'error' });
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const handleShareSummary = () => {
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
@@ -333,11 +364,57 @@ function Dashboard({ currentUser }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Dashboard Notes Section */}
+        <div className="card !p-0 overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <Bell className="w-5 h-5 text-indigo-600" />
+            <h3 className="text-lg font-bold text-slate-700 uppercase tracking-tight">Dashboard Notes</h3>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[250px] overflow-y-auto">
+            {adminNotes.length > 0 ? (
+              adminNotes.map(note => (
+                <div key={note.id} className="p-4 hover:bg-slate-50 transition-colors">
+                  <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{note.content}</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-bold uppercase">
+                    <Clock className="w-3 h-3" />
+                    {note.timestamp?.toDate().toLocaleString()} • BY {note.author}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400 text-sm italic text-center py-8">No public notes at this time</p>
+            )}
+          </div>
+        </div>
+
+        {/* Assigned Tasks Section */}
+        <div className="card !p-0 overflow-hidden">
+          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <CheckSquare className="w-5 h-5 text-amber-600" />
+            <h3 className="text-lg font-bold text-slate-700 uppercase tracking-tight">My Private Tasks</h3>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[250px] overflow-y-auto">
+            {adminTasks.length > 0 ? (
+              adminTasks.map(task => (
+                <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors border-l-4 border-amber-500">
+                  <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{task.content}</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-bold uppercase">
+                    <Clock className="w-3 h-3" />
+                    {task.timestamp?.toDate().toLocaleString()} • FROM ADMIN
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400 text-sm italic text-center py-8">No private tasks assigned to you</p>
+            )}
+          </div>
+        </div>
+
         {/* Rate Chart Section */}
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <IndianRupee className="w-5 h-5 text-emerald-600" />
-            <h3 className="text-lg font-bold">Current Rate Chart</h3>
+            <h3 className="text-lg font-bold uppercase tracking-tight">Current Rate Chart</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {rateChart.length > 0 ? (
@@ -353,27 +430,35 @@ function Dashboard({ currentUser }) {
           </div>
         </div>
 
-        {/* Admin Notes Section */}
+        {/* Message Admin Section */}
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold">Admin Announcements</h3>
+            <h3 className="text-lg font-bold">Message Admin</h3>
           </div>
-          <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
-            {adminNotes.length > 0 ? (
-              adminNotes.map(note => (
-                <div key={note.id} className="p-3 bg-indigo-50 border-l-4 border-indigo-500 rounded-r-lg">
-                  <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{note.content}</p>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-bold uppercase">
-                    <Clock className="w-3 h-3" />
-                    {note.timestamp?.toDate().toLocaleString()}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-slate-400 text-sm italic text-center py-4">No recent announcements</p>
-            )}
-          </div>
+          <form onSubmit={handleSendMessage} className="space-y-3">
+            <textarea 
+              className="input-field min-h-[80px] text-sm uppercase" 
+              placeholder="SEND A NOTE OR REPORT TO ADMIN..."
+              value={employeeMessage}
+              onChange={(e) => setEmployeeMessage(e.target.value.toUpperCase())}
+              required
+            />
+            <div className="flex items-center justify-between gap-2">
+              {messageStatus.text && (
+                <span className={`text-[10px] font-bold ${messageStatus.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {messageStatus.text}
+                </span>
+              )}
+              <button 
+                type="submit" 
+                disabled={isSending}
+                className="btn-primary py-2 px-4 text-xs flex items-center gap-2 ml-auto"
+              >
+                {isSending ? 'Sending...' : <><Send className="w-3 h-3" /> Send</>}
+              </button>
+            </div>
+          </form>
         </div>
 
         <div className="card">

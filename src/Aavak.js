@@ -6,7 +6,6 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { logActivity } from './auditLogger';
 
 function Aavak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -181,13 +180,11 @@ function Aavak({ currentUser }) {
         XLSX.utils.book_append_sheet(workbook, worksheet, "Cotton Entries");
         XLSX.writeFile(workbook, `VCC_Cotton_Entries_${filtered ? dateRange.start + '_to_' + dateRange.end : 'All'}.xlsx`);
         setShowExportModal(false);
-        logActivity(currentUser, 'EXPORT', `Exported ${formattedEntries.length} Aavak entries to Excel`);
     };
 
     const handleDeleteEntry = async (id) => {
         try {
             await deleteDoc(doc(db, 'cottonEntries', String(id)));
-            logActivity(currentUser, 'DELETE', `Deleted Aavak entry Token: ${id}`);
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
         } catch (error) {
@@ -287,11 +284,9 @@ function Aavak({ currentUser }) {
             const entryRef = doc(db, 'cottonEntries', tokenNo);
             if (currentEntryId) {
                 await updateDoc(entryRef, entryData);
-                logActivity(currentUser, 'UPDATE', `Updated Aavak entry Token: ${tokenNo}`);
                 setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
             } else {
                 await setDoc(entryRef, entryData);
-                logActivity(currentUser, 'CREATE', `Created new Aavak entry Token: ${tokenNo}`);
                 setLastEntry(entryData);
                 setStatusMessage({ text: 'New entry created successfully', type: 'success' });
             }
@@ -448,7 +443,6 @@ function Aavak({ currentUser }) {
             const pdf = new jsPDF('p', 'mm', 'a4');
             pdf.addImage(imgData, 'PNG', 0, 0, 210, (canvas.height * 210) / canvas.width);
             pdf.save(isBlank ? `Blank_Bill_Template.pdf` : `Bill_${data.tokenNo}.pdf`);
-            if (isBlank) logActivity(currentUser, 'PRINT', 'Printed blank Aavak template');
         } finally {
             document.body.removeChild(pdfContentElement);
         }
