@@ -8,7 +8,7 @@ import AdminPanel from './AdminPanel';
 import Dashboard from './components/Dashboard';
 import { db } from './firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
-import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Flower2, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeContext';
 
@@ -25,13 +25,13 @@ function App() {
     React.useEffect(() => {
         const bootstrap = async () => {
             try {
-                const q = query(collection(db, 'employees'), where('role', '==', 'admin'));
+                const q = query(collection(db, 'employees'), where('role', 'in', ['admin', 'ADMIN']));
                 const snap = await getDocs(q);
                 if (snap.empty) {
                     await setDoc(doc(db, 'employees', 'ADMIN'), {
                         name: 'Admin User',
                         employeeId: 'ADMIN',
-                        role: 'admin',
+                        role: 'ADMIN',
                         joiningYear: new Date().getFullYear(),
                         phone: '0000000000',
                         timestamp: new Date()
@@ -52,7 +52,7 @@ function App() {
         { id: 'javak', label: 'जावक (Outgoing)', icon: ArrowUpRight },
         { id: 'bardana', label: 'Bardana', icon: Package },
         { id: 'employees', label: 'Employees', icon: Users },
-        ...(user?.role === 'admin' || user?.employeeId === 'ADMIN' ? [{ id: 'admin', label: 'Admin Panel', icon: Shield }] : []),
+        ...(user?.role?.toUpperCase() === 'ADMIN' || user?.employeeId === 'ADMIN' ? [{ id: 'admin', label: 'Admin Panel', icon: Shield }] : []),
     ];
 
     const handleLogin = async (e) => {
@@ -135,7 +135,7 @@ function App() {
             case 'admin':
                 return <AdminPanel currentUser={user} />;
             default:
-                return <Dashboard />;
+                return <Dashboard currentUser={user} />;
         }
     };
 
@@ -166,8 +166,17 @@ function App() {
                     >
                         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-                                    <Flower2 className="text-white w-6 h-6" />
+                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
+                                    <img 
+                                        src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
+                                        alt="Logo" 
+                                        className="w-full h-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = "https://via.placeholder.com/40?text=VCC";
+                                        }}
+                                    />
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="font-black text-slate-900 dark:text-white leading-none tracking-tight">VENKATESH</span>
@@ -212,8 +221,17 @@ function App() {
             {/* Sidebar */}
             <aside className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100 dark:shadow-none">
-                        <Flower2 className="text-white w-6 h-6" />
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 shadow-lg shadow-indigo-100 dark:shadow-none">
+                        <img 
+                            src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
+                            alt="Logo" 
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "https://via.placeholder.com/40?text=VCC";
+                            }}
+                        />
                     </div>
                     {isSidebarOpen && (
                         <div className="flex flex-col">

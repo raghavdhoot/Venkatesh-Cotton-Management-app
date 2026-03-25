@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, limit } from 'firebase/firestore';
 import { Save, Trash2, Plus, MessageSquare, IndianRupee, Shield, History } from 'lucide-react';
+import { logActivity } from './auditLogger';
 
 function AdminPanel({ currentUser }) {
     const [note, setNote] = useState('');
+    const [assignedTo, setAssignedTo] = useState('ALL');
+    const [employees, setEmployees] = useState([]);
     const [adminNotes, setAdminNotes] = useState([]);
     const [itemName, setItemName] = useState('');
     const [itemRate, setItemRate] = useState('');
@@ -12,7 +15,7 @@ function AdminPanel({ currentUser }) {
     const [auditLogs, setAuditLogs] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
 
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN';
+    const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
     useEffect(() => {
         if (!isAdmin) return;
@@ -29,10 +32,15 @@ function AdminPanel({ currentUser }) {
             setAuditLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
+        const unsubscribeEmployees = onSnapshot(query(collection(db, 'employees'), orderBy('name', 'asc')), (snapshot) => {
+            setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+
         return () => {
             unsubscribeNotes();
             unsubscribeRates();
             unsubscribeLogs();
+            unsubscribeEmployees();
         };
     }, [isAdmin]);
 
@@ -43,9 +51,12 @@ function AdminPanel({ currentUser }) {
             await addDoc(collection(db, 'adminNotes'), {
                 content: note.toUpperCase(),
                 author: currentUser.name,
+                assignedTo: assignedTo,
                 timestamp: serverTimestamp()
             });
+            await logActivity(currentUser, 'CREATE', `Added admin note assigned to: ${assignedTo}`);
             setNote('');
+            setAssignedTo('ALL');
             setStatusMessage({ text: 'Note added successfully', type: 'success' });
         } catch (error) {
             console.error("Error adding note:", error);
@@ -62,6 +73,7 @@ function AdminPanel({ currentUser }) {
                 rate: parseFloat(itemRate),
                 timestamp: serverTimestamp()
             });
+            await logActivity(currentUser, 'CREATE', `Updated rate chart: ${itemName.toUpperCase()} at ₹${itemRate}`);
             setItemName('');
             setItemRate('');
             setStatusMessage({ text: 'Rate added successfully', type: 'success' });
@@ -74,6 +86,7 @@ function AdminPanel({ currentUser }) {
     const handleDelete = async (coll, id) => {
         try {
             await deleteDoc(doc(db, coll, id));
+            await logActivity(currentUser, 'DELETE', `Deleted ${coll} entry ID: ${id}`);
             setStatusMessage({ text: 'Deleted successfully', type: 'success' });
         } catch (error) {
             console.error("Error deleting:", error);
@@ -115,6 +128,19 @@ function AdminPanel({ currentUser }) {
                             Manage Dashboard Notes
                         </h3>
                         <form onSubmit={handleAddNote} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign To</label>
+                                <select 
+                                    className="input-field"
+                                    value={assignedTo}
+                                    onChange={(e) => setAssignedTo(e.target.value)}
+                                >
+                                    <option value="ALL">ALL EMPLOYEES</option>
+                                    {employees.map(emp => (
+                                        <option key={emp.employeeId} value={emp.employeeId}>{emp.name} ({emp.employeeId})</option>
+                                    ))}
+                                </select>
+                            </div>
                             <textarea 
                                 className="input-field min-h-[100px] uppercase" 
                                 placeholder="WRITE CHANGES OR NOTES HERE..."
@@ -136,6 +162,13 @@ function AdminPanel({ currentUser }) {
                             {adminNotes.map(n => (
                                 <div key={n.id} className="p-4 flex justify-between items-start gap-4 hover:bg-slate-50 transition-colors">
                                     <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                                n.assignedTo === 'ALL' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'
+                                            }`}>
+                                                {n.assignedTo === 'ALL' ? 'Public' : `Private: ${n.assignedTo}`}
+                                            </span>
+                                        </div>
                                         <p className="text-sm text-slate-900 font-medium whitespace-pre-wrap">{n.content}</p>
                                         <p className="text-[10px] text-slate-400 mt-1 uppercase">By {n.author} • {n.timestamp?.toDate().toLocaleString()}</p>
                                     </div>

@@ -16,7 +16,7 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
   </div>
 );
 
-function Dashboard() {
+function Dashboard({ currentUser }) {
   const [stats, setStats] = useState({
     totalAavakNetWt: 0,
     totalAavakAmount: 0,
@@ -40,10 +40,22 @@ function Dashboard() {
   const [outTurnResults, setOutTurnResults] = useState(null);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const getLocalDate = () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+      return localDate.toISOString().split('T')[0];
+    };
+    const today = getLocalDate();
     
     const unsubscribeNotes = onSnapshot(query(collection(db, 'adminNotes'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setAdminNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const filteredNotes = allNotes.filter(note => {
+        if (note.assignedTo === 'ALL' || !note.assignedTo) return true;
+        if (currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') return true;
+        return note.assignedTo === currentUser?.employeeId;
+      });
+      setAdminNotes(filteredNotes);
     });
 
     const unsubscribeRates = onSnapshot(query(collection(db, 'rateChart'), orderBy('timestamp', 'desc')), (snapshot) => {
@@ -151,7 +163,7 @@ function Dashboard() {
       unsubscribeNotes();
       unsubscribeRates();
     };
-  }, []);
+  }, [currentUser?.employeeId, currentUser?.role]);
 
   const handleShareSummary = () => {
     const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
@@ -164,6 +176,20 @@ function Dashboard() {
     
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
     window.open(whatsappUrl, '_blank');
+  };
+
+  const handleCopySummary = () => {
+    const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
+    const aavakQuintals = (stats.todayAavakWt / 100).toFixed(1);
+    const summaryText = `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
+      `📥 *AAVAK:* ${aavakQuintals} QNTL\n` +
+      `🚚 *DISPATCH:* ${stats.todayJavakTrucks} TRUCKS\n` +
+      `💰 *TODAY'S PAYOUT:* ₹${stats.todayAavakAmount.toLocaleString()}\n\n` +
+      `_Generated via VCC Cotton App_`;
+    
+    navigator.clipboard.writeText(summaryText).then(() => {
+      alert('Summary copied to clipboard!');
+    });
   };
 
   const copyOutTurnToClipboard = () => {
@@ -212,10 +238,16 @@ function Dashboard() {
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button 
+            onClick={handleCopySummary}
+            className="btn-secondary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
+          >
+            <Share2 className="w-4 h-4" /> Copy Summary
+          </button>
+          <button 
             onClick={handleShareSummary}
             className="btn-primary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
           >
-            <Share2 className="w-4 h-4" /> Share Summary
+            <Share2 className="w-4 h-4" /> Share WhatsApp
           </button>
         </div>
       </div>

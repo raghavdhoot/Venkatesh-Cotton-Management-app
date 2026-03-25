@@ -3,12 +3,14 @@ import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, getDocs, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy } from 'lucide-react';
+import { logActivity } from './auditLogger';
 
 function Javak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
     const [searchGatePass, setSearchGatePass] = useState('');
     const [isNewEntry, setIsNewEntry] = useState(false);
+    const [lastEntry, setLastEntry] = useState(null);
     
     const [gatePassNo, setGatePassNo] = useState('');
     const [entryDate, setEntryDate] = useState('');
@@ -43,6 +45,9 @@ function Javak({ currentUser }) {
                 ...doc.data()
             }));
             setRecentJavakEntries(entriesData);
+            if (entriesData.length > 0) {
+                setLastEntry(entriesData[0]);
+            }
         }, (error) => {
             console.error("Error fetching javak entries: ", error);
         });
@@ -66,6 +71,17 @@ function Javak({ currentUser }) {
         setBardanaType('BARDANA');
         setSutliCount('');
         setIsFormOpen(false);
+    };
+
+    const handleRepeatLastEntry = () => {
+        if (!lastEntry) return;
+        setEntryDate(new Date().toISOString().split('T')[0]);
+        setVehicleNumber(lastEntry.vehicleNumber || '');
+        setDestination(lastEntry.destination || '');
+        setCommodity(lastEntry.commodity || '');
+        setBardanaType(lastEntry.bardanaType || 'BARDANA');
+        setDriverName(lastEntry.driverName || '');
+        setIsFormOpen(true);
     };
 
     const handleLookupEntry = async () => {
@@ -104,7 +120,7 @@ function Javak({ currentUser }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!gatePassNo || !entryDate || !vehicleNumber || !destination || !commodity || !grossWt || !tareWt || !numberOfBags) return;
+        if (!gatePassNo || !entryDate || !vehicleNumber) return;
 
         const parsedGrossWt = parseFloat(grossWt || 0);
         const parsedTareWt = parseFloat(tareWt || 0);
@@ -114,14 +130,14 @@ function Javak({ currentUser }) {
             gatePassNo,
             date: entryDate,
             vehicleNumber,
-            destination,
-            commodity,
-            grossWt: parsedGrossWt,
-            tareWt: parsedTareWt,
-            netWt: parseFloat(netWt.toFixed(2)),
-            numberOfBags: parseInt(numberOfBags, 10),
-            bardanaType,
-            sutliCount: parseInt(sutliCount || 0, 10),
+            destination: destination || null,
+            commodity: commodity || null,
+            grossWt: parsedGrossWt || null,
+            tareWt: parsedTareWt || null,
+            netWt: parseFloat(netWt.toFixed(2)) || null,
+            numberOfBags: numberOfBags ? parseInt(numberOfBags, 10) : null,
+            bardanaType: bardanaType || null,
+            sutliCount: sutliCount ? parseInt(sutliCount, 10) : 0,
             driverName: driverName || null,
             driverPhoto: driverPhoto || null,
             entryMaker: currentUser.name,
@@ -132,6 +148,7 @@ function Javak({ currentUser }) {
             const entryRef = doc(db, 'javakEntries', gatePassNo);
             if (currentEntryId) {
                 await updateDoc(entryRef, entryData);
+                logActivity(currentUser, 'UPDATE', `Updated Javak entry GP: ${gatePassNo}`);
                 
                 // Update Bardana entries: Delete old ones and add new ones
                 const q = query(collection(db, 'bardanaEntries'), where('javakId', '==', gatePassNo));
@@ -140,16 +157,18 @@ function Javak({ currentUser }) {
                     await deleteDoc(doc(db, 'bardanaEntries', d.id));
                 }
 
-                await addDoc(collection(db, 'bardanaEntries'), {
-                    itemName: bardanaType,
-                    quantity: parseInt(numberOfBags, 10),
-                    personName: driverName || 'N/A',
-                    employeeName: currentUser.name,
-                    type: 'OUT',
-                    entryMaker: 'System (Javak Update)',
-                    javakId: gatePassNo,
-                    timestamp: serverTimestamp()
-                });
+                if (numberOfBags) {
+                    await addDoc(collection(db, 'bardanaEntries'), {
+                        itemName: bardanaType,
+                        quantity: parseInt(numberOfBags, 10),
+                        personName: driverName || 'N/A',
+                        employeeName: currentUser.name,
+                        type: 'OUT',
+                        entryMaker: 'System (Javak Update)',
+                        javakId: gatePassNo,
+                        timestamp: serverTimestamp()
+                    });
+                }
 
                 if (sutliCount && parseInt(sutliCount, 10) > 0) {
                     await addDoc(collection(db, 'bardanaEntries'), {
@@ -167,18 +186,21 @@ function Javak({ currentUser }) {
                 setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
             } else {
                 await setDoc(entryRef, entryData);
+                logActivity(currentUser, 'CREATE', `Created Javak entry GP: ${gatePassNo}`);
                 
                 // Automatically subtract from Bardana
-                await addDoc(collection(db, 'bardanaEntries'), {
-                    itemName: bardanaType,
-                    quantity: parseInt(numberOfBags, 10),
-                    personName: driverName || 'N/A',
-                    employeeName: currentUser.name,
-                    type: 'OUT',
-                    entryMaker: 'System (Javak)',
-                    javakId: gatePassNo,
-                    timestamp: serverTimestamp()
-                });
+                if (numberOfBags) {
+                    await addDoc(collection(db, 'bardanaEntries'), {
+                        itemName: bardanaType,
+                        quantity: parseInt(numberOfBags, 10),
+                        personName: driverName || 'N/A',
+                        employeeName: currentUser.name,
+                        type: 'OUT',
+                        entryMaker: 'System (Javak)',
+                        javakId: gatePassNo,
+                        timestamp: serverTimestamp()
+                    });
+                }
 
                 // Also subtract Sutli if provided
                 if (sutliCount && parseInt(sutliCount, 10) > 0) {
@@ -206,6 +228,7 @@ function Javak({ currentUser }) {
     const handleDeleteEntry = async (id) => {
         try {
             await deleteDoc(doc(db, 'javakEntries', String(id)));
+            logActivity(currentUser, 'DELETE', `Deleted Javak entry GP: ${id}`);
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
         } catch (error) {
@@ -370,7 +393,12 @@ function Javak({ currentUser }) {
                     <button onClick={handleLookupEntry} className="btn-primary flex-1 md:flex-none flex items-center justify-center gap-2">
                         <Plus className="w-4 h-4" /> Load/Create
                     </button>
-                    {(currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN') && (
+                    {lastEntry && (
+                        <button onClick={handleRepeatLastEntry} className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2">
+                            <History className="w-4 h-4" /> Repeat Last
+                        </button>
+                    )}
+                    {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generateJavakPdf({
                             gatePassNo: '__________',
                             date: '__________',
@@ -396,12 +424,22 @@ function Javak({ currentUser }) {
             {isFormOpen && (
                 <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-bold text-slate-900">
-                            {isNewEntry ? 'New Outgoing Entry' : 'Update Outgoing Entry'} - Gate Pass: {gatePassNo}
-                        </h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${isNewEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {isNewEntry ? 'NEW' : 'EDITING'}
-                        </span>
+                        <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-slate-900">
+                                {isNewEntry ? 'New Outgoing Entry' : 'Update Outgoing Entry'} - Gate Pass: {gatePassNo}
+                            </h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${isNewEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {isNewEntry ? 'NEW' : 'EDITING'}
+                            </span>
+                        </div>
+                        {isNewEntry && lastEntry && (
+                            <button 
+                                onClick={handleRepeatLastEntry}
+                                className="text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 hover:underline"
+                            >
+                                <Copy className="w-3 h-3" /> Repeat Last Entry
+                            </button>
+                        )}
                     </div>
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="space-y-1">
@@ -433,23 +471,23 @@ function Javak({ currentUser }) {
                             <label className="text-sm font-semibold text-slate-600">Destination</label>
                             <div className="relative">
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 uppercase" value={destination} onChange={(e) => setDestination(e.target.value.toUpperCase())} required placeholder="E.G., MUMBAI" />
+                                <input type="text" className="input-field pl-10 uppercase" value={destination} onChange={(e) => setDestination(e.target.value.toUpperCase())} placeholder="E.G., MUMBAI" />
                             </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Commodity</label>
                             <div className="relative">
                                 <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 uppercase" value={commodity} onChange={(e) => setCommodity(e.target.value.toUpperCase())} required placeholder="E.G., COTTON BALES" />
+                                <input type="text" className="input-field pl-10 uppercase" value={commodity} onChange={(e) => setCommodity(e.target.value.toUpperCase())} placeholder="E.G., COTTON BALES" />
                             </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Gross Wt (kg)</label>
-                            <input type="number" step="0.01" className="input-field" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required />
+                            <input type="number" step="0.01" className="input-field" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Tare Wt (kg)</label>
-                            <input type="number" step="0.01" className="input-field" value={tareWt} onChange={(e) => setTareWt(e.target.value)} required />
+                            <input type="number" step="0.01" className="input-field" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Net Wt (kg)</label>
@@ -457,7 +495,7 @@ function Javak({ currentUser }) {
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">No. of Bags</label>
-                            <input type="number" className="input-field" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} required />
+                            <input type="number" className="input-field" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">Bardana Type</label>

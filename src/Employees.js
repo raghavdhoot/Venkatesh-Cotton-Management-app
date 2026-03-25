@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { UserPlus, Trash2, User, Calendar, ShieldCheck, Phone } from 'lucide-react';
+import { UserPlus, Trash2, User, Calendar, ShieldCheck, Phone, X } from 'lucide-react';
+import { logActivity } from './auditLogger';
 
 function Employees({ currentUser }) {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [phone, setPhone] = useState('');
     const [joiningYear, setJoiningYear] = useState(new Date().getFullYear().toString());
+    const [role, setRole] = useState('KATA');
+    const [customRole, setCustomRole] = useState('');
     const [employees, setEmployees] = useState([]);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [editingEmployee, setEditingEmployee] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
 
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN';
+    const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
     useEffect(() => {
         if (statusMessage.text) {
@@ -30,7 +34,7 @@ function Employees({ currentUser }) {
                     id: doc.id,
                     ...doc.data()
                 }))
-                .filter(emp => emp.employeeId !== 'ADMIN' && emp.role !== 'admin');
+                .filter(emp => emp.employeeId !== 'ADMIN');
             setEmployees(empData);
         });
         return () => unsubscribe();
@@ -61,41 +65,99 @@ function Employees({ currentUser }) {
         }
 
         const fullName = `${firstName.trim().toUpperCase()} ${lastName.trim().toUpperCase()}`;
-        const empId = generateUniqueId(fullName, joiningYear, employees);
-        
-        const newEmployee = {
-            name: fullName,
-            firstName: firstName.trim().toUpperCase(),
-            lastName: lastName.trim().toUpperCase(),
-            phone: phone.trim(),
-            joiningYear: parseInt(joiningYear, 10),
-            employeeId: empId,
-            role: 'staff', // Default role
-            timestamp: serverTimestamp()
-        };
+        const finalRole = role === 'OTHER' ? customRole.trim().toUpperCase() : role;
 
+        if (role === 'OTHER' && !customRole.trim()) {
+            setStatusMessage({ text: 'Please specify the role', type: 'error' });
+            return;
+        }
+        
         try {
-            await setDoc(doc(db, 'employees', empId), newEmployee);
-            setFirstName('');
-            setLastName('');
-            setPhone('');
-            setJoiningYear(new Date().getFullYear().toString());
+            if (editingEmployee) {
+                const updatedEmployee = {
+                    ...editingEmployee,
+                    name: fullName,
+                    firstName: firstName.trim().toUpperCase(),
+                    lastName: lastName.trim().toUpperCase(),
+                    phone: phone.trim(),
+                    joiningYear: parseInt(joiningYear, 10),
+                    role: finalRole,
+                    lastUpdated: serverTimestamp()
+                };
+                await setDoc(doc(db, 'employees', editingEmployee.employeeId), updatedEmployee);
+                await logActivity(currentUser, 'UPDATE', `Updated employee: ${fullName} (${editingEmployee.employeeId})`);
+                setStatusMessage({ text: `Employee ${editingEmployee.employeeId} updated!`, type: 'success' });
+            } else {
+                const empId = generateUniqueId(fullName, joiningYear, employees);
+                const newEmployee = {
+                    name: fullName,
+                    firstName: firstName.trim().toUpperCase(),
+                    lastName: lastName.trim().toUpperCase(),
+                    phone: phone.trim(),
+                    joiningYear: parseInt(joiningYear, 10),
+                    employeeId: empId,
+                    role: finalRole,
+                    timestamp: serverTimestamp()
+                };
+                await setDoc(doc(db, 'employees', empId), newEmployee);
+                await logActivity(currentUser, 'CREATE', `Registered new employee: ${fullName} (${empId})`);
+                setStatusMessage({ text: `Employee registered! ID: ${empId}`, type: 'success' });
+            }
+            resetForm();
             setIsFormOpen(false);
-            setStatusMessage({ text: `Employee registered! ID: ${empId}`, type: 'success' });
         } catch (error) {
-            console.error("Error adding employee: ", error);
-            setStatusMessage({ text: 'Error adding employee', type: 'error' });
+            console.error("Error saving employee: ", error);
+            setStatusMessage({ text: 'Error saving employee', type: 'error' });
         }
     };
 
+    const resetForm = () => {
+        setFirstName('');
+        setLastName('');
+        setPhone('');
+        setJoiningYear(new Date().getFullYear().toString());
+        setRole('KATA');
+        setCustomRole('');
+        setEditingEmployee(null);
+    };
+
+    const handleEdit = (emp) => {
+        setEditingEmployee(emp);
+        setFirstName(emp.firstName || '');
+        setLastName(emp.lastName || '');
+        setPhone(emp.phone || '');
+        setJoiningYear(emp.joiningYear?.toString() || new Date().getFullYear().toString());
+        
+        // Map old roles to new ones for backward compatibility
+        let currentRole = emp.role || 'KATA';
+        const normalizedRole = currentRole.toUpperCase();
+        if (normalizedRole === 'ADMIN') {
+            setRole('ADMIN');
+            setCustomRole('');
+        } else if (normalizedRole === 'CASHIER') {
+            setRole('CASHIER');
+            setCustomRole('');
+        } else if (normalizedRole === 'KATA' || normalizedRole === 'STAFF') {
+            setRole('KATA');
+            setCustomRole('');
+        } else {
+            setRole('OTHER');
+            setCustomRole(currentRole);
+        }
+        
+        setIsFormOpen(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const handleDelete = async (id, role) => {
-        if (role === 'admin' || id === 'ADMIN') {
-            setStatusMessage({ text: 'Cannot delete Admin accounts', type: 'error' });
+        if (id === 'ADMIN') {
+            setStatusMessage({ text: 'Cannot delete Super Admin account', type: 'error' });
             setDeleteConfirmId(null);
             return;
         }
         try {
             await deleteDoc(doc(db, 'employees', id));
+            await logActivity(currentUser, 'DELETE', `Deleted employee ID: ${id}`);
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Employee deleted successfully', type: 'success' });
         } catch (error) {
@@ -118,10 +180,13 @@ function Employees({ currentUser }) {
                     )}
                     {isAdmin && (
                         <button 
-                            onClick={() => setIsFormOpen(!isFormOpen)} 
+                            onClick={() => {
+                                if (isFormOpen) resetForm();
+                                setIsFormOpen(!isFormOpen);
+                            }} 
                             className="btn-primary flex items-center gap-2"
                         >
-                            {isFormOpen ? <ShieldCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                            {isFormOpen ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
                             {isFormOpen ? 'Close Form' : 'Add New Employee'}
                         </button>
                     )}
@@ -130,6 +195,9 @@ function Employees({ currentUser }) {
 
             {isFormOpen && isAdmin && (
                 <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
+                    <h3 className="text-lg font-bold mb-6 text-slate-800 uppercase tracking-tight">
+                        {editingEmployee ? `Edit Employee: ${editingEmployee.employeeId}` : 'Register New Employee'}
+                    </h3>
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600">First Name</label>
@@ -188,8 +256,55 @@ function Employees({ currentUser }) {
                                 />
                             </div>
                         </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600">Role / Access Level</label>
+                            <div className="relative">
+                                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <select 
+                                    className="input-field pl-10 uppercase font-bold"
+                                    value={role}
+                                    onChange={(e) => setRole(e.target.value)}
+                                    required
+                                >
+                                    <option value="ADMIN">ADMIN (FULL CONTROL)</option>
+                                    <option value="CASHIER">CASHIER</option>
+                                    <option value="KATA">KATA</option>
+                                    <option value="OTHER">OTHER (SPECIFY)</option>
+                                </select>
+                            </div>
+                        </div>
+                        {role === 'OTHER' && (
+                            <div className="space-y-1 animate-in fade-in slide-in-from-left-2 duration-200">
+                                <label className="text-sm font-semibold text-slate-600">Specify Role</label>
+                                <div className="relative">
+                                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                    <input 
+                                        type="text" 
+                                        className="input-field pl-10 uppercase font-bold" 
+                                        value={customRole} 
+                                        onChange={(e) => setCustomRole(e.target.value.toUpperCase())} 
+                                        required 
+                                        placeholder="E.G., DRIVER, MOISTURE CHECKER"
+                                    />
+                                </div>
+                            </div>
+                        )}
                         <div className="md:col-span-2 flex justify-end gap-3 pt-4 border-t border-slate-100">
-                            <button type="submit" className="btn-primary">Generate ID & Save</button>
+                            {editingEmployee && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        resetForm();
+                                        setIsFormOpen(false);
+                                    }} 
+                                    className="btn-secondary"
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                            <button type="submit" className="btn-primary">
+                                {editingEmployee ? 'Update Details' : 'Generate ID & Save'}
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -202,6 +317,7 @@ function Employees({ currentUser }) {
                             <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                 <th className="px-6 py-4 font-semibold">Employee Name</th>
                                 <th className="px-6 py-4 font-semibold">Phone Number</th>
+                                <th className="px-6 py-4 font-semibold text-center">Role</th>
                                 <th className="px-6 py-4 font-semibold">Year of Joining</th>
                                 {isAdmin && <th className="px-6 py-4 font-semibold text-right">Actions</th>}
                             </tr>
@@ -216,32 +332,49 @@ function Employees({ currentUser }) {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-600 font-medium">{emp.phone || 'N/A'}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
+                                            emp.role?.toUpperCase() === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                            {emp.role?.toUpperCase() === 'STAFF' ? 'KATA' : (emp.role || 'KATA')}
+                                        </span>
+                                    </td>
                                     <td className="px-6 py-4 text-sm text-slate-600">{emp.joiningYear}</td>
                                     {isAdmin && (
                                         <td className="px-6 py-4 text-right">
-                                            {deleteConfirmId === emp.id ? (
-                                                <div className="flex justify-end gap-2 animate-in zoom-in-95 duration-200">
-                                                    <button 
-                                                        onClick={() => handleDelete(emp.id, emp.role)}
-                                                        className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors"
-                                                    >
-                                                        Confirm
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setDeleteConfirmId(null)}
-                                                        className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            ) : (
+                                            <div className="flex justify-end gap-2">
                                                 <button 
-                                                    onClick={() => setDeleteConfirmId(emp.id)}
-                                                    className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                    onClick={() => handleEdit(emp)}
+                                                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                    title="Edit Employee"
                                                 >
-                                                    <Trash2 className="w-5 h-5" />
+                                                    <ShieldCheck className="w-5 h-5" />
                                                 </button>
-                                            )}
+                                                {deleteConfirmId === emp.id ? (
+                                                    <div className="flex justify-end gap-2 animate-in zoom-in-95 duration-200">
+                                                        <button 
+                                                            onClick={() => handleDelete(emp.id, emp.role)}
+                                                            className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors"
+                                                        >
+                                                            Confirm
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setDeleteConfirmId(null)}
+                                                            className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => setDeleteConfirmId(emp.id)}
+                                                        className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                        title="Delete Employee"
+                                                    >
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     )}
                                 </tr>

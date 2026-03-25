@@ -61,6 +61,9 @@ function Aavak({ currentUser }) {
                 ...doc.data()
             }));
             setRecentEntries(entriesData);
+            if (entriesData.length > 0) {
+                setLastEntry(entriesData[0]);
+            }
         }, (error) => {
             console.error("Error fetching real-time data: ", error);
         });
@@ -214,7 +217,6 @@ function Aavak({ currentUser }) {
         const parsedTareWt = parseFloat(tareWt || 0);
         const parsedRate = parseFloat(rate || 0);
         const parsedAmountPaid = parseFloat(amountPaid || 0);
-        const parsedMoisture = parseFloat(moisture || 0);
 
         let netWt = 0;
         let netWtAfterDeduction = 0;
@@ -226,7 +228,7 @@ function Aavak({ currentUser }) {
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
-            const deductionRate = parsedMoisture > 0 ? (parsedMoisture / 100) : 0.014;
+            const deductionRate = 0.014; // Flat 1.4% deduction
             netWtAfterDeduction = netWt * (1 - deductionRate);
             const netWtInQuintals = netWt / 100;
             hamaliDeduction = netWtInQuintals * 15;
@@ -388,7 +390,7 @@ function Aavak({ currentUser }) {
                             <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.moisture || '1.4'}% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After 1.4% Ded.)</td>
                             <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
                             <td class="p-1.5 py-2"></td>
                         </tr>
@@ -499,7 +501,7 @@ function Aavak({ currentUser }) {
                     <button onClick={() => setShowExportModal(true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                         <Download className="w-4 h-4" /> Export
                     </button>
-                    {(currentUser?.role === 'admin' || currentUser?.employeeId === 'ADMIN') && (
+                    {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                             <Printer className="w-4 h-4" /> Blank Print
                         </button>
@@ -595,10 +597,9 @@ function Aavak({ currentUser }) {
                                         const parsedGrossWt = parseFloat(grossWt || 0);
                                         const parsedTareWt = parseFloat(tareWt || 0);
                                         const parsedRate = parseFloat(rate || 0);
-                                        const parsedMoisture = parseFloat(moisture || 0);
                                         if (parsedGrossWt && parsedTareWt && parsedRate) {
                                             const netWt = parsedGrossWt - parsedTareWt;
-                                            const deductionRate = parsedMoisture > 0 ? (parsedMoisture / 100) : 0.014;
+                                            const deductionRate = 0.014; // Always 1.4%
                                             const netWtAfterDeduction = netWt * (1 - deductionRate);
                                             const netWtInQuintals = netWt / 100;
                                             const hamaliDeduction = netWtInQuintals * 15;
