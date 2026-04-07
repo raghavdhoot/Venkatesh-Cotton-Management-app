@@ -4,6 +4,7 @@ import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, u
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy } from 'lucide-react';
+import { normalizeItemName } from './utils/normalization';
 
 function Javak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -130,7 +131,7 @@ function Javak({ currentUser }) {
             date: entryDate,
             vehicleNumber,
             destination: destination || null,
-            commodity: commodity || null,
+            commodity: normalizeItemName(commodity) || null,
             grossWt: parsedGrossWt || null,
             tareWt: parsedTareWt || null,
             netWt: parseFloat(netWt.toFixed(2)) || null,

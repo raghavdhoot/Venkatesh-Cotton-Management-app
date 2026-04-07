@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc } from 'firebase/firestore';
 import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock } from 'lucide-react';
+import { normalizeItemName } from './utils/normalization';
 
 function AdminPanel({ currentUser }) {
     const [note, setNote] = useState('');
@@ -91,7 +92,7 @@ function AdminPanel({ currentUser }) {
         if (!itemName.trim() || !itemRate) return;
         try {
             await addDoc(collection(db, 'rateChart'), {
-                itemName: itemName.toUpperCase(),
+                itemName: normalizeItemName(itemName),
                 rate: parseFloat(itemRate),
                 timestamp: serverTimestamp()
             });

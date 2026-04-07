@@ -6,6 +6,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { normalizeItemName } from './utils/normalization';
 
 function Aavak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -228,7 +229,8 @@ function Aavak({ currentUser }) {
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
-            const deductionRate = 0.014; // Flat 1.4% deduction
+            const normalizedItem = normalizeItemName(itemName);
+            const deductionRate = normalizedItem === 'COTTON' ? 0 : 0.014; 
             netWtAfterDeduction = netWt * (1 - deductionRate);
             const netWtInQuintals = netWt / 100;
             hamaliDeduction = netWtInQuintals * 15;
@@ -267,7 +269,7 @@ function Aavak({ currentUser }) {
         const entryData = {
             billingDate: billingDate || null,
             tokenNo: tokenNo || null,
-            itemName: itemName || null,
+            itemName: normalizeItemName(itemName) || null,
             Name: Name || null,
             Village: Village || null,
             vehicleNo: vehicleNo || null,
@@ -371,6 +373,10 @@ function Aavak({ currentUser }) {
                         <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
                             <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">FARMER NAME</span>
                             <div class="flex-1 font-black px-1 text-xs">${data.Name}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">ITEM NAME</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.itemName}</div>
                         </div>
                     </div>
                 </div>
@@ -621,7 +627,8 @@ function Aavak({ currentUser }) {
                                         const parsedRate = parseFloat(rate || 0);
                                         if (parsedGrossWt && parsedTareWt && parsedRate) {
                                             const netWt = parsedGrossWt - parsedTareWt;
-                                            const deductionRate = 0.014; // Always 1.4%
+                                            const normalizedItem = normalizeItemName(itemName);
+                                            const deductionRate = normalizedItem === 'COTTON' ? 0 : 0.014;
                                             const netWtAfterDeduction = netWt * (1 - deductionRate);
                                             const netWtInQuintals = netWt / 100;
                                             const hamaliDeduction = netWtInQuintals * 15;
