@@ -174,8 +174,14 @@ function Employees({ currentUser }) {
             `*Joining Year:* ${emp.joiningYear}\n\n` +
             `Welcome to the team!`;
         
+        let cleanPhone = emp.phone.replace(/\D/g, '');
+        // If it's a 10-digit number, prepend 91 (India country code)
+        if (cleanPhone.length === 10) {
+            cleanPhone = '91' + cleanPhone;
+        }
+        
         const encodedMsg = encodeURIComponent(message);
-        const whatsappUrl = `https://wa.me/${emp.phone.replace(/\D/g, '')}?text=${encodedMsg}`;
+        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
         window.open(whatsappUrl, '_blank');
     };
 
