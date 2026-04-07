@@ -97,11 +97,11 @@ function Bardana({ currentUser }) {
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-slate-900">Bardana Management</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Bardana Management</h2>
                 <div className="flex items-center gap-4">
                     {statusMessage.text && (
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 ${
-                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                         }`}>
                             {statusMessage.text}
                         </div>
@@ -120,9 +120,9 @@ function Bardana({ currentUser }) {
                 <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Item Name</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Item Name</label>
                             <select 
-                                className="input-field uppercase" 
+                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={itemName} 
                                 onChange={(e) => setItemName(e.target.value)} 
                                 required
@@ -138,10 +138,10 @@ function Bardana({ currentUser }) {
                         </div>
                         {itemName === 'OTHER' && (
                             <div className="space-y-1 animate-in fade-in slide-in-from-left-4">
-                                <label className="text-sm font-semibold text-slate-600">Specify Other Item</label>
+                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Specify Other Item</label>
                                 <input 
                                     type="text" 
-                                    className="input-field uppercase" 
+                                    className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={customItemName}
                                     onChange={(e) => setCustomItemName(e.target.value.toUpperCase())} 
                                     required 
@@ -150,24 +150,24 @@ function Bardana({ currentUser }) {
                             </div>
                         )}
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Quantity</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Quantity</label>
                             <input 
                                 type="number" 
-                                className="input-field" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={quantity} 
                                 onChange={(e) => setQuantity(e.target.value)} 
                                 required 
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">
                                 {type === 'IN' ? 'Driver Name' : 'Given to'}
                             </label>
                             <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10 uppercase" 
+                                    className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={personName} 
                                     onChange={(e) => setPersonName(e.target.value.toUpperCase())} 
                                     required 
@@ -176,21 +176,21 @@ function Bardana({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">
                                 {type === 'IN' ? 'Received by (Employee)' : 'Given by (Employee)'}
                             </label>
                             <input 
                                 type="text" 
-                                className="input-field bg-slate-50 uppercase" 
+                                className="input-field bg-slate-50 dark:bg-slate-800/50 uppercase dark:text-white" 
                                 value={employeeName} 
                                 onChange={(e) => setEmployeeName(e.target.value.toUpperCase())}
                                 required
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Type</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Type</label>
                             <select 
-                                className="input-field" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={type} 
                                 onChange={(e) => setType(e.target.value)}
                             >
@@ -209,12 +209,12 @@ function Bardana({ currentUser }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="card">
-                    <h3 className="text-lg font-semibold mb-4">Current Bardana Stock</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">Current Bardana Stock</h3>
                     <div className="space-y-3">
                         {Object.entries(calculateStock()).map(([item, qty]) => (
-                            <div key={item} className="flex justify-between items-center p-3 border border-slate-100 rounded-lg">
-                                <span className="font-medium text-slate-700">{item}</span>
-                                <span className={`font-bold ${qty < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            <div key={item} className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg">
+                                <span className="font-medium text-slate-700 dark:text-slate-300">{item}</span>
+                                <span className={`font-bold ${qty < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                     {qty.toLocaleString()} Units
                                 </span>
                             </div>
@@ -223,13 +223,13 @@ function Bardana({ currentUser }) {
                 </div>
 
                 <div className="card overflow-hidden !p-0">
-                    <div className="p-4 border-b border-slate-100">
-                        <h3 className="text-lg font-semibold">Recent Transactions</h3>
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent Transactions</h3>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                     <th className="px-6 py-4 font-semibold">Item</th>
                                     <th className="px-6 py-4 font-semibold">Qty</th>
                                     <th className="px-6 py-4 font-semibold">Person</th>
@@ -238,15 +238,15 @@ function Bardana({ currentUser }) {
                                     <th className="px-6 py-4 font-semibold text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {bardanaEntries.map(entry => (
-                                    <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4 text-sm font-medium text-slate-900">{entry.itemName}</td>
+                                    <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                        <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{entry.itemName}</td>
                                         <td className="px-6 py-4 text-sm font-bold">{entry.quantity}</td>
                                         <td className="px-6 py-4 text-sm">{entry.personName || 'N/A'}</td>
-                                        <td className="px-6 py-4 text-sm font-medium text-indigo-600">{entry.employeeName || 'N/A'}</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-indigo-600 dark:text-indigo-400">{entry.employeeName || 'N/A'}</td>
                                         <td className="px-6 py-4 text-sm">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold ${entry.type === 'IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${entry.type === 'IN' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'}`}>
                                                 {entry.type}
                                             </span>
                                         </td>

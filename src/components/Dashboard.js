@@ -307,22 +307,22 @@ function Dashboard({ currentUser }) {
               initial={{ opacity: 0, scale: 0.8, y: 50 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: 50 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border-4 border-red-500"
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border-4 border-red-500"
             >
               <div className="p-8 text-center space-y-6">
-                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                  <AlertTriangle className="w-12 h-12 text-red-600" />
+                <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                  <AlertTriangle className="w-12 h-12 text-red-600 dark:text-red-400" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Stock Warning!</h3>
-                  <p className="text-slate-600 font-medium">
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Stock Warning!</h3>
+                  <p className="text-slate-600 dark:text-slate-400 font-medium">
                     Bardana stock is dangerously low!
                   </p>
                 </div>
-                <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                  <p className="text-sm text-red-600 font-bold uppercase tracking-widest mb-1">Bardana Stock</p>
-                  <p className="text-5xl font-black text-red-700">{bardanaStock}</p>
-                  <p className="text-xs text-red-400 mt-2 font-semibold italic">Minimum required: 100 Bags</p>
+                <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl border border-red-100 dark:border-red-800/50">
+                  <p className="text-sm text-red-600 dark:text-red-400 font-bold uppercase tracking-widest mb-1">Bardana Stock</p>
+                  <p className="text-5xl font-black text-red-700 dark:text-red-500">{bardanaStock}</p>
+                  <p className="text-xs text-red-400 dark:text-red-500/60 mt-2 font-semibold italic">Minimum required: 100 Bags</p>
                 </div>
                 <button 
                   onClick={() => setShowAlert(false)}
@@ -366,46 +366,46 @@ function Dashboard({ currentUser }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Dashboard Notes Section */}
         <div className="card !p-0 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
             <Bell className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold text-slate-700 uppercase tracking-tight">Dashboard Notes</h3>
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Dashboard Notes</h3>
           </div>
-          <div className="divide-y divide-slate-100 max-h-[250px] overflow-y-auto">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
             {adminNotes.length > 0 ? (
               adminNotes.map(note => (
-                <div key={note.id} className="p-4 hover:bg-slate-50 transition-colors">
-                  <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{note.content}</p>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-bold uppercase">
+                <div key={note.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">{note.content}</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                     <Clock className="w-3 h-3" />
                     {note.timestamp?.toDate().toLocaleString()} • BY {note.author}
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-slate-400 text-sm italic text-center py-8">No public notes at this time</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">No public notes at this time</p>
             )}
           </div>
         </div>
 
         {/* Assigned Tasks Section */}
         <div className="card !p-0 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-amber-600" />
-            <h3 className="text-lg font-bold text-slate-700 uppercase tracking-tight">My Private Tasks</h3>
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">My Private Tasks</h3>
           </div>
-          <div className="divide-y divide-slate-100 max-h-[250px] overflow-y-auto">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
             {adminTasks.length > 0 ? (
               adminTasks.map(task => (
-                <div key={task.id} className="p-4 hover:bg-slate-50 transition-colors border-l-4 border-amber-500">
-                  <p className="text-sm font-bold text-slate-800 uppercase leading-relaxed">{task.content}</p>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 font-bold uppercase">
+                <div key={task.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-l-4 border-amber-500">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">{task.content}</p>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                     <Clock className="w-3 h-3" />
                     {task.timestamp?.toDate().toLocaleString()} • FROM ADMIN
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-slate-400 text-sm italic text-center py-8">No private tasks assigned to you</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">No private tasks assigned to you</p>
             )}
           </div>
         </div>
@@ -419,13 +419,13 @@ function Dashboard({ currentUser }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {rateChart.length > 0 ? (
               rateChart.map(rate => (
-                <div key={rate.id} className="flex justify-between items-center p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
-                  <span className="font-bold text-slate-700 uppercase text-xs tracking-wider">{rate.itemName}</span>
-                  <span className="font-black text-emerald-700">₹{rate.rate}</span>
+                <div key={rate.id} className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-xs tracking-wider">{rate.itemName}</span>
+                  <span className="font-black text-emerald-700 dark:text-emerald-400">₹{rate.rate}</span>
                 </div>
               ))
             ) : (
-              <p className="text-slate-400 text-sm italic col-span-2 text-center py-4">No rates published yet</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm italic col-span-2 text-center py-4">No rates published yet</p>
             )}
           </div>
         </div>
@@ -434,11 +434,11 @@ function Dashboard({ currentUser }) {
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
             <MessageSquare className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold">Message Admin</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Message Admin</h3>
           </div>
           <form onSubmit={handleSendMessage} className="space-y-3">
             <textarea 
-              className="input-field min-h-[80px] text-sm uppercase" 
+              className="input-field min-h-[80px] text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
               placeholder="SEND A NOTE OR REPORT TO ADMIN..."
               value={employeeMessage}
               onChange={(e) => setEmployeeMessage(e.target.value.toUpperCase())}
@@ -470,13 +470,13 @@ function Dashboard({ currentUser }) {
                 .map(([item, qty]) => (
                 <div 
                   key={item} 
-                  className="flex justify-between items-center p-3 border border-slate-100 rounded-lg"
+                  className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${qty < 100 ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                    <span className="font-medium text-slate-700">{item}</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{item}</span>
                   </div>
-                  <span className={`font-bold ${qty < 100 ? 'text-red-600' : 'text-slate-900'}`}>
+                  <span className={`font-bold ${qty < 100 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                     {qty.toLocaleString()} Bags
                   </span>
                 </div>
@@ -497,13 +497,13 @@ function Dashboard({ currentUser }) {
                 <div 
                   key={item} 
                   onClick={() => setSelectedItem(item)}
-                  className="flex justify-between items-center p-3 border border-slate-100 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 transition-all cursor-pointer group"
+                  className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full ${weight < 0 ? 'bg-red-500' : 'bg-indigo-500'}`}></div>
-                    <span className="font-medium text-slate-700 group-hover:text-indigo-700">{item}</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">{item}</span>
                   </div>
-                  <span className={`font-bold ${weight < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                  <span className={`font-bold ${weight < 0 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                     {weight.toLocaleString()} kg
                   </span>
                 </div>
@@ -517,9 +517,9 @@ function Dashboard({ currentUser }) {
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Stock Summary</h3>
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-              <span className="text-slate-600">Current Stock (Net Wt)</span>
-              <span className="font-bold text-lg text-indigo-600">
+            <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+              <span className="text-slate-600 dark:text-slate-400">Current Stock (Net Wt)</span>
+              <span className="font-bold text-lg text-indigo-600 dark:text-indigo-400">
                 {(stats.totalAavakNetWt - stats.totalJavakNetWt).toLocaleString()} kg
               </span>
             </div>
@@ -589,76 +589,76 @@ function Dashboard({ currentUser }) {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col"
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col"
             >
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900">{selectedItem}</h3>
-                  <p className="text-sm text-slate-500">Transaction History</p>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedItem}</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Transaction History</p>
                 </div>
                 <button 
                   onClick={() => setSelectedItem(null)}
-                  className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                  className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"
                 >
-                  <X className="w-6 h-6 text-slate-500" />
+                  <X className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Aavak Column */}
                 <div className="space-y-4">
-                  <h4 className="font-bold text-emerald-600 flex items-center gap-2 border-b border-emerald-100 pb-2">
+                  <h4 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">
                     <TrendingUp className="w-4 h-4" /> Aavak (Incoming)
                   </h4>
                   <div className="space-y-3">
                     {getFilteredDetails(selectedItem).aavakDetails.length > 0 ? (
                       getFilteredDetails(selectedItem).aavakDetails.map(d => (
-                        <div key={d.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div key={d.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
                           <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-slate-400 font-mono">#{d.tokenNo}</span>
-                            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">#{d.tokenNo}</span>
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {d.billingDate}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 text-slate-900 font-medium">
-                            <User className="w-3 h-3 text-slate-400" /> {d.Name}
+                          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-medium">
+                            <User className="w-3 h-3 text-slate-400 dark:text-slate-500" /> {d.Name}
                           </div>
-                          <div className="text-right font-bold text-indigo-600 text-sm">
+                          <div className="text-right font-bold text-indigo-600 dark:text-indigo-400 text-sm">
                             {d.netWt} kg
                           </div>
                         </div>
                       ))
                     ) : (
-                      <p className="text-slate-400 text-sm italic">No incoming entries</p>
+                      <p className="text-slate-400 dark:text-slate-500 text-sm italic">No incoming entries</p>
                     )}
                   </div>
                 </div>
 
                 {/* Javak Column */}
                 <div className="space-y-4">
-                  <h4 className="font-bold text-orange-600 flex items-center gap-2 border-b border-orange-100 pb-2">
+                  <h4 className="font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2 border-b border-orange-100 dark:border-orange-900/30 pb-2">
                     <TrendingDown className="w-4 h-4" /> Javak (Outgoing)
                   </h4>
                   <div className="space-y-3">
                     {getFilteredDetails(selectedItem).javakDetails.length > 0 ? (
                       getFilteredDetails(selectedItem).javakDetails.map(d => (
-                        <div key={d.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div key={d.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
                           <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-slate-400 font-mono">#{d.gatePassNo}</span>
-                            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">#{d.gatePassNo}</span>
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {d.date}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 text-slate-900 font-medium">
-                            <MapPin className="w-3 h-3 text-slate-400" /> {d.destination}
+                          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-medium">
+                            <MapPin className="w-3 h-3 text-slate-400 dark:text-slate-500" /> {d.destination}
                           </div>
-                          <div className="text-right font-bold text-orange-600 text-sm">
+                          <div className="text-right font-bold text-orange-600 dark:text-orange-400 text-sm">
                             {d.netWt} kg
                           </div>
                         </div>
                       ))
                     ) : (
-                      <p className="text-slate-400 text-sm italic">No outgoing entries</p>
+                      <p className="text-slate-400 dark:text-slate-500 text-sm italic">No outgoing entries</p>
                     )}
                   </div>
                 </div>

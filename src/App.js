@@ -103,10 +103,10 @@ function App() {
                         </div>
                         <form onSubmit={handleLogin} className="p-6 space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-600">Employee ID</label>
+                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Employee ID</label>
                                 <input 
                                     type="text" 
-                                    className="input-field uppercase" 
+                                    className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     placeholder="e.g., PRAD10"
                                     value={loginId}
                                     onChange={(e) => setLoginId(e.target.value)}

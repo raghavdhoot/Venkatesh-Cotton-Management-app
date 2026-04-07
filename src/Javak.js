@@ -367,20 +367,20 @@ function Javak({ currentUser }) {
             {/* Action Header */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="relative w-full md:w-96">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                        <input 
-                            type="text" 
-                            placeholder="Search Gate Pass No..." 
-                            className="input-field pl-10"
-                            value={searchGatePass}
-                            onChange={(e) => setSearchGatePass(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
-                        />
-                    </div>
+                        <div className="relative w-full md:w-96">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
+                            <input 
+                                type="text" 
+                                placeholder="Search Gate Pass No..." 
+                                className="input-field pl-10 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                value={searchGatePass}
+                                onChange={(e) => setSearchGatePass(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
+                            />
+                        </div>
                     {statusMessage.text && (
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 whitespace-nowrap ${
-                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                         }`}>
                             {statusMessage.text}
                         </div>
@@ -422,7 +422,7 @@ function Javak({ currentUser }) {
                 <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
-                            <h3 className="text-lg font-bold text-slate-900">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                                 {isNewEntry ? 'New Outgoing Entry' : 'Update Outgoing Entry'} - Gate Pass: {gatePassNo}
                             </h3>
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${isNewEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -447,16 +447,16 @@ function Javak({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Date</label>
-                            <input type="date" className="input-field" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} required />
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Date</label>
+                            <input type="date" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} required />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Vehicle Number</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Vehicle Number</label>
                             <div className="relative">
-                                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10 uppercase" 
+                                    className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={vehicleNumber} 
                                     onChange={handleVehicleChange} 
                                     required 
@@ -465,39 +465,39 @@ function Javak({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Destination</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Destination</label>
                             <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 uppercase" value={destination} onChange={(e) => setDestination(e.target.value.toUpperCase())} placeholder="E.G., MUMBAI" />
+                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
+                                <input type="text" className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={destination} onChange={(e) => setDestination(e.target.value.toUpperCase())} placeholder="E.G., MUMBAI" />
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Commodity</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Commodity</label>
                             <div className="relative">
-                                <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 uppercase" value={commodity} onChange={(e) => setCommodity(e.target.value.toUpperCase())} placeholder="E.G., COTTON BALES" />
+                                <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
+                                <input type="text" className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={commodity} onChange={(e) => setCommodity(e.target.value.toUpperCase())} placeholder="E.G., COTTON BALES" />
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Gross Wt (kg)</label>
-                            <input type="number" step="0.01" className="input-field" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} />
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Gross Wt (kg)</label>
+                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Tare Wt (kg)</label>
-                            <input type="number" step="0.01" className="input-field" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Tare Wt (kg)</label>
+                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Net Wt (kg)</label>
-                            <input type="text" className="input-field bg-slate-50 font-bold text-indigo-600" value={calculateNetWt()} readOnly disabled />
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Net Wt (kg)</label>
+                            <input type="text" className="input-field bg-slate-50 dark:bg-slate-800/50 font-bold text-indigo-600 dark:text-indigo-400" value={calculateNetWt()} readOnly disabled />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">No. of Bags</label>
-                            <input type="number" className="input-field" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} />
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">No. of Bags</label>
+                            <input type="number" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Bardana Type</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Bardana Type</label>
                             <select 
-                                className="input-field" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={bardanaType} 
                                 onChange={(e) => setBardanaType(e.target.value)}
                             >
@@ -508,25 +508,25 @@ function Javak({ currentUser }) {
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Sutli Used (Qty)</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Sutli Used (Qty)</label>
                             <input 
                                 type="number" 
-                                className="input-field" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={sutliCount} 
                                 onChange={(e) => setSutliCount(e.target.value)} 
                                 placeholder="0"
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Driver Name</label>
-                            <input type="text" className="input-field uppercase" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" />
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Name</label>
+                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Driver Photo</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Photo</label>
                             <div className="flex items-center gap-4">
-                                <label className="flex-1 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-slate-50 transition-all">
-                                    <Camera className="w-5 h-5 text-slate-400" />
-                                    <span className="text-sm text-slate-500">Upload Photo</span>
+                                <label className="flex-1 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                                    <Camera className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                                    <span className="text-sm text-slate-500 dark:text-slate-400">Upload Photo</span>
                                     <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
                                 </label>
                                 {driverPhoto && (
@@ -552,13 +552,13 @@ function Javak({ currentUser }) {
 
             {/* Table Section */}
             <div className="card overflow-hidden !p-0">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-slate-900">Recent Outgoing Entries</h3>
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Recent Outgoing Entries</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                 <th className="px-6 py-4 font-semibold">Date</th>
                                 <th className="px-6 py-4 font-semibold">Gate Pass</th>
                                 <th className="px-6 py-4 font-semibold">Vehicle No</th>
@@ -568,18 +568,18 @@ function Javak({ currentUser }) {
                                 <th className="px-6 py-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {recentJavakEntries
                                 .sort((a, b) => (a.destination || '').localeCompare(b.destination || ''))
                                 .map(entry => (
-                                <tr key={entry.id} className="hover:bg-slate-50 transition-colors group">
+                                <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                     <td className="px-6 py-4 text-sm">{entry.date}</td>
-                                    <td className="px-6 py-4 text-sm font-mono font-bold text-indigo-600">{entry.gatePassNo || entry.id}</td>
+                                    <td className="px-6 py-4 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400">{entry.gatePassNo || entry.id}</td>
                                     <td className="px-6 py-4 text-sm">{entry.vehicleNumber}</td>
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{entry.destination}</td>
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{entry.destination}</td>
                                     <td className="px-6 py-4 text-sm font-bold">{entry.netWt?.toFixed(2)} kg</td>
                                     <td className="px-6 py-4 text-sm">
-                                        <span className="px-2 py-1 bg-slate-100 rounded text-xs font-bold text-slate-600">
+                                        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-600 dark:text-slate-400">
                                             {entry.numberOfBags} Bags
                                         </span>
                                     </td>

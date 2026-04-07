@@ -165,11 +165,11 @@ function Employees({ currentUser }) {
     return (
         <div className="space-y-8">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-slate-900">Employee List</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Employee List</h2>
                 <div className="flex items-center gap-4">
                     {statusMessage.text && (
                         <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 ${
-                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                         }`}>
                             {statusMessage.text}
                         </div>
@@ -191,17 +191,17 @@ function Employees({ currentUser }) {
 
             {isFormOpen && isAdmin && (
                 <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
-                    <h3 className="text-lg font-bold mb-6 text-slate-800 uppercase tracking-tight">
+                    <h3 className="text-lg font-bold mb-6 text-slate-800 dark:text-slate-100 uppercase tracking-tight">
                         {editingEmployee ? `Edit Employee: ${editingEmployee.employeeId}` : 'Register New Employee'}
                     </h3>
                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">First Name</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">First Name</label>
                             <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10 uppercase" 
+                                    className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={firstName} 
                                     onChange={(e) => setFirstName(e.target.value.toUpperCase())} 
                                     required 
@@ -210,12 +210,12 @@ function Employees({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Last Name</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Last Name</label>
                             <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="text" 
-                                    className="input-field pl-10 uppercase" 
+                                    className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={lastName} 
                                     onChange={(e) => setLastName(e.target.value.toUpperCase())} 
                                     required 
@@ -224,12 +224,12 @@ function Employees({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Phone Number</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Phone Number</label>
                             <div className="relative">
-                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="tel" 
-                                    className="input-field pl-10" 
+                                    className="input-field pl-10 dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={phone} 
                                     onChange={(e) => setPhone(e.target.value)} 
                                     required 
@@ -238,12 +238,12 @@ function Employees({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Year of Joining</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Year of Joining</label>
                             <div className="relative">
-                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="number" 
-                                    className="input-field pl-10" 
+                                    className="input-field pl-10 dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={joiningYear} 
                                     onChange={(e) => setJoiningYear(e.target.value)} 
                                     required 
@@ -253,11 +253,11 @@ function Employees({ currentUser }) {
                             </div>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Role / Access Level</label>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Role / Access Level</label>
                             <div className="relative">
-                                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <select 
-                                    className="input-field pl-10 uppercase font-bold"
+                                    className="input-field pl-10 uppercase font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                                     value={role}
                                     onChange={(e) => setRole(e.target.value)}
                                     required
@@ -271,12 +271,12 @@ function Employees({ currentUser }) {
                         </div>
                         {role === 'OTHER' && (
                             <div className="space-y-1 animate-in fade-in slide-in-from-left-2 duration-200">
-                                <label className="text-sm font-semibold text-slate-600">Specify Role</label>
+                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Specify Role</label>
                                 <div className="relative">
-                                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                     <input 
                                         type="text" 
-                                        className="input-field pl-10 uppercase font-bold" 
+                                        className="input-field pl-10 uppercase font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                         value={customRole} 
                                         onChange={(e) => setCustomRole(e.target.value.toUpperCase())} 
                                         required 
@@ -310,7 +310,7 @@ function Employees({ currentUser }) {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                 <th className="px-6 py-4 font-semibold">Employee Name</th>
                                 <th className="px-6 py-4 font-semibold">Phone Number</th>
                                 <th className="px-6 py-4 font-semibold text-center">Role</th>
@@ -318,24 +318,24 @@ function Employees({ currentUser }) {
                                 {isAdmin && <th className="px-6 py-4 font-semibold text-right">Actions</th>}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {employees.map(emp => (
-                                <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 uppercase">
+                                <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100 uppercase">
                                         <div className="flex flex-col">
                                             <span>{emp.name}</span>
-                                            {isAdmin && <span className="text-[10px] text-indigo-500 font-mono">{emp.employeeId}</span>}
+                                            {isAdmin && <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-mono">{emp.employeeId}</span>}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">{emp.phone || 'N/A'}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 font-medium">{emp.phone || 'N/A'}</td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
-                                            emp.role?.toUpperCase() === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                                            emp.role?.toUpperCase() === 'ADMIN' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                         }`}>
                                             {emp.role?.toUpperCase() === 'STAFF' ? 'KATA' : (emp.role || 'KATA')}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-slate-600">{emp.joiningYear}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{emp.joiningYear}</td>
                                     {isAdmin && (
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">

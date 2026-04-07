@@ -492,7 +492,7 @@ function Aavak({ currentUser }) {
                         <input 
                             type="text" 
                             placeholder="Load Token No..." 
-                            className="input-field uppercase"
+                            className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                             value={searchToken}
                             onChange={(e) => setSearchToken(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
@@ -555,25 +555,25 @@ function Aavak({ currentUser }) {
                     <form onSubmit={handleSaveOrUpdateEntry} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Billing Date</label>
-                            <input type="date" className="input-field" value={billingDate} onChange={(e) => setBillingDate(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                            <input type="date" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={billingDate} onChange={(e) => setBillingDate(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Item Name</label>
-                            <input type="text" className="input-field uppercase" value={itemName} onChange={(e) => setItemName(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={itemName} onChange={(e) => setItemName(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Farmer Name</label>
-                            <input type="text" className="input-field uppercase" value={Name} onChange={(e) => setName(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={Name} onChange={(e) => setName(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Village</label>
-                            <input type="text" className="input-field uppercase" value={Village} onChange={(e) => setVillage(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={Village} onChange={(e) => setVillage(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Vehicle No</label>
                             <input 
                                 type="text" 
-                                className="input-field uppercase" 
+                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={vehicleNo} 
                                 onChange={handleVehicleChange} 
                                 required 
@@ -583,7 +583,7 @@ function Aavak({ currentUser }) {
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Gross Weight (kg)</label>
-                            <input type="number" step="0.01" className="input-field" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required disabled={hasTareWtBeenEntered && !isNewEntry} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Tare Weight (kg)</label>

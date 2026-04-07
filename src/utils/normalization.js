@@ -11,14 +11,13 @@
 export const normalizeItemName = (name) => {
     if (!name) return '';
     
-    // Remove all whitespace and convert to uppercase
-    const cleaned = name.replace(/\s+/g, '').toUpperCase();
+    // For checking COTTON/KAPAS, we ignore spaces and case
+    const checkValue = name.replace(/\s+/g, '').toUpperCase();
     
-    // Check for "COTTON" or "KAPAS"
-    if (cleaned === 'COTTON' || cleaned === 'KAPAS') {
+    if (checkValue === 'COTTON' || checkValue === 'KAPAS') {
         return 'COTTON';
     }
     
-    // Return the cleaned uppercase version for other items
-    return cleaned;
+    // For other items, we keep spaces but normalize to uppercase and trim
+    return name.trim().toUpperCase();
 };
