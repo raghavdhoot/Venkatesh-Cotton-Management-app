@@ -75,7 +75,10 @@
         "content": { "type": "string" },
         "senderName": { "type": "string" },
         "senderId": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
+        "timestamp": { "type": "string", "format": "date-time" },
+        "reply": { "type": "string", "description": "Admin's reply to the message" },
+        "replyTimestamp": { "type": "string", "format": "date-time" },
+        "repliedBy": { "type": "string", "description": "Admin who replied" }
       }
     }
   },

@@ -35,6 +35,7 @@ function Dashboard({ currentUser }) {
   const [adminNotes, setAdminNotes] = useState([]);
   const [adminTasks, setAdminTasks] = useState([]);
   const [rateChart, setRateChart] = useState([]);
+  const [myMessages, setMyMessages] = useState([]);
   const [employeeMessage, setEmployeeMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [messageStatus, setMessageStatus] = useState({ text: '', type: '' });
@@ -67,6 +68,12 @@ function Dashboard({ currentUser }) {
 
     const unsubscribeRates = onSnapshot(query(collection(db, 'rateChart'), orderBy('timestamp', 'desc')), (snapshot) => {
       setRateChart(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubscribeMyMessages = onSnapshot(query(collection(db, 'employeeMessages'), orderBy('timestamp', 'desc')), (snapshot) => {
+      const allMsgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const filtered = allMsgs.filter(msg => msg.senderId === currentUser?.employeeId);
+      setMyMessages(filtered);
     });
 
     const unsubscribeBardana = onSnapshot(collection(db, 'bardanaEntries'), (snapshot) => {
@@ -170,6 +177,7 @@ function Dashboard({ currentUser }) {
       unsubscribeNotes();
       unsubscribeTasks();
       unsubscribeRates();
+      unsubscribeMyMessages();
     };
   }, [currentUser?.employeeId, currentUser?.role]);
 
@@ -431,34 +439,66 @@ function Dashboard({ currentUser }) {
         </div>
 
         {/* Message Admin Section */}
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <MessageSquare className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Message Admin</h3>
-          </div>
-          <form onSubmit={handleSendMessage} className="space-y-3">
-            <textarea 
-              className="input-field min-h-[80px] text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
-              placeholder="SEND A NOTE OR REPORT TO ADMIN..."
-              value={employeeMessage}
-              onChange={(e) => setEmployeeMessage(e.target.value.toUpperCase())}
-              required
-            />
-            <div className="flex items-center justify-between gap-2">
-              {messageStatus.text && (
-                <span className={`text-[10px] font-bold ${messageStatus.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {messageStatus.text}
-                </span>
-              )}
-              <button 
-                type="submit" 
-                disabled={isSending}
-                className="btn-primary py-2 px-4 text-xs flex items-center gap-2 ml-auto"
-              >
-                {isSending ? 'Sending...' : <><Send className="w-3 h-3" /> Send</>}
-              </button>
+        <div className="card space-y-6">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <MessageSquare className="w-5 h-5 text-indigo-600" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Message Admin</h3>
             </div>
-          </form>
+            <form onSubmit={handleSendMessage} className="space-y-3">
+              <textarea 
+                className="input-field min-h-[80px] text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                placeholder="SEND A NOTE OR REPORT TO ADMIN..."
+                value={employeeMessage}
+                onChange={(e) => setEmployeeMessage(e.target.value.toUpperCase())}
+                required
+              />
+              <div className="flex items-center justify-between gap-2">
+                {messageStatus.text && (
+                  <span className={`text-[10px] font-bold ${messageStatus.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {messageStatus.text}
+                  </span>
+                )}
+                <button 
+                  type="submit" 
+                  disabled={isSending}
+                  className="btn-primary py-2 px-4 text-xs flex items-center gap-2 ml-auto"
+                >
+                  {isSending ? 'Sending...' : <><Send className="w-3 h-3" /> Send</>}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {myMessages.length > 0 && (
+            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+              <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">My Recent Messages</h4>
+              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                {myMessages.map(msg => (
+                  <div key={msg.id} className="space-y-2">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{msg.content}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase">
+                        {msg.timestamp?.toDate().toLocaleString()}
+                      </p>
+                    </div>
+                    {msg.reply && (
+                      <div className="ml-6 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl relative">
+                        <div className="absolute -left-3 top-4 w-3 h-px bg-indigo-200 dark:bg-indigo-800"></div>
+                        <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mb-1 flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" /> Admin Reply:
+                        </p>
+                        <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{msg.reply}</p>
+                        <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase">
+                          {msg.replyTimestamp?.toDate().toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="card">

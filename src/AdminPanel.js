@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc } from 'firebase/firestore';
-import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function AdminPanel({ currentUser }) {
@@ -16,6 +16,9 @@ function AdminPanel({ currentUser }) {
     const [itemRate, setItemRate] = useState('');
     const [rateChart, setRateChart] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+    const [replyingTo, setReplyingTo] = useState(null);
+    const [replyContent, setReplyContent] = useState('');
+    const [isSendingReply, setIsSendingReply] = useState(false);
 
     const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
@@ -112,6 +115,26 @@ function AdminPanel({ currentUser }) {
         } catch (error) {
             console.error("Error deleting:", error);
             setStatusMessage({ text: 'Error deleting', type: 'error' });
+        }
+    };
+
+    const handleSendReply = async (msgId) => {
+        if (!replyContent.trim()) return;
+        setIsSendingReply(true);
+        try {
+            await updateDoc(doc(db, 'employeeMessages', msgId), {
+                reply: replyContent.toUpperCase(),
+                replyTimestamp: serverTimestamp(),
+                repliedBy: currentUser.name
+            });
+            setReplyContent('');
+            setReplyingTo(null);
+            setStatusMessage({ text: 'Reply sent successfully', type: 'success' });
+        } catch (error) {
+            console.error("Error sending reply:", error);
+            setStatusMessage({ text: 'Error sending reply', type: 'error' });
+        } finally {
+            setIsSendingReply(false);
         }
     };
 
@@ -332,6 +355,55 @@ function AdminPanel({ currentUser }) {
                                                 <Clock className="w-3 h-3" />
                                                 {msg.timestamp?.toDate().toLocaleString()}
                                             </div>
+
+                                            {msg.reply && (
+                                                <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-lg">
+                                                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mb-1 flex items-center gap-1">
+                                                        <MessageSquare className="w-3 h-3" /> Admin Reply:
+                                                    </p>
+                                                    <p className="text-sm text-slate-800 dark:text-slate-200 font-medium whitespace-pre-wrap">{msg.reply}</p>
+                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase">
+                                                        By {msg.repliedBy} • {msg.replyTimestamp?.toDate().toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {replyingTo === msg.id ? (
+                                                <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                    <textarea 
+                                                        className="input-field min-h-[60px] text-xs uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                                        placeholder="TYPE YOUR REPLY..."
+                                                        value={replyContent}
+                                                        onChange={(e) => setReplyContent(e.target.value.toUpperCase())}
+                                                        autoFocus
+                                                    />
+                                                    <div className="flex justify-end gap-2">
+                                                        <button 
+                                                            onClick={() => setReplyingTo(null)}
+                                                            className="px-3 py-1.5 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleSendReply(msg.id)}
+                                                            disabled={isSendingReply}
+                                                            className="btn-primary py-1.5 px-3 text-[10px] flex items-center gap-1"
+                                                        >
+                                                            {isSendingReply ? 'Sending...' : <><Send className="w-3 h-3" /> Send Reply</>}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => {
+                                                        setReplyingTo(msg.id);
+                                                        setReplyContent(msg.reply || '');
+                                                    }}
+                                                    className="mt-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase hover:underline flex items-center gap-1"
+                                                >
+                                                    <MessageSquare className="w-3 h-3" /> {msg.reply ? 'Edit Reply' : 'Reply'}
+                                                </button>
+                                            )}
                                         </div>
                                         <button onClick={() => handleDelete('employeeMessages', msg.id)} className="text-slate-300 hover:text-red-600 transition-colors">
                                             <Trash2 className="w-4 h-4" />
