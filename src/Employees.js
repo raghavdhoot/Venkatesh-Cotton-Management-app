@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { UserPlus, Trash2, User, Calendar, ShieldCheck, Phone, X } from 'lucide-react';
+import { UserPlus, Trash2, User, Calendar, ShieldCheck, Phone, X, Share2, CheckCircle2 } from 'lucide-react';
 
 function Employees({ currentUser }) {
     const [firstName, setFirstName] = useState('');
@@ -15,6 +15,7 @@ function Employees({ currentUser }) {
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+    const [lastRegistered, setLastRegistered] = useState(null);
 
     const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
@@ -98,6 +99,8 @@ function Employees({ currentUser }) {
                     timestamp: serverTimestamp()
                 };
                 await setDoc(doc(db, 'employees', empId), newEmployee);
+                setLastRegistered(newEmployee);
+                handleShareRegistration(newEmployee);
                 setStatusMessage({ text: `Employee registered! ID: ${empId}`, type: 'success' });
             }
             resetForm();
@@ -160,6 +163,20 @@ function Employees({ currentUser }) {
             console.error("Error deleting employee: ", error);
             setStatusMessage({ text: 'Error deleting employee', type: 'error' });
         }
+    };
+
+    const handleShareRegistration = (emp) => {
+        const message = `*VENKATESH COTTON COMPANY*\n\n` +
+            `Hello *${emp.name}*,\n` +
+            `Your registration is successful!\n\n` +
+            `*Employee ID:* ${emp.employeeId}\n` +
+            `*Role:* ${emp.role}\n` +
+            `*Joining Year:* ${emp.joiningYear}\n\n` +
+            `Welcome to the team!`;
+        
+        const encodedMsg = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${emp.phone.replace(/\D/g, '')}?text=${encodedMsg}`;
+        window.open(whatsappUrl, '_blank');
     };
 
     return (
@@ -306,6 +323,53 @@ function Employees({ currentUser }) {
                 </div>
             )}
 
+            {/* Registration Success Modal */}
+            {lastRegistered && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="p-8 text-center space-y-6">
+                            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto">
+                                <CheckCircle2 className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div className="space-y-2">
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Registration Successful!</h3>
+                                <p className="text-slate-600 dark:text-slate-400 font-medium">
+                                    Employee ID generated: <span className="font-black text-indigo-600 dark:text-indigo-400">{lastRegistered.employeeId}</span>
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-3 text-left">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400 uppercase font-bold">Name</span>
+                                    <span className="text-slate-900 dark:text-white font-black">{lastRegistered.name}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400 uppercase font-bold">Role</span>
+                                    <span className="text-slate-900 dark:text-white font-black">{lastRegistered.role}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-400 uppercase font-bold">Phone</span>
+                                    <span className="text-slate-900 dark:text-white font-black">{lastRegistered.phone}</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button 
+                                    onClick={() => setLastRegistered(null)}
+                                    className="py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-black rounded-2xl transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Close
+                                </button>
+                                <button 
+                                    onClick={() => handleShareRegistration(lastRegistered)}
+                                    className="py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
+                                >
+                                    <Share2 className="w-4 h-4" /> Send SMS/WA
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="card overflow-hidden !p-0">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -339,6 +403,13 @@ function Employees({ currentUser }) {
                                     {isAdmin && (
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">
+                                                <button 
+                                                    onClick={() => handleShareRegistration(emp)}
+                                                    className="p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                                                    title="Share Registration"
+                                                >
+                                                    <Share2 className="w-5 h-5" />
+                                                </button>
                                                 <button 
                                                     onClick={() => handleEdit(emp)}
                                                     className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
