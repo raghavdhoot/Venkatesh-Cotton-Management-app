@@ -100,7 +100,7 @@ function Employees({ currentUser }) {
                 };
                 await setDoc(doc(db, 'employees', empId), newEmployee);
                 setLastRegistered(newEmployee);
-                handleShareRegistration(newEmployee);
+                handleShareRegistration(newEmployee, true);
                 setStatusMessage({ text: `Employee registered! ID: ${empId}`, type: 'success' });
             }
             resetForm();
@@ -165,14 +165,25 @@ function Employees({ currentUser }) {
         }
     };
 
-    const handleShareRegistration = (emp) => {
-        const message = `*VENKATESH COTTON COMPANY*\n\n` +
-            `Hello *${emp.name}*,\n` +
-            `Your registration is successful!\n\n` +
-            `*Employee ID:* ${emp.employeeId}\n` +
-            `*Role:* ${emp.role}\n` +
-            `*Joining Year:* ${emp.joiningYear}\n\n` +
-            `Welcome to the team!`;
+    const handleShareRegistration = (emp, isFirstTime = false) => {
+        let message = '';
+        
+        if (isFirstTime) {
+            message = `*VENKATESH COTTON COMPANY*\n\n` +
+                `Hello *${emp.name}*,\n` +
+                `Your registration is successful!\n\n` +
+                `*Employee ID:* ${emp.employeeId}\n` +
+                `*Role:* ${emp.role}\n` +
+                `*Joining Year:* ${emp.joiningYear}\n\n` +
+                `Welcome to the team!`;
+        } else {
+            message = `HI ${emp.name}\n` +
+                `HERE ARE YOUR DETAILS\n` +
+                `${emp.employeeId}\n` +
+                `${emp.role}\n` +
+                `${emp.joiningYear}\n\n` +
+                `THANKYOU !!!`;
+        }
         
         let cleanPhone = emp.phone.replace(/\D/g, '');
         // If it's a 10-digit number, prepend 91 (India country code)
@@ -365,7 +376,7 @@ function Employees({ currentUser }) {
                                     Close
                                 </button>
                                 <button 
-                                    onClick={() => handleShareRegistration(lastRegistered)}
+                                    onClick={() => handleShareRegistration(lastRegistered, true)}
                                     className="py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
                                 >
                                     <Share2 className="w-4 h-4" /> Send SMS/WA
@@ -410,7 +421,7 @@ function Employees({ currentUser }) {
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2">
                                                 <button 
-                                                    onClick={() => handleShareRegistration(emp)}
+                                                    onClick={() => handleShareRegistration(emp, false)}
                                                     className="p-2 text-slate-400 hover:text-emerald-600 transition-colors"
                                                     title="Share Registration"
                                                 >
