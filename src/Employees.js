@@ -177,12 +177,12 @@ function Employees({ currentUser }) {
                 `*Joining Year:* ${emp.joiningYear}\n\n` +
                 `Welcome to the team!`;
         } else {
-            message = `HI ${emp.name}\n` +
-                `HERE ARE YOUR DETAILS\n` +
-                `${emp.employeeId}\n` +
-                `${emp.role}\n` +
-                `${emp.joiningYear}\n\n` +
-                `THANKYOU !!!`;
+            message = `Hello ${emp.name},\n` +
+                `On your Request The Details have been sent to you\n\n` +
+                `Employee ID: ${emp.employeeId}\n` +
+                `Role: ${emp.role}\n` +
+                `Joining Year: ${emp.joiningYear}\n\n` +
+                `Thankyou !!`;
         }
         
         let cleanPhone = emp.phone.replace(/\D/g, '');
