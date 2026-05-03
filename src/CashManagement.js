@@ -1,0 +1,277 @@
+import React, { useState, useEffect } from 'react';
+import { db } from './firebaseConfig';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { IndianRupee, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, History, Wallet } from 'lucide-react';
+
+function CashManagement({ currentUser }) {
+    const [transactions, setTransactions] = useState([]);
+    const [type, setType] = useState('OUT');
+    const [amount, setAmount] = useState('');
+    const [source, setSource] = useState('');
+    const [recipient, setRecipient] = useState('');
+    const [reason, setReason] = useState('');
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+
+    const isAuthorized = currentUser?.role?.toUpperCase() === 'ADMIN' || 
+                       currentUser?.employeeId === 'ADMIN' || 
+                       currentUser?.role?.toUpperCase() === 'CASHIER';
+
+    useEffect(() => {
+        if (!isAuthorized) return;
+        const q = query(collection(db, 'cashTransactions'), orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsubscribe();
+    }, [isAuthorized]);
+
+    useEffect(() => {
+        if (statusMessage.text) {
+            const timer = setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [statusMessage]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!amount || !reason) return;
+
+        try {
+            await addDoc(collection(db, 'cashTransactions'), {
+                type,
+                amount: parseFloat(amount),
+                source: source.toUpperCase() || 'N/A',
+                recipient: recipient.toUpperCase() || 'N/A',
+                reason: reason.toUpperCase(),
+                recordedBy: currentUser.name,
+                timestamp: serverTimestamp()
+            });
+            setStatusMessage({ text: 'Transaction recorded!', type: 'success' });
+            resetForm();
+            setIsFormOpen(false);
+        } catch (error) {
+            console.error("Error adding transaction:", error);
+            setStatusMessage({ text: 'Error recording transaction', type: 'error' });
+        }
+    };
+
+    const resetForm = () => {
+        setAmount('');
+        setSource('');
+        setRecipient('');
+        setReason('');
+        setType('OUT');
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Delete this transaction?')) return;
+        try {
+            await deleteDoc(doc(db, 'cashTransactions', id));
+            setStatusMessage({ text: 'Transaction deleted', type: 'success' });
+        } catch (error) {
+            console.error("Error deleting:", error);
+            setStatusMessage({ text: 'Error deleting', type: 'error' });
+        }
+    };
+
+    const totalIn = transactions.filter(t => t.type === 'IN').reduce((acc, t) => acc + t.amount, 0);
+    const totalOut = transactions.filter(t => t.type === 'OUT').reduce((acc, t) => acc + t.amount, 0);
+    const balance = totalIn - totalOut;
+
+    if (!isAuthorized) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <div className="text-center space-y-4">
+                    <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
+                        <IndianRupee className="w-8 h-8 text-red-600 dark:text-red-400" />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Access Denied</h2>
+                    <p className="text-slate-500 dark:text-slate-400">Only Cashiers and Admins can access Cash Management.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Cash Management</h2>
+                <div className="flex items-center gap-4">
+                    {statusMessage.text && (
+                        <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 ${
+                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                            {statusMessage.text}
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => setIsFormOpen(!isFormOpen)}
+                        className="btn-primary flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        {isFormOpen ? 'Close Form' : 'Record Transaction'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="card bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-100 dark:bg-emerald-800 rounded-lg">
+                            <ArrowDownCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Total Cash In</p>
+                            <p className="text-xl font-black text-slate-900 dark:text-white">₹{totalIn.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="card bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-red-100 dark:bg-red-800 rounded-lg">
+                            <ArrowUpCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase">Total Cash Out</p>
+                            <p className="text-xl font-black text-slate-900 dark:text-white">₹{totalOut.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="card bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-800/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-800 rounded-lg">
+                            <Wallet className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase">Current Balance</p>
+                            <p className="text-xl font-black text-slate-900 dark:text-white">₹{balance.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {isFormOpen && (
+                <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
+                    <h3 className="text-lg font-bold mb-6 text-slate-800 dark:text-slate-100 uppercase tracking-tight">Record New Transaction</h3>
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Transaction Type</label>
+                            <select 
+                                className="input-field font-bold uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                value={type}
+                                onChange={(e) => setType(e.target.value)}
+                            >
+                                <option value="OUT">CASH OUT (PAYMENT/EXPENSE)</option>
+                                <option value="IN">CASH IN (FROM BANK/ADMIN)</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Amount (₹)</label>
+                            <input 
+                                type="number"
+                                className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                placeholder="0.00"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                                {type === 'IN' ? 'Source (From)' : 'Recipient (To)'}
+                            </label>
+                            <input 
+                                type="text"
+                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                placeholder={type === 'IN' ? "E.G. SBI BANK, ADMIN" : "E.G. FARMER NAME, STAFF"}
+                                value={type === 'IN' ? source : recipient}
+                                onChange={(e) => type === 'IN' ? setSource(e.target.value) : setRecipient(e.target.value)}
+                            />
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-3 space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Reason / Description</label>
+                            <input 
+                                type="text"
+                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                placeholder="E.G. COTTON PAYMENT, TRANSPORT, BANK WITHDRAWAL"
+                                value={reason}
+                                onChange={(e) => setReason(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <button type="button" onClick={() => setIsFormOpen(false)} className="btn-secondary">Cancel</button>
+                            <button type="submit" className="btn-primary">Save Transaction</button>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {/* History Table */}
+            <div className="card !p-0 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
+                    <History className="w-5 h-5 text-indigo-600" />
+                    <h3 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Transaction History</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                                <th className="px-6 py-4 font-bold">Date & Time</th>
+                                <th className="px-6 py-4 font-bold">Type</th>
+                                <th className="px-6 py-4 font-bold">Details</th>
+                                <th className="px-6 py-4 font-bold">Reason</th>
+                                <th className="px-6 py-4 font-bold text-right">Amount</th>
+                                <th className="px-6 py-4 font-bold text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {transactions.map(t => (
+                                <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                    <td className="px-6 py-4 text-[10px] font-mono text-slate-500 dark:text-slate-400 uppercase">
+                                        {t.timestamp?.toDate().toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
+                                            t.type === 'IN' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                        }`}>
+                                            {t.type === 'IN' ? 'IN' : 'OUT'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <p className="text-xs font-bold text-slate-900 dark:text-white uppercase">
+                                            {t.type === 'IN' ? `From: ${t.source}` : `To: ${t.recipient}`}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">By: {t.recordedBy}</p>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400 uppercase font-medium">
+                                        {t.reason}
+                                    </td>
+                                    <td className={`px-6 py-4 text-sm font-black text-right ${t.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {t.type === 'IN' ? '+' : '-'}₹{t.amount.toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button onClick={() => handleDelete(t.id)} className="text-slate-300 hover:text-red-600 transition-colors">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {transactions.length === 0 && (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 italic text-sm">
+                                        No transactions recorded yet.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default CashManagement;

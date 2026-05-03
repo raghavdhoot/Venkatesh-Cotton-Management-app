@@ -5,10 +5,11 @@ import Javak from './Javak';
 import Employees from './Employees';
 import Bardana from './Bardana';
 import AdminPanel from './AdminPanel';
+import CashManagement from './CashManagement';
 import Dashboard from './components/Dashboard';
 import { db } from './firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
-import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Moon, Sun, IndianRupee } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeContext';
 
@@ -52,6 +53,7 @@ function App() {
         { id: 'javak', label: 'जावक (Outgoing)', icon: ArrowUpRight },
         { id: 'bardana', label: 'Bardana', icon: Package },
         { id: 'employees', label: 'Employees', icon: Users },
+        ...(user?.role?.toUpperCase() === 'ADMIN' || user?.employeeId === 'ADMIN' || user?.role?.toUpperCase() === 'CASHIER' ? [{ id: 'cash', label: 'Cash Management', icon: IndianRupee }] : []),
         ...(user?.role?.toUpperCase() === 'ADMIN' || user?.employeeId === 'ADMIN' ? [{ id: 'admin', label: 'Admin Panel', icon: Shield }] : []),
     ];
 
@@ -94,7 +96,7 @@ function App() {
                     <motion.div 
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200"
+                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800"
                     >
                         <div className="p-6 bg-indigo-600 text-white text-center">
                             <Key className="w-8 h-8 mx-auto mb-2" />
@@ -132,6 +134,8 @@ function App() {
                 return <Bardana currentUser={user} />;
             case 'employees':
                 return <Employees currentUser={user} />;
+            case 'cash':
+                return <CashManagement currentUser={user} />;
             case 'admin':
                 return <AdminPanel currentUser={user} />;
             default:

@@ -26,6 +26,7 @@ function Dashboard({ currentUser }) {
     todayJavakTrucks: 0,
     todayAavakAmount: 0,
   });
+  const [cashBalance, setCashBalance] = useState(0);
   const [itemBreakdown, setItemBreakdown] = useState({});
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
   const [selectedItem, setSelectedItem] = useState(null);
@@ -74,6 +75,17 @@ function Dashboard({ currentUser }) {
       const allMsgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const filtered = allMsgs.filter(msg => msg.senderId === currentUser?.employeeId);
       setMyMessages(filtered);
+    });
+
+    const unsubscribeCash = onSnapshot(collection(db, 'cashTransactions'), (snapshot) => {
+      let totalIn = 0;
+      let totalOut = 0;
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.type === 'IN') totalIn += data.amount;
+        else totalOut += data.amount;
+      });
+      setCashBalance(totalIn - totalOut);
     });
 
     const unsubscribeBardana = onSnapshot(collection(db, 'bardanaEntries'), (snapshot) => {
@@ -178,6 +190,7 @@ function Dashboard({ currentUser }) {
       unsubscribeTasks();
       unsubscribeRates();
       unsubscribeMyMessages();
+      unsubscribeCash();
     };
   }, [currentUser?.employeeId, currentUser?.role]);
 
@@ -292,7 +305,7 @@ function Dashboard({ currentUser }) {
       </div>
       
       {/* Today's Summary Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Aavak</p>
           <p className="text-3xl font-black">{(stats.todayAavakWt / 100).toFixed(1)} <span className="text-sm font-bold opacity-60">QNTL</span></p>
@@ -305,6 +318,12 @@ function Dashboard({ currentUser }) {
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Dispatch</p>
           <p className="text-3xl font-black">{stats.todayJavakTrucks} <span className="text-sm font-bold opacity-60">TRUCKS</span></p>
         </div>
+        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN' || currentUser?.role?.toUpperCase() === 'CASHIER') && (
+          <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-lg shadow-slate-200 dark:shadow-none">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Cash Balance</p>
+            <p className="text-3xl font-black">₹{cashBalance.toLocaleString()}</p>
+          </div>
+        )}
       </div>
       
       {/* Bardana Alert Modal */}

@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "employee": {
+      "title": "Employee",
+      "description": "Represents an employee in the system",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the employee" },
+        "employeeId": { "type": "string", "description": "Unique ID for login" },
+        "role": { "type": "string", "description": "ADMIN, CASHIER, KATA, or OTHER" },
+        "customRole": { "type": "string", "description": "Specific role if OTHER is selected" },
+        "phone": { "type": "string", "description": "Contact number" },
+        "joiningYear": { "type": "integer", "description": "Year of joining" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "employeeId", "role"]
+    },
+    "cottonEntry": {
+      "title": "Cotton Entry (Aavak)",
+      "description": "Incoming cotton entry record",
+      "type": "object",
+      "properties": {
+        "tokenNo": { "type": "string" },
+        "Name": { "type": "string" },
+        "village": { "type": "string" },
+        "itemName": { "type": "string" },
+        "netWt": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "billingDate": { "type": "string", "format": "date" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "javakEntry": {
+      "title": "Javak Entry (Outgoing)",
+      "description": "Outgoing dispatch record",
+      "type": "object",
+      "properties": {
+        "gatePassNo": { "type": "string" },
+        "vehicleNumber": { "type": "string" },
+        "destination": { "type": "string" },
+        "commodity": { "type": "string" },
+        "netWt": { "type": "number" },
+        "numberOfBags": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "adminTask": {
+      "title": "Admin Task",
+      "description": "Private task assigned by admin to a specific employee",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "assignedTo": { "type": "string", "description": "Employee ID" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["content", "assignedTo"]
+    },
+    "dashboardNote": {
+      "title": "Dashboard Note",
+      "description": "Public announcement for all employees",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["content"]
+    },
+    "employeeMessage": {
+      "title": "Employee Message",
+      "description": "Message sent by an employee to the admin",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "reply": { "type": "string", "description": "Admin's reply to the message" },
+        "replyTimestamp": { "type": "string", "format": "date-time" },
+        "repliedBy": { "type": "string", "description": "Admin who replied" }
+      }
+    },
+    "cashTransaction": {
+      "title": "Cash Transaction",
+      "description": "Tracking cash flow (bank withdrawals, payments, expenses)",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["IN", "OUT"], "description": "IN for money brought, OUT for money given" },
+        "amount": { "type": "number" },
+        "source": { "type": "string", "description": "Where the money came from (e.g., Bank Name, Admin Name)" },
+        "recipient": { "type": "string", "description": "Who the money was given to" },
+        "reason": { "type": "string", "description": "Purpose of transaction" },
+        "recordedBy": { "type": "string", "description": "Name of the admin/cashier who recorded it" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "amount", "reason", "recordedBy"]
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": "employee",
+      "description": "Collection of employees"
+    },
+    "/cottonEntries/{tokenNo}": {
+      "schema": "cottonEntry",
+      "description": "Aavak entries"
+    },
+    "/javakEntries/{gatePassNo}": {
+      "schema": "javakEntry",
+      "description": "Javak entries"
+    },
+    "/adminNotes/{noteId}": {
+      "schema": "dashboardNote",
+      "description": "Public announcements for all employees"
+    },
+    "/adminTasks/{taskId}": {
+      "schema": "adminTask",
+      "description": "Private tasks assigned to specific employees"
+    },
+    "/employeeMessages/{messageId}": {
+      "schema": "employeeMessage",
+      "description": "Messages from employees to admin"
+    },
+    "/cashTransactions/{transactionId}": {
+      "schema": "cashTransaction",
+      "description": "Cash flow tracking records"
+    }
+  }
+}
