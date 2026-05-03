@@ -59,9 +59,10 @@ function App() {
 
     const handleLogin = async (e) => {
         e.preventDefault();
-        if (!loginId) return;
+        const trimmedId = loginId.trim().toUpperCase();
+        if (!trimmedId) return;
         try {
-            const empRef = doc(db, 'employees', loginId.toUpperCase());
+            const empRef = doc(db, 'employees', trimmedId);
             const empSnap = await getDoc(empRef);
             if (empSnap.exists()) {
                 setUser(empSnap.data());
@@ -111,7 +112,7 @@ function App() {
                                     className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     placeholder="e.g., PRAD10"
                                     value={loginId}
-                                    onChange={(e) => setLoginId(e.target.value)}
+                                    onChange={(e) => setLoginId(e.target.value.replace(/\s/g, ''))}
                                     required
                                 />
                                 {loginError && <p className="text-red-500 text-xs font-semibold">{loginError}</p>}

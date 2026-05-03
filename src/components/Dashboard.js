@@ -41,6 +41,11 @@ function Dashboard({ currentUser }) {
   const [isSending, setIsSending] = useState(false);
   const [messageStatus, setMessageStatus] = useState({ text: '', type: '' });
   
+  // Custom Period Summary State
+  const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  
   // Out-turn Calculator State
   const [calcKapas, setCalcKapas] = useState('');
   const [outTurnResults, setOutTurnResults] = useState(null);
@@ -240,7 +245,70 @@ function Dashboard({ currentUser }) {
       `_Generated via VCC Cotton App_`;
     
     navigator.clipboard.writeText(summaryText).then(() => {
-      alert('Summary copied to clipboard!');
+        setMessageStatus({ text: 'Summary copied!', type: 'success' });
+        setTimeout(() => setMessageStatus({ text: '', type: '' }), 3000);
+    });
+  };
+
+  const getCustomPeriodStats = () => {
+    if (!startDate || !endDate) return null;
+    
+    let totalAavakWt = 0;
+    let totalAavakAmt = 0;
+    let totalJavakTrucks = 0;
+    
+    rawData.aavak.forEach(data => {
+      if (data.billingDate >= startDate && data.billingDate <= endDate) {
+        totalAavakWt += parseFloat(data.netWt || 0);
+        totalAavakAmt += parseFloat(data.amountPaid || 0);
+      }
+    });
+    
+    rawData.javak.forEach(data => {
+      if (data.date >= startDate && data.date <= endDate) {
+        totalJavakTrucks += 1;
+      }
+    });
+    
+    return {
+      aavakWt: (totalAavakWt / 100).toFixed(1),
+      aavakAmt: totalAavakAmt.toLocaleString(),
+      javakTrucks: totalJavakTrucks
+    };
+  };
+
+  const handleSharePeriodSummary = () => {
+    const periodStats = getCustomPeriodStats();
+    if (!periodStats) return;
+
+    const start = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const end = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    
+    const summaryText = `*VCC COTTON SUMMARY*\n*PERIOD:* ${start.toUpperCase()} TO ${end.toUpperCase()}\n\n` +
+      `📥 *AAVAK:* ${periodStats.aavakWt} QNTL\n` +
+      `🚚 *DISPATCH:* ${periodStats.javakTrucks} TRUCKS\n` +
+      `💰 *TOTAL PAYOUT:* ₹${periodStats.aavakAmt}\n\n` +
+      `_Generated via VCC Cotton App_`;
+    
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleCopyPeriodSummary = () => {
+    const periodStats = getCustomPeriodStats();
+    if (!periodStats) return;
+
+    const start = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const end = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    
+    const summaryText = `*VCC COTTON SUMMARY*\n*PERIOD:* ${start.toUpperCase()} TO ${end.toUpperCase()}\n\n` +
+      `📥 *AAVAK:* ${periodStats.aavakWt} QNTL\n` +
+      `🚚 *DISPATCH:* ${periodStats.javakTrucks} TRUCKS\n` +
+      `💰 *TOTAL PAYOUT:* ₹${periodStats.aavakAmt}\n\n` +
+      `_Generated via VCC Cotton App_`;
+    
+    navigator.clipboard.writeText(summaryText).then(() => {
+      alert('Period summary copied!');
     });
   };
 
@@ -288,12 +356,18 @@ function Dashboard({ currentUser }) {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={() => setIsPeriodModalOpen(true)}
+            className="btn-secondary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
+          >
+            <Calendar className="w-4 h-4" /> Period Summary
+          </button>
           <button 
             onClick={handleCopySummary}
             className="btn-secondary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
           >
-            <Share2 className="w-4 h-4" /> Copy Summary
+            <Share2 className="w-4 h-4" /> Copy Today
           </button>
           <button 
             onClick={handleShareSummary}
@@ -304,6 +378,84 @@ function Dashboard({ currentUser }) {
         </div>
       </div>
       
+      {/* Period Summary Modal */}
+      <AnimatePresence>
+        {isPeriodModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white uppercase">Custom Period Summary</h3>
+                <button onClick={() => setIsPeriodModalOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-8 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase">From Date</label>
+                    <input 
+                      type="date" 
+                      className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase">To Date</label>
+                    <input 
+                      type="date" 
+                      className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {startDate && endDate && (
+                  <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-700 space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
+                        <span className="text-slate-500 text-sm font-medium">📥 Total Aavak</span>
+                        <span className="font-bold text-indigo-600">{getCustomPeriodStats()?.aavakWt} QNTL</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
+                        <span className="text-slate-500 text-sm font-medium">🚚 Total Dispatch</span>
+                        <span className="font-bold text-orange-600">{getCustomPeriodStats()?.javakTrucks} TRUCKS</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-slate-500 text-sm font-medium">💰 Total Payout</span>
+                        <span className="font-bold text-emerald-600">₹{getCustomPeriodStats()?.aavakAmt}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 pt-4">
+                  <button 
+                    onClick={handleCopyPeriodSummary}
+                    disabled={!startDate || !endDate}
+                    className="btn-secondary py-3 text-xs flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4" /> Copy Text
+                  </button>
+                  <button 
+                    onClick={handleSharePeriodSummary}
+                    disabled={!startDate || !endDate}
+                    className="btn-primary py-3 text-xs flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4" /> Share WA
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Today's Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
