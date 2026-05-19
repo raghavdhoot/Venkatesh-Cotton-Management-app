@@ -47,6 +47,16 @@ function App() {
         bootstrap();
     }, []);
 
+    React.useEffect(() => {
+        const handleCustomViewChange = (e) => {
+            if (e.detail && typeof e.detail === 'string') {
+                handleViewChange(e.detail);
+            }
+        };
+        window.addEventListener('changeView', handleCustomViewChange);
+        return () => window.removeEventListener('changeView', handleCustomViewChange);
+    }, []);
+
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'aavak', label: 'आवक (Incoming)', icon: ArrowDownLeft },

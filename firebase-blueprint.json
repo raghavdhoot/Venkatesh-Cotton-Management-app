@@ -95,6 +95,19 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["type", "amount", "reason", "recordedBy"]
+    },
+    "billingSettings": {
+      "title": "Billing Settings",
+      "description": "Global settings for billing deductions",
+      "type": "object",
+      "properties": {
+        "hamaliRate": { "type": "number", "description": "Hamali deduction per quintal (₹)" },
+        "weighmentRate": { "type": "number", "description": "Weighment deduction per quintal (₹)" },
+        "generalDeductionPercent": { "type": "number", "description": "General percentage deduction (e.g. 1.4 for 1.4%)" },
+        "cottonDeductionEnabled": { "type": "boolean", "description": "Whether deduction applies to COTTON item" },
+        "updatedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -125,6 +138,10 @@
     "/cashTransactions/{transactionId}": {
       "schema": "cashTransaction",
       "description": "Cash flow tracking records"
+    },
+    "/settings/{settingId}": {
+      "schema": "billingSettings",
+      "description": "Global application settings"
     }
   }
 }

@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
 
@@ -34,6 +34,23 @@ function Aavak({ currentUser }) {
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [showExportModal, setShowExportModal] = useState(false);
+
+    // Billing Settings from Firestore
+    const [billingSettings, setBillingSettings] = useState({
+        hamaliRate: 15,
+        weighmentRate: 50,
+        generalDeductionPercent: 1.4,
+        cottonDeductionEnabled: false
+    });
+
+    useEffect(() => {
+        const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'billing'), (docSnap) => {
+            if (docSnap.exists()) {
+                setBillingSettings(docSnap.data());
+            }
+        });
+        return () => unsubscribeSettings();
+    }, []);
 
     useEffect(() => {
         if (statusMessage.text) {
@@ -230,11 +247,18 @@ function Aavak({ currentUser }) {
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
             const normalizedItem = normalizeItemName(itemName);
-            const deductionRate = normalizedItem === 'COTTON' ? 0 : 0.014; 
+            
+            // Use settings
+            const isCotton = normalizedItem === 'COTTON';
+            const deductionRate = (isCotton && !billingSettings.cottonDeductionEnabled) 
+                ? 0 
+                : (billingSettings.generalDeductionPercent / 100);
+            
             netWtAfterDeduction = netWt * (1 - deductionRate);
             const netWtInQuintals = netWt / 100;
-            hamaliDeduction = netWtInQuintals * 15;
-            weighmentDeduction = netWtInQuintals * 50;
+            
+            hamaliDeduction = netWtInQuintals * (billingSettings.hamaliRate || 0);
+            weighmentDeduction = netWtInQuintals * (billingSettings.weighmentRate || 0);
         }
 
         if (parsedRate && netWtAfterDeduction) {
@@ -401,7 +425,7 @@ function Aavak({ currentUser }) {
                             <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After 1.4% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">${(data.itemName === 'COTTON' && !billingSettings.cottonDeductionEnabled) ? 'Net Weight (No Deduction)' : `Net Wt (After ${billingSettings.generalDeductionPercent}% Ded.)`}</td>
                             <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
                             <td class="p-1.5 py-2"></td>
                         </tr>
@@ -479,11 +503,11 @@ function Aavak({ currentUser }) {
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className="relative w-full md:w-80">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
                         <input 
                             type="text" 
                             placeholder="Search Token, Farmer, Village..." 
-                            className="input-field pl-10 uppercase"
+                            className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                             value={globalSearch}
                             onChange={(e) => setGlobalSearch(e.target.value)}
                         />
@@ -519,6 +543,14 @@ function Aavak({ currentUser }) {
                     <button onClick={resetForm} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                         <X className="w-4 h-4" /> Clear
                     </button>
+                    {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+                        <button 
+                            onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: 'admin' }))}
+                            className="btn-secondary transition-all hover:bg-slate-100 dark:hover:bg-slate-800 border-indigo-200 dark:border-indigo-900 flex-shrink-0 flex items-center justify-center gap-2"
+                        >
+                            <Settings className="w-4 h-4 text-indigo-600" /> Rates/Fees
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -587,15 +619,15 @@ function Aavak({ currentUser }) {
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Tare Weight (kg)</label>
-                            <input type="number" step="0.01" className="input-field" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
+                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Moisture (%)</label>
-                            <input type="number" step="0.1" className="input-field" value={moisture} onChange={(e) => setMoisture(e.target.value)} placeholder="E.G., 8.5" />
+                            <input type="number" step="0.1" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={moisture} onChange={(e) => setMoisture(e.target.value)} placeholder="E.G., 8.5" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Rate (₹ per Quintal)</label>
-                            <input type="number" step="0.01" className="input-field" value={rate} onChange={(e) => setRate(e.target.value)} />
+                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={rate} onChange={(e) => setRate(e.target.value)} />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Amount Paid (₹)</label>
@@ -603,7 +635,7 @@ function Aavak({ currentUser }) {
                                 <input 
                                     type="number" 
                                     step="0.01" 
-                                    className="input-field" 
+                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                     value={amountPaid} 
                                     onChange={(e) => {
                                         const val = e.target.value;
@@ -628,11 +660,16 @@ function Aavak({ currentUser }) {
                                         if (parsedGrossWt && parsedTareWt && parsedRate) {
                                             const netWt = parsedGrossWt - parsedTareWt;
                                             const normalizedItem = normalizeItemName(itemName);
-                                            const deductionRate = normalizedItem === 'COTTON' ? 0 : 0.014;
+                                            
+                                            const isCotton = normalizedItem === 'COTTON';
+                                            const deductionRate = (isCotton && !billingSettings.cottonDeductionEnabled) 
+                                                ? 0 
+                                                : (billingSettings.generalDeductionPercent / 100);
+                                                
                                             const netWtAfterDeduction = netWt * (1 - deductionRate);
                                             const netWtInQuintals = netWt / 100;
-                                            const hamaliDeduction = netWtInQuintals * 15;
-                                            const weighmentDeduction = netWtInQuintals * 50;
+                                            const hamaliDeduction = netWtInQuintals * (billingSettings.hamaliRate || 0);
+                                            const weighmentDeduction = netWtInQuintals * (billingSettings.weighmentRate || 0);
                                             const grossAmount = (parsedRate / 100) * netWtAfterDeduction;
                                             const netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
                                             setAmountPaid(netAmount.toString());
@@ -825,35 +862,35 @@ function Aavak({ currentUser }) {
                         <div key={entry.id} className="p-4 space-y-4">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{entry.billingDate}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{entry.billingDate}</p>
                                     <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.tokenNo}</h4>
                                 </div>
                                 <div className="flex gap-1">
                                     <button onClick={() => generatePdf(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
                                         <FileText className="w-5 h-5" />
                                     </button>
-                                    <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600">
+                                    <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">
                                         <Trash2 className="w-5 h-5" />
                                     </button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Farmer</p>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Farmer</p>
                                     <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.Name}</p>
-                                    <p className="text-xs text-slate-500 uppercase">{entry.Village}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase">{entry.Village}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Net Weight</p>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Net Weight</p>
                                     <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.netWt || 0} KG</p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Net Amount</p>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Net Amount</p>
                                     <p className="text-sm font-black text-slate-900 dark:text-white uppercase">₹{(entry.netAmount || 0).toLocaleString()}</p>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Balance</p>
-                                    <span className={`text-sm font-black uppercase ${entry.balanceAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Balance</p>
+                                    <span className={`text-sm font-black uppercase ${entry.balanceAmount > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                         ₹{(entry.balanceAmount || 0).toLocaleString()}
                                     </span>
                                 </div>

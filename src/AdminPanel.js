@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send } from 'lucide-react';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send, Settings } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function AdminPanel({ currentUser }) {
@@ -19,6 +19,13 @@ function AdminPanel({ currentUser }) {
     const [replyingTo, setReplyingTo] = useState(null);
     const [replyContent, setReplyContent] = useState('');
     const [isSendingReply, setIsSendingReply] = useState(false);
+
+    // Billing Settings State
+    const [hamaliRate, setHamaliRate] = useState(15);
+    const [weighmentRate, setWeighmentRate] = useState(50);
+    const [deductionPercent, setDeductionPercent] = useState(1.4);
+    const [cottonDeduction, setCottonDeduction] = useState(false);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
 
     const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
@@ -45,14 +52,46 @@ function AdminPanel({ currentUser }) {
             setEmployeeMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
+        const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'billing'), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setHamaliRate(data.hamaliRate ?? 15);
+                setWeighmentRate(data.weighmentRate ?? 50);
+                setDeductionPercent(data.generalDeductionPercent ?? 1.4);
+                setCottonDeduction(data.cottonDeductionEnabled ?? false);
+            }
+        });
+
         return () => {
             unsubscribeNotes();
             unsubscribeTasks();
             unsubscribeRates();
             unsubscribeEmployees();
             unsubscribeMessages();
+            unsubscribeSettings();
         };
     }, [isAdmin]);
+
+    const handleSaveSettings = async (e) => {
+        e.preventDefault();
+        setIsSavingSettings(true);
+        try {
+            await setDoc(doc(db, 'settings', 'billing'), {
+                hamaliRate: parseFloat(hamaliRate),
+                weighmentRate: parseFloat(weighmentRate),
+                generalDeductionPercent: parseFloat(deductionPercent),
+                cottonDeductionEnabled: cottonDeduction,
+                updatedBy: currentUser.name,
+                timestamp: serverTimestamp()
+            });
+            setStatusMessage({ text: 'Billing settings updated successfully', type: 'success' });
+        } catch (error) {
+            console.error("Error saving settings:", error);
+            setStatusMessage({ text: 'Error saving settings', type: 'error' });
+        } finally {
+            setIsSavingSettings(false);
+        }
+    };
 
     const handleAddNote = async (e) => {
         e.preventDefault();
@@ -161,6 +200,83 @@ function AdminPanel({ currentUser }) {
                         {statusMessage.text}
                     </div>
                 )}
+            </div>
+
+            {/* Global Billing Settings - Full Width at Top */}
+            <div className="card border-2 border-indigo-100 dark:border-indigo-900/50 shadow-indigo-100 dark:shadow-none">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                        <Settings className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Global Billing Deductions</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Control hamali rates and percentage deductions across the app</p>
+                    </div>
+                </div>
+                
+                <form onSubmit={handleSaveSettings} className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Hamali Rate (₹/Qntl)</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                className="input-field pl-8 dark:bg-slate-800 dark:border-slate-700 dark:text-white font-bold" 
+                                value={hamaliRate}
+                                onChange={(e) => setHamaliRate(e.target.value)}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Weighment (₹/Qntl)</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                className="input-field pl-8 dark:bg-slate-800 dark:border-slate-700 dark:text-white font-bold" 
+                                value={weighmentRate}
+                                onChange={(e) => setWeighmentRate(e.target.value)}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-red-500 uppercase tracking-widest">General Deduction (%)</label>
+                        <div className="relative">
+                            <input 
+                                type="number" 
+                                step="0.001"
+                                className="input-field pr-8 border-red-200 dark:border-red-900/50 dark:bg-slate-800 dark:text-white font-bold" 
+                                value={deductionPercent}
+                                onChange={(e) => setDeductionPercent(e.target.value)}
+                                required
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 font-bold">%</span>
+                        </div>
+                    </div>
+                    <div className="flex flex-col justify-end gap-3">
+                        <div className="flex items-center gap-3 pb-2">
+                            <input 
+                                type="checkbox" 
+                                id="cottonDed_top"
+                                className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                checked={cottonDeduction}
+                                onChange={(e) => setCottonDeduction(e.target.checked)}
+                            />
+                            <label htmlFor="cottonDed_top" className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase cursor-pointer">Apply to Cotton</label>
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={isSavingSettings}
+                            className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+                        >
+                            {isSavingSettings ? 'Updating...' : <><Save className="w-4 h-4" /> Save Global Rates</>}
+                        </button>
+                    </div>
+                </form>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
