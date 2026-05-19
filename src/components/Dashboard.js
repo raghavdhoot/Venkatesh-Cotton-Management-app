@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -859,6 +859,17 @@ function Dashboard({ currentUser }) {
                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {d.date}
                             </span>
+                          </div>
+                           <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-medium">
+                            <User className="w-3 h-3 text-slate-400 dark:text-slate-500" /> {d.driverName || 'N/A'}
+                            {d.driverPhone && (
+                              <a 
+                                href={`tel:${d.driverPhone}`}
+                                className="p-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded hover:bg-emerald-200 transition-colors"
+                              >
+                                <Phone className="w-2.5 h-2.5" />
+                              </a>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-medium">
                             <MapPin className="w-3 h-3 text-slate-400 dark:text-slate-500" /> {d.destination}

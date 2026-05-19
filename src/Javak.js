@@ -3,7 +3,7 @@ import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, getDocs, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function Javak({ currentUser }) {
@@ -21,6 +21,7 @@ function Javak({ currentUser }) {
     const [tareWt, setTareWt] = useState('');
     const [numberOfBags, setNumberOfBags] = useState('');
     const [driverName, setDriverName] = useState('');
+    const [driverPhone, setDriverPhone] = useState('');
     const [driverPhoto, setDriverPhoto] = useState(null);
     const [bardanaType, setBardanaType] = useState('BARDANA');
     const [sutliCount, setSutliCount] = useState('');
@@ -67,6 +68,7 @@ function Javak({ currentUser }) {
         setTareWt('');
         setNumberOfBags('');
         setDriverName('');
+        setDriverPhone('');
         setDriverPhoto(null);
         setBardanaType('BARDANA');
         setSutliCount('');
@@ -81,6 +83,7 @@ function Javak({ currentUser }) {
         setCommodity(lastEntry.commodity || '');
         setBardanaType(lastEntry.bardanaType || 'BARDANA');
         setDriverName(lastEntry.driverName || '');
+        setDriverPhone(lastEntry.driverPhone || '');
         setIsFormOpen(true);
     };
 
@@ -103,6 +106,7 @@ function Javak({ currentUser }) {
                 setTareWt(entryData.tareWt || '');
                 setNumberOfBags(entryData.numberOfBags || '');
                 setDriverName(entryData.driverName || '');
+                setDriverPhone(entryData.driverPhone || '');
                 setDriverPhoto(entryData.driverPhoto || null);
                 setBardanaType(entryData.bardanaType || 'BARDANA');
                 setSutliCount(entryData.sutliCount || '');
@@ -139,6 +143,7 @@ function Javak({ currentUser }) {
             bardanaType: bardanaType || null,
             sutliCount: sutliCount ? parseInt(sutliCount, 10) : 0,
             driverName: driverName || null,
+            driverPhone: driverPhone || null,
             driverPhoto: driverPhoto || null,
             entryMaker: currentUser.name,
             timestamp: serverTimestamp()
@@ -519,7 +524,11 @@ function Javak({ currentUser }) {
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Name</label>
-                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" />
+                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" required />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Phone</label>
+                            <input type="tel" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white font-mono" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="e.g., 9876543210" />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Photo</label>
@@ -552,16 +561,74 @@ function Javak({ currentUser }) {
 
             {/* Table Section */}
             <div className="card overflow-hidden !p-0">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Recent Outgoing Entries</h3>
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight">Recent Outgoing Entries</h3>
                 </div>
-                <div className="overflow-x-auto">
+
+                {/* Mobile Cards */}
+                <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                    {recentJavakEntries
+                        .sort((a, b) => (a.destination || '').localeCompare(b.destination || ''))
+                        .map(entry => (
+                        <div key={entry.id} className="p-4 space-y-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{entry.date}</p>
+                                    <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.gatePassNo || entry.id}</h4>
+                                </div>
+                                <div className="flex gap-1">
+                                    <button onClick={() => generateJavakPdf(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+                                        <FileText className="w-5 h-5" />
+                                    </button>
+                                    <button onClick={() => setDeleteConfirmId(entry.gatePassNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Driver & Vehicle</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.driverName || 'N/A'}</p>
+                                        {entry.driverPhone && (
+                                            <a 
+                                                href={`tel:${entry.driverPhone}`}
+                                                className="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full hover:bg-emerald-200 transition-colors"
+                                                title="Call Driver"
+                                            >
+                                                <Phone className="w-4 h-4" />
+                                            </a>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] font-mono text-slate-500 mt-1">{entry.vehicleNumber}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Destination</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white uppercase flex items-center gap-1">
+                                        <MapPin className="w-3 h-3" /> {entry.destination}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Net Weight</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.netWt?.toFixed(2)} KG</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Bags</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.numberOfBags} BAGS</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                 <th className="px-6 py-4 font-semibold">Date</th>
                                 <th className="px-6 py-4 font-semibold">Gate Pass</th>
                                 <th className="px-6 py-4 font-semibold">Vehicle No</th>
+                                <th className="px-6 py-4 font-semibold">Driver</th>
                                 <th className="px-6 py-4 font-semibold">Destination</th>
                                 <th className="px-6 py-4 font-semibold">Net Wt</th>
                                 <th className="px-6 py-4 font-semibold">Bags</th>
@@ -575,7 +642,26 @@ function Javak({ currentUser }) {
                                 <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                     <td className="px-6 py-4 text-sm">{entry.date}</td>
                                     <td className="px-6 py-4 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400">{entry.gatePassNo || entry.id}</td>
-                                    <td className="px-6 py-4 text-sm">{entry.vehicleNumber}</td>
+                                    <td className="px-6 py-4 text-sm uppercase">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold">{entry.vehicleNumber}</span>
+                                            {entry.driverName && <span className="text-[10px] text-slate-400 italic">{entry.driverName}</span>}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-slate-900 dark:text-slate-100">{entry.driverName || 'N/A'}</span>
+                                            {entry.driverPhone && (
+                                                <a 
+                                                    href={`tel:${entry.driverPhone}`}
+                                                    className="p-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 transition-colors"
+                                                    title="Call Driver"
+                                                >
+                                                    <Phone className="w-3 h-3" />
+                                                </a>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{entry.destination}</td>
                                     <td className="px-6 py-4 text-sm font-bold">{entry.netWt?.toFixed(2)} kg</td>
                                     <td className="px-6 py-4 text-sm">
