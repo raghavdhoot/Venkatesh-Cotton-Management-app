@@ -35,6 +35,11 @@ function Aavak({ currentUser }) {
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [showExportModal, setShowExportModal] = useState(false);
 
+    // Form Deduction Rates/Percentages
+    const [hamaliRate, setHamaliRate] = useState('');
+    const [weighmentRate, setWeighmentRate] = useState('');
+    const [generalDeductionPercent, setGeneralDeductionPercent] = useState('1.4');
+
     // Billing Settings from Firestore
     const [billingSettings, setBillingSettings] = useState({
         hamaliRate: 15,
@@ -46,7 +51,12 @@ function Aavak({ currentUser }) {
     useEffect(() => {
         const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'billing'), (docSnap) => {
             if (docSnap.exists()) {
-                setBillingSettings(docSnap.data());
+                const data = docSnap.data();
+                setBillingSettings(data);
+                // Dynamically sync form values if fields are currently empty
+                setHamaliRate(prev => prev === '' ? (data.hamaliRate !== undefined ? data.hamaliRate.toString() : '15') : prev);
+                setWeighmentRate(prev => prev === '' ? (data.weighmentRate !== undefined ? data.weighmentRate.toString() : '50') : prev);
+                setGeneralDeductionPercent(prev => prev === '' ? (data.generalDeductionPercent !== undefined ? data.generalDeductionPercent.toString() : '1.4') : prev);
             }
         });
         return () => unsubscribeSettings();
@@ -107,6 +117,9 @@ function Aavak({ currentUser }) {
         setPaymentMode('CASH');
         setAccountantName(currentUser?.name || '');
         setMakerName('');
+        setHamaliRate(billingSettings.hamaliRate !== undefined ? billingSettings.hamaliRate.toString() : '15');
+        setWeighmentRate(billingSettings.weighmentRate !== undefined ? billingSettings.weighmentRate.toString() : '50');
+        setGeneralDeductionPercent(billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent.toString() : '1.4');
     };
 
     const handleRepeatLastEntry = () => {
@@ -145,10 +158,16 @@ function Aavak({ currentUser }) {
                 setPaymentMode(entryData.paymentMode || 'CASH');
                 setAccountantName(entryData.accountantName || '');
                 setMakerName(entryData.makerName || '');
+                setHamaliRate(entryData.hamaliRate !== undefined ? entryData.hamaliRate.toString() : (billingSettings.hamaliRate !== undefined ? billingSettings.hamaliRate.toString() : '15'));
+                setWeighmentRate(entryData.weighmentRate !== undefined ? entryData.weighmentRate.toString() : (billingSettings.weighmentRate !== undefined ? billingSettings.weighmentRate.toString() : '50'));
+                setGeneralDeductionPercent(entryData.generalDeductionPercent !== undefined ? entryData.generalDeductionPercent.toString() : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent.toString() : '1.4'));
             } else {
                 resetForm();
                 setIsNewEntry(true);
                 setTokenNo(searchToken);
+                setHamaliRate(billingSettings.hamaliRate !== undefined ? billingSettings.hamaliRate.toString() : '15');
+                setWeighmentRate(billingSettings.weighmentRate !== undefined ? billingSettings.weighmentRate.toString() : '50');
+                setGeneralDeductionPercent(billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent.toString() : '1.4');
             }
         } catch (error) {
             console.error("Error looking up entry: ", error);
@@ -235,6 +254,9 @@ function Aavak({ currentUser }) {
         const parsedTareWt = parseFloat(tareWt || 0);
         const parsedRate = parseFloat(rate || 0);
         const parsedAmountPaid = parseFloat(amountPaid || 0);
+        const parsedHamaliRate = parseFloat(hamaliRate || 0);
+        const parsedWeighmentRate = parseFloat(weighmentRate || 0);
+        const parsedGeneralDeductionPercent = parseFloat(generalDeductionPercent || 0);
 
         let netWt = 0;
         let netWtAfterDeduction = 0;
@@ -246,19 +268,15 @@ function Aavak({ currentUser }) {
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
-            const normalizedItem = normalizeItemName(itemName);
             
-            // Use settings
-            const isCotton = normalizedItem === 'COTTON';
-            const deductionRate = (isCotton && !billingSettings.cottonDeductionEnabled) 
-                ? 0 
-                : (billingSettings.generalDeductionPercent / 100);
+            // Cotton deductions are re-enabled exactly like standard management system
+            const deductionRate = parsedGeneralDeductionPercent / 100;
             
             netWtAfterDeduction = netWt * (1 - deductionRate);
             const netWtInQuintals = netWt / 100;
             
-            hamaliDeduction = netWtInQuintals * (billingSettings.hamaliRate || 0);
-            weighmentDeduction = netWtInQuintals * (billingSettings.weighmentRate || 0);
+            hamaliDeduction = netWtInQuintals * parsedHamaliRate;
+            weighmentDeduction = netWtInQuintals * parsedWeighmentRate;
         }
 
         if (parsedRate && netWtAfterDeduction) {
@@ -314,6 +332,9 @@ function Aavak({ currentUser }) {
             makerName: finalMaker || null,
             entryMaker: currentUser.name,
             timestamp: serverTimestamp(),
+            hamaliRate: parsedHamaliRate,
+            weighmentRate: parsedWeighmentRate,
+            generalDeductionPercent: parsedGeneralDeductionPercent
         };
 
         try {
@@ -425,7 +446,7 @@ function Aavak({ currentUser }) {
                             <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">${(data.itemName === 'COTTON' && !billingSettings.cottonDeductionEnabled) ? 'Net Weight (No Deduction)' : `Net Wt (After ${billingSettings.generalDeductionPercent}% Ded.)`}</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.generalDeductionPercent !== undefined && data.generalDeductionPercent !== null ? data.generalDeductionPercent : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent : 1.4)}% Ded.)</td>
                             <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
                             <td class="p-1.5 py-2"></td>
                         </tr>
@@ -659,17 +680,15 @@ function Aavak({ currentUser }) {
                                         const parsedRate = parseFloat(rate || 0);
                                         if (parsedGrossWt && parsedTareWt && parsedRate) {
                                             const netWt = parsedGrossWt - parsedTareWt;
-                                            const normalizedItem = normalizeItemName(itemName);
-                                            
-                                            const isCotton = normalizedItem === 'COTTON';
-                                            const deductionRate = (isCotton && !billingSettings.cottonDeductionEnabled) 
-                                                ? 0 
-                                                : (billingSettings.generalDeductionPercent / 100);
+                                            const parsedHamaliRate = parseFloat(hamaliRate || 0);
+                                            const parsedWeighmentRate = parseFloat(weighmentRate || 0);
+                                            const parsedGeneralDeductionPercent = parseFloat(generalDeductionPercent || 0);
                                                 
+                                            const deductionRate = parsedGeneralDeductionPercent / 100;
                                             const netWtAfterDeduction = netWt * (1 - deductionRate);
                                             const netWtInQuintals = netWt / 100;
-                                            const hamaliDeduction = netWtInQuintals * (billingSettings.hamaliRate || 0);
-                                            const weighmentDeduction = netWtInQuintals * (billingSettings.weighmentRate || 0);
+                                            const hamaliDeduction = netWtInQuintals * parsedHamaliRate;
+                                            const weighmentDeduction = netWtInQuintals * parsedWeighmentRate;
                                             const grossAmount = (parsedRate / 100) * netWtAfterDeduction;
                                             const netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
                                             setAmountPaid(netAmount.toString());
@@ -690,6 +709,39 @@ function Aavak({ currentUser }) {
                                     Full Pay
                                 </button>
                             </div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Hamali Rate (₹/Quintal)</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={hamaliRate} 
+                                onChange={(e) => setHamaliRate(e.target.value)} 
+                                required 
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Weighment Rate (₹/Quintal)</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={weighmentRate} 
+                                onChange={(e) => setWeighmentRate(e.target.value)} 
+                                required 
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">General Deduction (%)</label>
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={generalDeductionPercent} 
+                                onChange={(e) => setGeneralDeductionPercent(e.target.value)} 
+                                required 
+                            />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Mode of Payment</label>
