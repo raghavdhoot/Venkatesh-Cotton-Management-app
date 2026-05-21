@@ -27,6 +27,7 @@
         "netWt": { "type": "number" },
         "amountPaid": { "type": "number" },
         "billingDate": { "type": "string", "format": "date" },
+        "generalDeductionPercentage": { "type": "number", "description": "Actual deduction percentage used for this transaction" },
         "timestamp": { "type": "string", "format": "date-time" }
       }
     },

@@ -160,7 +160,7 @@ function Aavak({ currentUser }) {
                 setMakerName(entryData.makerName || '');
                 setHamaliRate(entryData.hamaliRate !== undefined ? entryData.hamaliRate.toString() : (billingSettings.hamaliRate !== undefined ? billingSettings.hamaliRate.toString() : '15'));
                 setWeighmentRate(entryData.weighmentRate !== undefined ? entryData.weighmentRate.toString() : (billingSettings.weighmentRate !== undefined ? billingSettings.weighmentRate.toString() : '50'));
-                setGeneralDeductionPercent(entryData.generalDeductionPercent !== undefined ? entryData.generalDeductionPercent.toString() : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent.toString() : '1.4'));
+                setGeneralDeductionPercent(entryData.generalDeductionPercentage !== undefined ? entryData.generalDeductionPercentage.toString() : (entryData.generalDeductionPercent !== undefined ? entryData.generalDeductionPercent.toString() : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent.toString() : '1.4')));
             } else {
                 resetForm();
                 setIsNewEntry(true);
@@ -334,7 +334,8 @@ function Aavak({ currentUser }) {
             timestamp: serverTimestamp(),
             hamaliRate: parsedHamaliRate,
             weighmentRate: parsedWeighmentRate,
-            generalDeductionPercent: parsedGeneralDeductionPercent
+            generalDeductionPercent: parsedGeneralDeductionPercent,
+            generalDeductionPercentage: parsedGeneralDeductionPercent
         };
 
         try {
@@ -446,7 +447,7 @@ function Aavak({ currentUser }) {
                             <td class="p-1.5 py-2"></td>
                         </tr>
                         <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.generalDeductionPercent !== undefined && data.generalDeductionPercent !== null ? data.generalDeductionPercent : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent : 1.4)}% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.generalDeductionPercentage !== undefined && data.generalDeductionPercentage !== null ? data.generalDeductionPercentage : (data.generalDeductionPercent !== undefined && data.generalDeductionPercent !== null ? data.generalDeductionPercent : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent : 1.4))}% Ded.)</td>
                             <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
                             <td class="p-1.5 py-2"></td>
                         </tr>
@@ -736,10 +737,18 @@ function Aavak({ currentUser }) {
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">General Deduction (%)</label>
                             <input 
                                 type="number" 
-                                step="0.01" 
+                                step="any" 
                                 className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={generalDeductionPercent} 
-                                onChange={(e) => setGeneralDeductionPercent(e.target.value)} 
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val.endsWith('.')) {
+                                        setGeneralDeductionPercent(val);
+                                    } else {
+                                        const parsed = parseFloat(val);
+                                        setGeneralDeductionPercent(isNaN(parsed) ? '' : parsed);
+                                    }
+                                }} 
                                 required 
                             />
                         </div>
