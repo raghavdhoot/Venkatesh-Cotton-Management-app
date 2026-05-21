@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send, Edit, X } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
@@ -38,7 +38,7 @@ function AdminPanel({ currentUser }) {
             setAdminTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const unsubscribeRates = onSnapshot(query(collection(db, 'rateChart'), orderBy('timestamp', 'desc')), (snapshot) => {
+        const unsubscribeRates = onSnapshot(query(collection(db, 'rateCharts'), orderBy('timestamp', 'desc')), (snapshot) => {
             const rates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setRateChart(rates);
         });
@@ -100,8 +100,9 @@ function AdminPanel({ currentUser }) {
         e.preventDefault();
         if (!itemName.trim() || !itemRate) return;
         const normalized = normalizeItemName(itemName);
+        const commodityId = normalized.trim().toLowerCase().replace(/\s+/g, '');
         try {
-            await addDoc(collection(db, 'rateChart'), {
+            await setDoc(doc(db, 'rateCharts', commodityId), {
                 itemName: normalized,
                 rate: parseFloat(itemRate),
                 timestamp: serverTimestamp()
@@ -139,11 +140,16 @@ function AdminPanel({ currentUser }) {
         setEditingItemRate('');
     };
 
-    const handleUpdateRate = async (id) => {
+    const handleUpdateRate = async (oldId) => {
         if (!editingItemName.trim() || !editingItemRate) return;
         const normalized = normalizeItemName(editingItemName);
+        const commodityId = normalized.trim().toLowerCase().replace(/\s+/g, '');
         try {
-            await updateDoc(doc(db, 'rateChart', id), {
+            // If the document ID changed (due to renaming), delete the old one first
+            if (oldId !== commodityId) {
+                await deleteDoc(doc(db, 'rateCharts', oldId));
+            }
+            await setDoc(doc(db, 'rateCharts', commodityId), {
                 itemName: normalized,
                 rate: parseFloat(editingItemRate),
                 timestamp: serverTimestamp()
@@ -420,7 +426,7 @@ function AdminPanel({ currentUser }) {
                                                         <Edit className="w-4 h-4" />
                                                     </button>
                                                     <button 
-                                                        onClick={() => handleDelete('rateChart', r.id)} 
+                                                        onClick={() => handleDelete('rateCharts', r.id)} 
                                                         className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400 transition-colors p-1"
                                                         title="Delete Rate"
                                                     >

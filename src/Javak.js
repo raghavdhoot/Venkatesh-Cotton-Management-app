@@ -155,14 +155,14 @@ function Javak({ currentUser }) {
                 await updateDoc(entryRef, entryData);
                 
                 // Update Bardana entries: Delete old ones and add new ones
-                const q = query(collection(db, 'bardanaEntries'), where('javakId', '==', gatePassNo));
+                const q = query(collection(db, 'bardana'), where('javakId', '==', gatePassNo));
                 const snap = await getDocs(q);
                 for (const d of snap.docs) {
-                    await deleteDoc(doc(db, 'bardanaEntries', d.id));
+                    await deleteDoc(doc(db, 'bardana', d.id));
                 }
 
                 if (numberOfBags) {
-                    await addDoc(collection(db, 'bardanaEntries'), {
+                    await addDoc(collection(db, 'bardana'), {
                         itemName: bardanaType,
                         quantity: parseInt(numberOfBags, 10),
                         personName: driverName || 'N/A',
@@ -175,7 +175,7 @@ function Javak({ currentUser }) {
                 }
 
                 if (sutliCount && parseInt(sutliCount, 10) > 0) {
-                    await addDoc(collection(db, 'bardanaEntries'), {
+                    await addDoc(collection(db, 'bardana'), {
                         itemName: 'SUTLI',
                         quantity: parseInt(sutliCount, 10),
                         personName: driverName || 'N/A',
@@ -193,7 +193,7 @@ function Javak({ currentUser }) {
                 
                 // Automatically subtract from Bardana
                 if (numberOfBags) {
-                    await addDoc(collection(db, 'bardanaEntries'), {
+                    await addDoc(collection(db, 'bardana'), {
                         itemName: bardanaType,
                         quantity: parseInt(numberOfBags, 10),
                         personName: driverName || 'N/A',
@@ -207,7 +207,7 @@ function Javak({ currentUser }) {
 
                 // Also subtract Sutli if provided
                 if (sutliCount && parseInt(sutliCount, 10) > 0) {
-                    await addDoc(collection(db, 'bardanaEntries'), {
+                    await addDoc(collection(db, 'bardana'), {
                         itemName: 'SUTLI',
                         quantity: parseInt(sutliCount, 10),
                         personName: driverName || 'N/A',

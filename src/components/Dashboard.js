@@ -72,7 +72,7 @@ function Dashboard({ currentUser }) {
       setAdminTasks(myTasks);
     });
 
-    const unsubscribeRates = onSnapshot(query(collection(db, 'rateChart'), orderBy('timestamp', 'desc')), (snapshot) => {
+    const unsubscribeRates = onSnapshot(query(collection(db, 'rateCharts'), orderBy('timestamp', 'desc')), (snapshot) => {
       setRateChart(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
@@ -93,7 +93,7 @@ function Dashboard({ currentUser }) {
       setCashBalance(totalIn - totalOut);
     });
 
-    const unsubscribeBardana = onSnapshot(collection(db, 'bardanaEntries'), (snapshot) => {
+    const unsubscribeBardana = onSnapshot(collection(db, 'bardana'), (snapshot) => {
       let totalGunny = 0;
       const breakdown = {};
       snapshot.docs.forEach(doc => {

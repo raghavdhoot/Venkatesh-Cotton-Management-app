@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, setDoc, getDocs, documentId, where } from 'firebase/firestore';
 import { Plus, Trash2, X, Save, User } from 'lucide-react';
 
 function Bardana({ currentUser }) {
@@ -29,7 +29,7 @@ function Bardana({ currentUser }) {
     }, [currentUser]);
 
     useEffect(() => {
-        const q = query(collection(db, 'bardanaEntries'), orderBy('timestamp', 'desc'));
+        const q = query(collection(db, 'bardana'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const entries = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -45,18 +45,43 @@ function Bardana({ currentUser }) {
         const finalItemName = itemName === 'OTHER' ? customItemName : itemName;
         if (!finalItemName || !quantity) return;
 
-        const newEntry = {
-            itemName: finalItemName,
-            quantity: parseInt(quantity, 10),
-            personName: personName || 'N/A',
-            employeeName: employeeName || currentUser?.name || 'N/A',
-            type,
-            entryMaker: currentUser?.name || 'Unknown',
-            timestamp: serverTimestamp()
-        };
-
         try {
-            await addDoc(collection(db, 'bardanaEntries'), newEntry);
+            // 1. Format the current date into a clean string (YYYY-MM-DD or DD-MM-YYYY)
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`; // standard YYYY-MM-DD
+
+            // 2. Query the 'bardana' collection for that specific date to count how many entries already exist
+            const startId = `${dateStr}-00`;
+            const endId = `${dateStr}-99`;
+            const dateQuery = query(
+                collection(db, 'bardana'),
+                where(documentId(), '>=', startId),
+                where(documentId(), '<=', endId)
+            );
+            const querySnapshot = await getDocs(dateQuery);
+            const count = querySnapshot.size;
+
+            // 3. Count + 1 and pad the serial number with a leading zero if needed
+            const nextSrNo = count + 1;
+            const padSrNo = String(nextSrNo).padStart(2, '0');
+            const customId = `${dateStr}-${padSrNo}`;
+
+            const newEntry = {
+                itemName: finalItemName,
+                quantity: parseInt(quantity, 10),
+                personName: personName || 'N/A',
+                employeeName: employeeName || currentUser?.name || 'N/A',
+                type,
+                entryMaker: currentUser?.name || 'Unknown',
+                timestamp: serverTimestamp()
+            };
+
+            // 4. Use the custom ID inside the doc() function and save with setDoc
+            await setDoc(doc(db, 'bardana', customId), newEntry);
+
             setItemName('');
             setQuantity('');
             setPersonName('');
@@ -72,7 +97,7 @@ function Bardana({ currentUser }) {
 
     const handleDelete = async (id) => {
         try {
-            await deleteDoc(doc(db, 'bardanaEntries', id));
+            await deleteDoc(doc(db, 'bardana', id));
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
         } catch (error) {
