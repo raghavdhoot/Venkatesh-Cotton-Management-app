@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send } from 'lucide-react';
+import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send, Edit, X } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function AdminPanel({ currentUser }) {
@@ -19,6 +19,11 @@ function AdminPanel({ currentUser }) {
     const [replyingTo, setReplyingTo] = useState(null);
     const [replyContent, setReplyContent] = useState('');
     const [isSendingReply, setIsSendingReply] = useState(false);
+
+    // Rate Edit States
+    const [editingRateId, setEditingRateId] = useState(null);
+    const [editingItemName, setEditingItemName] = useState('');
+    const [editingItemRate, setEditingItemRate] = useState('');
 
     const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
@@ -114,9 +119,44 @@ function AdminPanel({ currentUser }) {
         try {
             await deleteDoc(doc(db, coll, id));
             setStatusMessage({ text: 'Deleted successfully', type: 'success' });
+            setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
         } catch (error) {
             console.error("Error deleting:", error);
             setStatusMessage({ text: 'Error deleting', type: 'error' });
+            setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
+        }
+    };
+
+    const startEditing = (rate) => {
+        setEditingRateId(rate.id);
+        setEditingItemName(rate.itemName);
+        setEditingItemRate(rate.rate.toString());
+    };
+
+    const cancelEditing = () => {
+        setEditingRateId(null);
+        setEditingItemName('');
+        setEditingItemRate('');
+    };
+
+    const handleUpdateRate = async (id) => {
+        if (!editingItemName.trim() || !editingItemRate) return;
+        const normalized = normalizeItemName(editingItemName);
+        try {
+            await updateDoc(doc(db, 'rateChart', id), {
+                itemName: normalized,
+                rate: parseFloat(editingItemRate),
+                timestamp: serverTimestamp()
+            });
+            setEditingRateId(null);
+            setEditingItemName('');
+            setEditingItemRate('');
+            setStatusMessage({ text: 'Rate updated successfully', type: 'success' });
+            setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
+        } catch (error) {
+            console.error("Error updating rate:", error);
+            setStatusMessage({ text: 'Error updating rate', type: 'error' });
+            setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
         }
     };
 
@@ -321,16 +361,75 @@ function AdminPanel({ currentUser }) {
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {rateChart.map(r => (
                                 <div key={r.id} className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <div>
-                                        <p className="font-bold text-slate-900 dark:text-slate-100">{r.itemName}</p>
-                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">Updated: {r.timestamp?.toDate().toLocaleDateString()}</p>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-lg font-black text-emerald-600">₹{r.rate}</span>
-                                        <button onClick={() => handleDelete('rateChart', r.id)} className="text-slate-300 hover:text-red-600 transition-colors">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
+                                    {editingRateId === r.id ? (
+                                        <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 mr-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Item Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white py-1.5 px-3 text-sm font-bold"
+                                                    value={editingItemName}
+                                                    onChange={(e) => setEditingItemName(e.target.value.toUpperCase())}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Rate (₹)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.01"
+                                                        className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white py-1.5 px-3 text-sm font-bold"
+                                                        value={editingItemRate}
+                                                        onChange={(e) => setEditingItemRate(e.target.value)}
+                                                        required
+                                                    />
+                                                    <div className="flex gap-1">
+                                                        <button 
+                                                            onClick={() => handleUpdateRate(r.id)}
+                                                            className="p-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 rounded-lg transition-colors flex items-center justify-center"
+                                                            title="Save rate"
+                                                        >
+                                                            <Save className="w-4 h-4" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={cancelEditing}
+                                                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-lg transition-colors flex items-center justify-center"
+                                                            title="Cancel"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <p className="font-bold text-slate-900 dark:text-slate-100">{r.itemName}</p>
+                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">Updated: {r.timestamp?.toDate().toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-lg font-black text-emerald-600">₹{r.rate}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => startEditing(r)} 
+                                                        className="text-slate-400 hover:text-indigo-600 dark:text-slate-500 dark:hover:text-indigo-400 transition-colors p-1"
+                                                        title="Edit Rate"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDelete('rateChart', r.id)} 
+                                                        className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400 transition-colors p-1"
+                                                        title="Delete Rate"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ))}
                         </div>
