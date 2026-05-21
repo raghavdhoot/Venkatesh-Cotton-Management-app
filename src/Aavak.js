@@ -225,6 +225,7 @@ function Aavak({ currentUser }) {
     const handleDeleteEntry = async (id) => {
         try {
             await deleteDoc(doc(db, 'cottonEntries', String(id)));
+            await deleteDoc(doc(db, 'cashTransactions', `Cash-Token-${id}`));
             setDeleteConfirmId(null);
             setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
         } catch (error) {
@@ -348,6 +349,27 @@ function Aavak({ currentUser }) {
                 setLastEntry(entryData);
                 setStatusMessage({ text: 'New entry created successfully', type: 'success' });
             }
+
+            // Payment Method Filter for Cash Management
+            if (paymentMode && paymentMode.toUpperCase() === 'CASH') {
+                const cashRef = doc(db, 'cashTransactions', `Cash-Token-${tokenNo}`);
+                await setDoc(cashRef, {
+                    tokenNo: tokenNo,
+                    farmerName: Name,
+                    amountPaid: Math.round(parsedAmountPaid),
+                    amount: Math.round(parsedAmountPaid),
+                    type: "Farmer Payment",
+                    timestamp: serverTimestamp(),
+                    reason: `FARMER PAYMENT - TOKEN ${tokenNo}`,
+                    recipient: Name.toUpperCase(),
+                    source: 'CASH BOX',
+                    recordedBy: currentUser.name
+                });
+            } else {
+                // Delete if it transitioned or was set to another payment mode (like RTGS)
+                await deleteDoc(doc(db, 'cashTransactions', `Cash-Token-${tokenNo}`));
+            }
+
             resetForm();
         } catch (error) {
             console.error("Error saving/updating entry: ", error);
