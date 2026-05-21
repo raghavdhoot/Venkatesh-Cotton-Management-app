@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send, Edit, X } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
@@ -24,6 +24,49 @@ function AdminPanel({ currentUser }) {
     const [editingRateId, setEditingRateId] = useState(null);
     const [editingItemName, setEditingItemName] = useState('');
     const [editingItemRate, setEditingItemRate] = useState('');
+
+    // Main Form Rate Edit States
+    const [isEditingForm, setIsEditingForm] = useState(false);
+    const [lastFetchedName, setLastFetchedName] = useState('');
+
+    useEffect(() => {
+        const checkRateObj = async () => {
+            const trimmed = itemName.trim();
+            if (!trimmed) {
+                setIsEditingForm(false);
+                setLastFetchedName('');
+                return;
+            }
+            const normalized = normalizeItemName(trimmed);
+            const commodityId = normalized.trim().toLowerCase().replace(/\s+/g, '');
+
+            if (commodityId === lastFetchedName) return;
+
+            try {
+                const docSnap = await getDoc(doc(db, 'rateCharts', commodityId));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setItemRate(data.rate.toString());
+                    setIsEditingForm(true);
+                    setLastFetchedName(commodityId);
+                } else {
+                    setIsEditingForm(false);
+                    setLastFetchedName(commodityId);
+                    if (isEditingForm) {
+                        setItemRate('');
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking rate:", error);
+            }
+        };
+
+        const delayDebounceFn = setTimeout(() => {
+            checkRateObj();
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [itemName, lastFetchedName, isEditingForm]);
 
     const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
@@ -109,10 +152,18 @@ function AdminPanel({ currentUser }) {
             });
             setItemName('');
             setItemRate('');
-            setStatusMessage({ text: 'Rate added successfully', type: 'success' });
+            setIsEditingForm(false);
+            setLastFetchedName('');
+            setStatusMessage({ 
+                text: isEditingForm ? 'Rate updated successfully' : 'Rate added successfully', 
+                type: 'success' 
+            });
         } catch (error) {
-            console.error("Error adding rate:", error);
-            setStatusMessage({ text: 'Error adding rate', type: 'error' });
+            console.error("Error saving rate:", error);
+            setStatusMessage({ 
+                text: isEditingForm ? 'Error updating rate' : 'Error adding rate', 
+                type: 'error' 
+            });
         }
     };
 
@@ -355,7 +406,7 @@ function AdminPanel({ currentUser }) {
                                 />
                             </div>
                             <button type="submit" className="sm:col-span-2 btn-primary flex items-center justify-center gap-2">
-                                <Save className="w-4 h-4" /> Save to Rate Chart
+                                <Save className="w-4 h-4" /> {isEditingForm ? "Update Rate" : "Add Rate"}
                             </button>
                         </form>
                     </div>
