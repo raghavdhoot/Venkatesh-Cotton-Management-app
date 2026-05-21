@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, setDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { IndianRupee, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, History, Wallet } from 'lucide-react';
 
 function CashManagement({ currentUser }) {
@@ -38,7 +38,23 @@ function CashManagement({ currentUser }) {
         if (!amount || !reason) return;
 
         try {
-            await addDoc(collection(db, 'cashTransactions'), {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            // Count existing records for this specific day to determine the next serial number
+            const querySnapshot = await getDocs(collection(db, 'cashTransactions'));
+            const todayEntries = querySnapshot.docs.filter(docVal => docVal.id.includes(dateStr));
+            const count = todayEntries.length;
+
+            const nextSrNo = count + 1;
+            const srNo = String(nextSrNo).padStart(2, '0');
+            const sanitizedReason = reason.trim().replace(/\s+/g, '');
+            const customId = `${srNo}-${dateStr}-${amount}-${sanitizedReason}`;
+
+            await setDoc(doc(db, 'cashTransactions', customId), {
                 type,
                 amount: parseFloat(amount),
                 source: source.toUpperCase() || 'N/A',
@@ -47,6 +63,7 @@ function CashManagement({ currentUser }) {
                 recordedBy: currentUser.name,
                 timestamp: serverTimestamp()
             });
+
             setStatusMessage({ text: 'Transaction recorded!', type: 'success' });
             resetForm();
             setIsFormOpen(false);
