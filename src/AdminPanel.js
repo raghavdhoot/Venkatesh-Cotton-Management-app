@@ -37,21 +37,20 @@ function AdminPanel({ currentUser }) {
                 setLastFetchedName('');
                 return;
             }
-            const normalized = normalizeItemName(trimmed);
-            const commodityId = normalized.trim().toLowerCase().replace(/\s+/g, '');
+            const commodityName = normalizeItemName(trimmed);
 
-            if (commodityId === lastFetchedName) return;
+            if (commodityName === lastFetchedName) return;
 
             try {
-                const docSnap = await getDoc(doc(db, 'rateCharts', commodityId));
+                const docSnap = await getDoc(doc(db, 'rateCharts', commodityName));
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     setItemRate(data.rate.toString());
                     setIsEditingForm(true);
-                    setLastFetchedName(commodityId);
+                    setLastFetchedName(commodityName);
                 } else {
                     setIsEditingForm(false);
-                    setLastFetchedName(commodityId);
+                    setLastFetchedName(commodityName);
                     if (isEditingForm) {
                         setItemRate('');
                     }
@@ -142,11 +141,10 @@ function AdminPanel({ currentUser }) {
     const handleAddRate = async (e) => {
         e.preventDefault();
         if (!itemName.trim() || !itemRate) return;
-        const normalized = normalizeItemName(itemName);
-        const commodityId = normalized.trim().toLowerCase().replace(/\s+/g, '');
+        const commodityName = normalizeItemName(itemName);
         try {
-            await setDoc(doc(db, 'rateCharts', commodityId), {
-                itemName: normalized,
+            await setDoc(doc(db, 'rateCharts', commodityName), {
+                itemName: commodityName,
                 rate: parseFloat(itemRate),
                 timestamp: serverTimestamp()
             });
@@ -193,15 +191,14 @@ function AdminPanel({ currentUser }) {
 
     const handleUpdateRate = async (oldId) => {
         if (!editingItemName.trim() || !editingItemRate) return;
-        const normalized = normalizeItemName(editingItemName);
-        const commodityId = normalized.trim().toLowerCase().replace(/\s+/g, '');
+        const commodityName = normalizeItemName(editingItemName);
         try {
             // If the document ID changed (due to renaming), delete the old one first
-            if (oldId !== commodityId) {
+            if (oldId !== commodityName) {
                 await deleteDoc(doc(db, 'rateCharts', oldId));
             }
-            await setDoc(doc(db, 'rateCharts', commodityId), {
-                itemName: normalized,
+            await setDoc(doc(db, 'rateCharts', commodityName), {
+                itemName: commodityName,
                 rate: parseFloat(editingItemRate),
                 timestamp: serverTimestamp()
             });

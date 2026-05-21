@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, addDoc, getDocs, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, getDocs, where, documentId } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone } from 'lucide-react';
@@ -126,6 +126,34 @@ function Javak({ currentUser }) {
         e.preventDefault();
         if (!gatePassNo || !entryDate || !vehicleNumber) return;
 
+        const addAutomatedBardanaEntry = async (entryPayload) => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+
+            const startId = `${dateStr}-00`;
+            const endId = `${dateStr}-99`;
+
+            const dateQuery = query(
+                collection(db, 'bardana'),
+                where(documentId(), '>=', startId),
+                where(documentId(), '<=', endId)
+            );
+            const querySnapshot = await getDocs(dateQuery);
+            const count = querySnapshot.size;
+
+            const nextSrNo = count + 1;
+            const padSrNo = String(nextSrNo).padStart(2, '0');
+            const customId = `${dateStr}-${padSrNo}`;
+
+            await setDoc(doc(db, 'bardana', customId), {
+                ...entryPayload,
+                timestamp: serverTimestamp()
+            });
+        };
+
         const parsedGrossWt = parseFloat(grossWt || 0);
         const parsedTareWt = parseFloat(tareWt || 0);
         const netWt = parsedGrossWt - parsedTareWt;
@@ -162,28 +190,26 @@ function Javak({ currentUser }) {
                 }
 
                 if (numberOfBags) {
-                    await addDoc(collection(db, 'bardana'), {
+                    await addAutomatedBardanaEntry({
                         itemName: bardanaType,
                         quantity: parseInt(numberOfBags, 10),
                         personName: driverName || 'N/A',
                         employeeName: currentUser.name,
                         type: 'OUT',
                         entryMaker: 'System (Javak Update)',
-                        javakId: gatePassNo,
-                        timestamp: serverTimestamp()
+                        javakId: gatePassNo
                     });
                 }
 
                 if (sutliCount && parseInt(sutliCount, 10) > 0) {
-                    await addDoc(collection(db, 'bardana'), {
+                    await addAutomatedBardanaEntry({
                         itemName: 'SUTLI',
                         quantity: parseInt(sutliCount, 10),
                         personName: driverName || 'N/A',
                         employeeName: currentUser.name,
                         type: 'OUT',
                         entryMaker: 'System (Javak Update)',
-                        javakId: gatePassNo,
-                        timestamp: serverTimestamp()
+                        javakId: gatePassNo
                     });
                 }
 
@@ -193,29 +219,27 @@ function Javak({ currentUser }) {
                 
                 // Automatically subtract from Bardana
                 if (numberOfBags) {
-                    await addDoc(collection(db, 'bardana'), {
+                    await addAutomatedBardanaEntry({
                         itemName: bardanaType,
                         quantity: parseInt(numberOfBags, 10),
                         personName: driverName || 'N/A',
                         employeeName: currentUser.name,
                         type: 'OUT',
                         entryMaker: 'System (Javak)',
-                        javakId: gatePassNo,
-                        timestamp: serverTimestamp()
+                        javakId: gatePassNo
                     });
                 }
 
                 // Also subtract Sutli if provided
                 if (sutliCount && parseInt(sutliCount, 10) > 0) {
-                    await addDoc(collection(db, 'bardana'), {
+                    await addAutomatedBardanaEntry({
                         itemName: 'SUTLI',
                         quantity: parseInt(sutliCount, 10),
                         personName: driverName || 'N/A',
                         employeeName: currentUser.name,
                         type: 'OUT',
                         entryMaker: 'System (Javak)',
-                        javakId: gatePassNo,
-                        timestamp: serverTimestamp()
+                        javakId: gatePassNo
                     });
                 }
                 
