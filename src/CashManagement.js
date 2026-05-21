@@ -75,8 +75,8 @@ function CashManagement({ currentUser }) {
         }
     };
 
-    const totalIn = transactions.filter(t => t.type === 'IN').reduce((acc, t) => acc + t.amount, 0);
-    const totalOut = transactions.filter(t => t.type === 'OUT').reduce((acc, t) => acc + t.amount, 0);
+    const totalIn = transactions.filter(t => t.type === 'IN').reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+    const totalOut = transactions.filter(t => t.type !== 'IN').reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
     const balance = totalIn - totalOut;
 
     if (!isAuthorized) {
@@ -250,7 +250,7 @@ function CashManagement({ currentUser }) {
                                         {t.reason}
                                     </td>
                                     <td className={`px-6 py-4 text-sm font-black text-right ${t.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
-                                        {t.type === 'IN' ? '+' : '-'}₹{t.amount.toLocaleString()}
+                                        {t.type === 'IN' ? '+' : '-'}₹{(parseFloat(t.amount || t.amountPaid || 0) || 0).toLocaleString()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <button onClick={() => handleDelete(t.id)} className="text-slate-300 hover:text-red-600 transition-colors">
