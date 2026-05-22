@@ -7,9 +7,10 @@ import Bardana from './Bardana';
 import AdminPanel from './AdminPanel';
 import CashManagement from './CashManagement';
 import Dashboard from './components/Dashboard';
+import RTGSPanel from './RTGSPanel'; // imported perfectly!
 import { db } from './firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
-import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Moon, Sun, IndianRupee } from 'lucide-react';
+import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, LogOut, Key, Shield, Moon, Sun, IndianRupee, Landmark } from 'lucide-react'; // Added Landmark icon for banking
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeContext';
 
@@ -57,6 +58,7 @@ function App() {
         return () => window.removeEventListener('changeView', handleCustomViewChange);
     }, []);
 
+    // FIXED HERE: Added RTGS Panel to navigation conditionally (Strictly Admin only)
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'aavak', label: 'आवक (Incoming)', icon: ArrowDownLeft },
@@ -64,6 +66,7 @@ function App() {
         { id: 'bardana', label: 'Bardana', icon: Package },
         { id: 'employees', label: 'Employees', icon: Users },
         ...(user?.role?.toUpperCase() === 'ADMIN' || user?.employeeId === 'ADMIN' || user?.role?.toUpperCase() === 'CASHIER' ? [{ id: 'cash', label: 'Cash Management', icon: IndianRupee }] : []),
+        ...(user?.role?.toUpperCase() === 'ADMIN' || user?.employeeId === 'ADMIN' ? [{ id: 'rtgs', label: 'RTGS Panel', icon: Landmark }] : []), // Admin Only Bank Tracker
         ...(user?.role?.toUpperCase() === 'ADMIN' || user?.employeeId === 'ADMIN' ? [{ id: 'admin', label: 'Admin Panel', icon: Shield }] : []),
     ];
 
@@ -98,10 +101,11 @@ function App() {
         setIsMobileMenuOpen(false);
     };
 
+    // FIXED HERE: Added case 'rtgs' handler inside renderView logic
     const renderView = () => {
         if (isBootstrapping) return <div className="flex items-center justify-center p-8 text-slate-400">Initializing...</div>;
 
-        if (['aavak', 'javak', 'bardana', 'employees'].includes(view) && !user) {
+        if (['aavak', 'javak', 'bardana', 'employees', 'cash', 'rtgs', 'admin'].includes(view) && !user) {
             return (
                 <div className="flex items-center justify-center p-8">
                     <motion.div 
@@ -147,6 +151,8 @@ function App() {
                 return <Employees currentUser={user} />;
             case 'cash':
                 return <CashManagement currentUser={user} />;
+            case 'rtgs':
+                return <RTGSPanel currentUser={user} />; // Renders the component beautifully!
             case 'admin':
                 return <AdminPanel currentUser={user} />;
             default:
