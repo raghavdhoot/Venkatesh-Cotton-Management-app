@@ -7,11 +7,12 @@ function CashManagement({ currentUser }) {
     const [transactions, setTransactions] = useState([]);
     const [type, setType] = useState('OUT');
     const [amount, setAmount] = useState('');
-    const [source, setSource] = useState('');
     const [recipient, setRecipient] = useState('');
     const [reason, setReason] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+    const [sourceSelect, setSourceSelect] = useState('SBI');
+    const [customSource, setCustomSource] = useState('');
 
     const isAuthorized = currentUser?.role?.toUpperCase() === 'ADMIN' || 
                        currentUser?.employeeId === 'ADMIN' || 
@@ -35,7 +36,12 @@ function CashManagement({ currentUser }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!amount || !reason) return;
+        if (!amount) return;
+
+        if (type === 'OUT' && !reason.trim()) {
+            setStatusMessage({ text: 'Reason is strictly required for Cash Out transactions', type: 'error' });
+            return;
+        }
 
         try {
             const today = new Date();
@@ -51,15 +57,36 @@ function CashManagement({ currentUser }) {
 
             const nextSrNo = count + 1;
             const srNo = String(nextSrNo).padStart(2, '0');
-            const sanitizedReason = reason.trim().replace(/\s+/g, '');
-            const customId = `${srNo}-${dateStr}-${amount}-${sanitizedReason}`;
+
+            let customIdSuffix = '';
+            if (type === 'IN') {
+                if (sourceSelect === 'SBI' || sourceSelect === 'Rajesh') {
+                    customIdSuffix = sourceSelect;
+                } else {
+                    const cleanCustom = customSource.trim().replace(/\s+/g, '');
+                    const cleanReason = reason.trim().replace(/\s+/g, '');
+                    customIdSuffix = cleanReason || cleanCustom || 'Other';
+                }
+            } else {
+                customIdSuffix = reason.trim().replace(/\s+/g, '');
+            }
+
+            const customId = `${srNo}-${dateStr}-${amount}-${customIdSuffix}`;
+
+            const finalSource = type === 'IN'
+                ? (sourceSelect === 'Other' ? (customSource.trim() || 'Other') : sourceSelect)
+                : 'N/A';
+
+            const finalReason = reason.trim() 
+                ? reason.toUpperCase() 
+                : (type === 'IN' ? `CASH IN FROM ${finalSource.toUpperCase()}` : 'N/A');
 
             await setDoc(doc(db, 'cashTransactions', customId), {
                 type,
                 amount: parseFloat(amount),
-                source: source.toUpperCase() || 'N/A',
-                recipient: recipient.toUpperCase() || 'N/A',
-                reason: reason.toUpperCase(),
+                source: finalSource.toUpperCase(),
+                recipient: type === 'OUT' ? (recipient.toUpperCase() || 'N/A') : 'N/A',
+                reason: finalReason,
                 recordedBy: currentUser.name,
                 timestamp: serverTimestamp()
             });
@@ -75,10 +102,11 @@ function CashManagement({ currentUser }) {
 
     const resetForm = () => {
         setAmount('');
-        setSource('');
         setRecipient('');
         setReason('');
         setType('OUT');
+        setSourceSelect('SBI');
+        setCustomSource('');
     };
 
     const handleDelete = async (id) => {
@@ -195,27 +223,57 @@ function CashManagement({ currentUser }) {
                                 required
                             />
                         </div>
-                        <div className="space-y-1">
+                        {type === 'IN' ? (
+                            <>
+                                <div className="space-y-1">
+                                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Source (Select)</label>
+                                    <select
+                                        className="input-field font-bold uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                        value={sourceSelect}
+                                        onChange={(e) => setSourceSelect(e.target.value)}
+                                    >
+                                        <option value="SBI">SBI</option>
+                                        <option value="Rajesh">RAJESH</option>
+                                        <option value="Other">OTHER</option>
+                                    </select>
+                                </div>
+                                {sourceSelect === 'Other' && (
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Custom Source Name</label>
+                                        <input 
+                                            type="text"
+                                            className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                            placeholder="E.G. HDFC BANK, CASH DRAWER"
+                                            value={customSource}
+                                            onChange={(e) => setCustomSource(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="space-y-1">
+                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Recipient (To)</label>
+                                <input 
+                                    type="text"
+                                    className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                    placeholder="E.G. FARMER NAME, STAFF"
+                                    value={recipient}
+                                    onChange={(e) => setRecipient(e.target.value)}
+                                />
+                            </div>
+                        )}
+                        <div className="md:col-span-2 lg:col-span-3 space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                                {type === 'IN' ? 'Source (From)' : 'Recipient (To)'}
+                                Reason / Description {type === 'OUT' ? <span className="text-red-500">*</span> : <span className="text-slate-400 text-xs font-normal">(Optional)</span>}
                             </label>
                             <input 
                                 type="text"
                                 className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                placeholder={type === 'IN' ? "E.G. SBI BANK, ADMIN" : "E.G. FARMER NAME, STAFF"}
-                                value={type === 'IN' ? source : recipient}
-                                onChange={(e) => type === 'IN' ? setSource(e.target.value) : setRecipient(e.target.value)}
-                            />
-                        </div>
-                        <div className="md:col-span-2 lg:col-span-3 space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Reason / Description</label>
-                            <input 
-                                type="text"
-                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                placeholder="E.G. COTTON PAYMENT, TRANSPORT, BANK WITHDRAWAL"
+                                placeholder={type === 'OUT' ? "E.G. TRANSPORT WORKERS, OFFICE STATIONERY" : "E.G. BANK WITHDRAWAL, LOAN REPAYMENT (OPTIONAL)"}
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                required
+                                required={type === 'OUT'}
                             />
                         </div>
                         <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
