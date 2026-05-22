@@ -1,7 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, setDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { IndianRupee, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, History, Wallet } from 'lucide-react';
+import { IndianRupee, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, History, Wallet, Lock, Unlock } from 'lucide-react';
+
+const formatDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+const getTodayDateStr = () => {
+    return formatDate(new Date());
+};
+
+const getYesterdayDateStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return formatDate(d);
+};
 
 function CashManagement({ currentUser }) {
     const [transactions, setTransactions] = useState([]);
@@ -13,6 +30,8 @@ function CashManagement({ currentUser }) {
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
     const [sourceSelect, setSourceSelect] = useState('SBI');
     const [customSource, setCustomSource] = useState('');
+    const [openingBalance, setOpeningBalance] = useState(0);
+    const [todayClosure, setTodayClosure] = useState(null);
 
     const isAuthorized = currentUser?.role?.toUpperCase() === 'ADMIN' || 
                        currentUser?.employeeId === 'ADMIN' || 
@@ -25,6 +44,34 @@ function CashManagement({ currentUser }) {
             setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
         return () => unsubscribe();
+    }, [isAuthorized]);
+
+    useEffect(() => {
+        if (!isAuthorized) return;
+        const todayStr = getTodayDateStr();
+        const yesterdayStr = getYesterdayDateStr();
+
+        // Listen for today's closure
+        const unsubToday = onSnapshot(doc(db, 'dailyClosures', `Closure-${todayStr}`), (docSnap) => {
+            if (docSnap.exists()) {
+                setTodayClosure({ id: docSnap.id, ...docSnap.data() });
+            } else {
+                setTodayClosure(null);
+            }
+        });
+
+        // Listen for yesterday's closure to set opening balance automatically
+        const unsubYesterday = onSnapshot(doc(db, 'dailyClosures', `Closure-${yesterdayStr}`), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setOpeningBalance(data.expectedClosingBalance || 0);
+            }
+        });
+
+        return () => {
+            unsubToday();
+            unsubYesterday();
+        };
     }, [isAuthorized]);
 
     useEffect(() => {
@@ -123,6 +170,52 @@ function CashManagement({ currentUser }) {
     const totalIn = transactions.filter(t => t.type === 'IN').reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
     const totalOut = transactions.filter(t => t.type !== 'IN').reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
     const balance = totalIn - totalOut;
+
+    const todayStr = getTodayDateStr();
+
+    const todayTransactions = transactions.filter(t => {
+        if (t.id && t.id.includes(todayStr)) return true;
+        if (t.timestamp) {
+            try {
+                const date = t.timestamp.toDate();
+                return formatDate(date) === todayStr;
+            } catch (e) {
+                return false;
+            }
+        }
+        return false;
+    });
+
+    const todayIn = todayTransactions
+        .filter(t => t.type === 'IN')
+        .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+    const todayOut = todayTransactions
+        .filter(t => t.type !== 'IN')
+        .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+
+    const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
+
+    const handleCloseCounter = async () => {
+        if (!window.confirm(`Are you sure you want to CLOSE the counter for today (${todayStr})? This will lock today's cash entries.`)) return;
+
+        try {
+            const docId = `Closure-${todayStr}`;
+            await setDoc(doc(db, 'dailyClosures', docId), {
+                date: todayStr,
+                openingBalance: parseFloat(openingBalance) || 0,
+                totalCashIn: parseFloat(todayIn) || 0,
+                totalCashOut: parseFloat(todayOut) || 0,
+                expectedClosingBalance: parseFloat(expectedClosingBalance) || 0,
+                closedBy: currentUser?.name || 'ADMIN',
+                timestamp: serverTimestamp()
+            });
+
+            setStatusMessage({ text: 'Counter closed successfully!', type: 'success' });
+        } catch (error) {
+            console.error("Error closing counter:", error);
+            setStatusMessage({ text: 'Error closing counter', type: 'error' });
+        }
+    };
 
     if (!isAuthorized) {
         return (
@@ -283,6 +376,93 @@ function CashManagement({ currentUser }) {
                     </form>
                 </div>
             )}
+
+            {/* EOD Drawer Closure Section */}
+            <div className="card bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-3 rounded-xl ${todayClosure ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'}`}>
+                            {todayClosure ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
+                                End of Day (EOD) Drawer Closure
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {todayClosure ? `Counter for today (${todayStr}) is successfully locked.` : `Daily counter balance verification for today (${todayStr}).`}
+                            </p>
+                        </div>
+                    </div>
+
+                    {!todayClosure && (
+                        <button 
+                            onClick={handleCloseCounter}
+                            className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-sm px-4 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-sm"
+                        >
+                            <Lock className="w-4 h-4" />
+                            Close Counter for Today
+                        </button>
+                    )}
+                </div>
+
+                {todayClosure ? (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4">
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opening Balance</span>
+                            <p className="text-base font-black text-slate-800 dark:text-slate-100">₹{(todayClosure.openingBalance || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Cash In</span>
+                            <p className="text-base font-black text-emerald-600 dark:text-emerald-400">₹{(todayClosure.totalCashIn || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Cash Out</span>
+                            <p className="text-base font-black text-red-600 dark:text-red-400">₹{(todayClosure.totalCashOut || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Closing Balance</span>
+                            <p className="text-base font-black text-slate-800 dark:text-slate-100">₹{(todayClosure.expectedClosingBalance || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="col-span-2 md:col-span-1 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left flex flex-col justify-center">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Closed By</span>
+                            <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">{todayClosure.closedBy}</p>
+                            <p className="text-[9px] text-slate-400 uppercase truncate">
+                                {todayClosure.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 flex flex-col justify-between">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                Opening Balance <span className="text-amber-500">(Admin Override)</span>
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-sm font-bold text-slate-500 dark:text-slate-400">₹</span>
+                                <input 
+                                    type="number"
+                                    className="w-full bg-transparent border-b border-slate-200 dark:border-slate-700 font-extrabold text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                    value={openingBalance}
+                                    onChange={(e) => setOpeningBalance(parseFloat(e.target.value) || 0)}
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Today's Inflow</span>
+                            <p className="text-base font-black text-emerald-600 dark:text-emerald-400 pt-1">₹{todayIn.toLocaleString()}</p>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800/50">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Today's Outflow</span>
+                            <p className="text-base font-black text-red-600 dark:text-red-400 pt-1">₹{todayOut.toLocaleString()}</p>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800/50">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Expected Close</span>
+                            <p className="text-base font-black text-slate-800 dark:text-slate-100 pt-1">₹{expectedClosingBalance.toLocaleString()}</p>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* History Table */}
             <div className="card !p-0 overflow-hidden">

@@ -109,6 +109,21 @@
         "updatedBy": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }
       }
+    },
+    "dailyClosure": {
+      "title": "Daily Closure",
+      "description": "End of Day drawer closure state",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "Date of closure (YYYY-MM-DD)" },
+        "openingBalance": { "type": "number" },
+        "totalCashIn": { "type": "number" },
+        "totalCashOut": { "type": "number" },
+        "expectedClosingBalance": { "type": "number" },
+        "closedBy": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "openingBalance", "totalCashIn", "totalCashOut", "expectedClosingBalance", "closedBy"]
     }
   },
   "firestore": {
@@ -143,6 +158,10 @@
     "/settings/{settingId}": {
       "schema": "billingSettings",
       "description": "Global application settings"
+    },
+    "/dailyClosures/{closureId}": {
+      "schema": "dailyClosure",
+      "description": "End of Day cash drawer balances"
     }
   }
 }
