@@ -1,5 +1,6 @@
 {
   "name": "VCC Management",
   "description": "A management system for Venkatesh Cotton Company to track incoming (Aavak) and outgoing (Javak) cotton entries.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
