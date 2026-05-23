@@ -3,7 +3,7 @@ import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, getDocs, where, documentId } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2 } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function Javak({ currentUser }) {
@@ -272,6 +272,26 @@ function Javak({ currentUser }) {
             };
             reader.readAsDataURL(file);
         }
+    };
+
+    const shareGatePassToWhatsApp = (tx) => {
+        if (!tx || !tx.driverPhone) return;
+
+        const gatePassNo = tx.gatePassNo || '';
+        const vehicleNo = tx.vehicleNo || tx.vehicleNumber || '';
+        const commodity = tx.commodity || '';
+        const netWeight = tx.netWeight !== undefined ? tx.netWeight : (tx.netWt || 0);
+
+        const messageText = `*VENKATESH COTTON CO.*
+----------------------------------
+*Gate Pass No:* ${gatePassNo}
+*Vehicle No:* ${vehicleNo}
+*Commodity:* ${commodity}
+*Net Weight:* ${netWeight} kg
+----------------------------------
+This text confirms vehicle exit registration in our database.`;
+
+        window.open('https://api.whatsapp.com/send?phone=91' + tx.driverPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
     const generateJavakPdf = async (entryToPrint) => {
@@ -639,6 +659,16 @@ function Javak({ currentUser }) {
                                         )}
                                     </div>
                                     <p className="text-[10px] font-mono text-slate-500 mt-1">{entry.vehicleNumber}</p>
+                                    {entry.driverPhone && (
+                                        <button 
+                                            onClick={() => shareGatePassToWhatsApp(entry)}
+                                            className="mt-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded flex items-center gap-1 uppercase tracking-wider"
+                                            title="Share Gate Pass via WhatsApp"
+                                        >
+                                            <Share2 className="w-3 h-3" />
+                                            <span>Share Gate Pass</span>
+                                        </button>
+                                    )}
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Destination</p>
@@ -707,7 +737,17 @@ function Javak({ currentUser }) {
                                             {entry.numberOfBags} Bags
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                    <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
+                                        {entry.driverPhone && (
+                                            <button 
+                                                onClick={() => shareGatePassToWhatsApp(entry)}
+                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 uppercase"
+                                                title="Share Gate Pass via WhatsApp"
+                                            >
+                                                <Share2 className="w-3.5 h-3.5" />
+                                                <span>Share Gate Pass</span>
+                                            </button>
+                                        )}
                                         <button 
                                             onClick={() => generateJavakPdf(entry)}
                                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"

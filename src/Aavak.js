@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
 
@@ -387,6 +387,28 @@ function Aavak({ currentUser }) {
             console.error("Error saving/updating entry: ", error);
             setStatusMessage({ text: 'Error saving entry', type: 'error' });
         }
+    };
+
+    const sharePattiToWhatsApp = (tx) => {
+        if (!tx || !tx.farmerPhone) return;
+
+        const tokenNo = tx.tokenNo || '';
+        const farmerName = tx.farmerName || tx.Name || '';
+        const netWeight = tx.netWeight !== undefined ? tx.netWeight : (tx.netWt || 0);
+        const rate = tx.rate !== undefined ? tx.rate : '';
+        const netPayable = tx.netPayable !== undefined ? tx.netPayable : (tx.netAmount || 0);
+
+        const messageText = `*VENKATESH COTTON COMPANY*
+----------------------------------
+*Token No:* ${tokenNo}
+*Farmer:* ${farmerName}
+*Net Weight:* ${netWeight} kg
+*Rate:* ₹${rate}
+*Net Payable:* ₹${netPayable}
+----------------------------------
+Note: This is a digital entry log confirmation only. Payouts are authorized strictly via your physical Token Number at the counter.`;
+
+        window.open('https://api.whatsapp.com/send?phone=91' + tx.farmerPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
     const generatePdf = async (entryToPrint, isBlank = false) => {
@@ -923,7 +945,17 @@ function Aavak({ currentUser }) {
                                             ₹{(entry.balanceAmount || 0).toLocaleString()}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                    <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
+                                        {entry.farmerPhone && (
+                                            <button 
+                                                onClick={() => sharePattiToWhatsApp(entry)}
+                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 uppercase"
+                                                title="Share Patti via WhatsApp"
+                                            >
+                                                <Share2 className="w-3.5 h-3.5" />
+                                                <span>Share Patti</span>
+                                            </button>
+                                        )}
                                         <button 
                                             onClick={() => generatePdf(entry)}
                                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
@@ -985,6 +1017,15 @@ function Aavak({ currentUser }) {
                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Farmer</p>
                                     <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.Name}</p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 uppercase">{entry.Village}</p>
+                                    {entry.farmerPhone && (
+                                        <button 
+                                            onClick={() => sharePattiToWhatsApp(entry)}
+                                            className="mt-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded flex items-center gap-1 uppercase tracking-wider"
+                                        >
+                                            <Share2 className="w-3 h-3" />
+                                            <span>Share Patti</span>
+                                        </button>
+                                    )}
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Net Weight</p>
