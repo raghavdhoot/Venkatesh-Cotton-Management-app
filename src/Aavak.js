@@ -246,17 +246,20 @@ function Aavak({ currentUser }) {
     };
 
     const formatVehicleNumber = (val) => {
-        const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        if (cleaned.length <= 2) return cleaned;
-        if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`;
-        if (cleaned.length <= 6) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4)}`;
-        return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
-    };
+    // 1. Sirf letters, numbers aur SPACES ko allow karo (baki faltu characters udao)
+    // Humne regex mein \s add kiya hai taaki space safe rahe
+    const cleaned = val.replace(/[^A-Z0-9\s]/gi, '').toUpperCase();
+    
+    // 2. Seedhe cleaned string return kar do bina kisi rigid break ke
+    return cleaned;
+};
 
-    const handleVehicleChange = (e) => {
-        const formatted = formatVehicleNumber(e.target.value);
-        setVehicleNo(formatted);
-    };
+   // Isko replace kar do apni file mein
+const handleVehicleChange = (e) => {
+    // Purane formatVehicleNumber ko hata kar seedhe uppercase kar diya
+    const upperValue = e.target.value.toUpperCase(); 
+    setVehicleNo(upperValue);
+};
 
     const handlePhoneChange = (e) => {
         const val = e.target.value.replace(/[^0-9]/g, '');
