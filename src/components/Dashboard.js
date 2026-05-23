@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where } from 'firebase/firestore';
 import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -49,6 +49,8 @@ function Dashboard({ currentUser }) {
   // Out-turn Calculator State
   const [calcKapas, setCalcKapas] = useState('');
   const [outTurnResults, setOutTurnResults] = useState(null);
+  const [maturedEntries, setMaturedEntries] = useState([]);
+  const todayStr = new Date().toLocaleDateString('en-CA');
 
   useEffect(() => {
     const getLocalDate = () => {
@@ -58,6 +60,16 @@ function Dashboard({ currentUser }) {
       return localDate.toISOString().split('T')[0];
     };
     const today = getLocalDate();
+    const maturityQuery = query(
+      collection(db, 'cottonEntries'),
+      where('paymentDueDate', '==', todayStr)
+    );
+    const unsubscribeMaturity = onSnapshot(maturityQuery, (snapshot) => {
+      const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMaturedEntries(entries);
+    }, (error) => {
+      console.error("Maturity forecast query error: ", error);
+    });
     
     const unsubscribeNotes = onSnapshot(query(collection(db, 'adminNotes'), orderBy('timestamp', 'desc')), (snapshot) => {
       setAdminNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -196,8 +208,9 @@ function Dashboard({ currentUser }) {
       unsubscribeRates();
       unsubscribeMyMessages();
       unsubscribeCash();
+      unsubscribeMaturity();
     };
-  }, [currentUser?.employeeId, currentUser?.role]);
+  }, [currentUser?.employeeId, currentUser?.role, todayStr]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -789,6 +802,58 @@ function Dashboard({ currentUser }) {
               * Based on standard 34% Lint and 63% Seed yield ratios.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Maturity Forecast Widget Section */}
+      <div className="card !p-0 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-500 animate-pulse" />
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight font-mono">Maturity Forecast & Due Payments</h3>
+          </div>
+          <span className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider font-mono">
+            {todayStr}
+          </span>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
+          {maturedEntries.length > 0 ? (
+            maturedEntries.map(entry => {
+              const netValue = parseFloat(entry.netAmount || 0);
+              const paidValue = parseFloat(entry.amountPaid || 0);
+              const balanceLeft = Math.max(0, netValue - paidValue);
+              return (
+                <div key={entry.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex justify-between items-center gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">#{entry.tokenNo}</span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase">
+                        {entry.paymentMode || 'N/A'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase mt-1">
+                      {entry.Name || entry.farmerName || 'UNKNOWN'}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-semibold">
+                      Village: {entry.Village || 'N/A'} • Phone: {entry.farmerPhone || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                      ₹{netValue.toLocaleString('en-IN')}
+                    </p>
+                    <p className="text-xs font-bold text-red-500 dark:text-red-400 font-mono">
+                      Bal: ₹{balanceLeft.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
+              No payments maturing today ({todayStr})
+            </p>
+          )}
         </div>
       </div>
 

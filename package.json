@@ -13,7 +13,7 @@
     "firebase": "^12.3.0",
     "firebase-tools": "^15.18.0",
     "framer-motion": "^11.15.0",
-    "jspdf": "^3.0.4",
+    "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.469.0",
     "postcss": "^8.4.49",
@@ -32,11 +32,12 @@
     "baseline-browser-mapping": "^2.9.7"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "lint": "eslint src"
+    "start": "npm --prefix Venkatesh-Cotton-Management-app-main start",
+    "dev": "npm --prefix Venkatesh-Cotton-Management-app-main start",
+    "build": "npm --prefix Venkatesh-Cotton-Management-app-main run build",
+    "test": "npm --prefix Venkatesh-Cotton-Management-app-main run test",
+    "eject": "npm --prefix Venkatesh-Cotton-Management-app-main run eject",
+    "lint": "npm --prefix Venkatesh-Cotton-Management-app-main run lint"
   },
   "eslintConfig": {
     "extends": [

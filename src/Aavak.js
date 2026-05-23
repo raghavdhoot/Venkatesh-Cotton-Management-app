@@ -3,6 +3,7 @@ import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, where } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,9 +17,9 @@ function Aavak({ currentUser }) {
     const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
     const [tokenNo, setTokenNo] = useState('');
     const [itemName, setItemName] = useState('KAPAS');
-    const [Name, setName] = useState('');
+    const [Name, setName] = useState('');    
     const [farmerPhone, setFarmerPhone] = useState('');
-    const [Village, setVillage] = useState('');
+    const [Village, setVillage] = useState('');    
     const [vehicleNo, setVehicleNo] = useState('');
     const [grossWt, setGrossWt] = useState('');
     const [tareWt, setTareWt] = useState('');
@@ -26,10 +27,9 @@ function Aavak({ currentUser }) {
     const [rate, setRate] = useState('');
     const [amountPaid, setAmountPaid] = useState('');
     const [originalAmountPaid, setOriginalAmountPaid] = useState(0);
-    const [paymentMode, setPaymentMode] = useState('Immediate Cash/RTGS');
-    const [paymentDueDate, setPaymentDueDate] = useState(new Date().toISOString().split('T')[0]);
-    const [chequePassed, setChequePassed] = useState(false);
-    const [cashPaid, setCashPaid] = useState(false);
+    const [paymentMode, setPaymentMode] = useState('CASH');
+    const [paymentDueDate, setPaymentDueDate] = useState(new Date().toLocaleDateString('en-CA'));
+    const [paymentHistory, setPaymentHistory] = useState([]);
     const [accountantName, setAccountantName] = useState('');
     const [makerName, setMakerName] = useState('');
     const [recentEntries, setRecentEntries] = useState([]);
@@ -38,9 +38,6 @@ function Aavak({ currentUser }) {
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [showExportModal, setShowExportModal] = useState(false);
-    // Track individual partial payments (Installments)
-    const [paymentHistory, setPaymentHistory] = useState([]);
-    // Array of objects: { amount: number, date: string, type: string }
 
     // Form Deduction Rates/Percentages
     const [hamaliRate, setHamaliRate] = useState('');
@@ -78,7 +75,7 @@ function Aavak({ currentUser }) {
 
     useEffect(() => {
         if (currentUser && isNewEntry) {
-            if (paymentMode === 'Immediate Cash/RTGS' || paymentMode === 'CASH') {
+            if (paymentMode === 'CASH') {
                 setAccountantName(currentUser.name);
                 setMakerName('');
             } else {
@@ -122,11 +119,9 @@ function Aavak({ currentUser }) {
         setRate('');
         setAmountPaid('');
         setOriginalAmountPaid(0);
+        setPaymentMode('CASH');
+        setPaymentDueDate(new Date().toLocaleDateString('en-CA'));
         setPaymentHistory([]);
-        setPaymentMode('Immediate Cash/RTGS');
-        setPaymentDueDate(new Date().toISOString().split('T')[0]);
-        setChequePassed(false);
-        setCashPaid(false);
         setAccountantName(currentUser?.name || '');
         setMakerName('');
         setHamaliRate(billingSettings.hamaliRate !== undefined ? billingSettings.hamaliRate.toString() : '15');
@@ -169,11 +164,9 @@ function Aavak({ currentUser }) {
                 setRate(entryData.rate || '');
                 setAmountPaid(entryData.amountPaid || '');
                 setOriginalAmountPaid(entryData.amountPaid || 0);
+                setPaymentMode(entryData.paymentMode || 'CASH');
+                setPaymentDueDate(entryData.paymentDueDate || new Date().toLocaleDateString('en-CA'));
                 setPaymentHistory(entryData.paymentHistory || []);
-                setPaymentMode(entryData.paymentMode || 'Immediate Cash/RTGS');
-                setPaymentDueDate(entryData.paymentDueDate || entryData.billingDate || new Date().toISOString().split('T')[0]);
-                setChequePassed(entryData.chequePassed || false);
-                setCashPaid(entryData.cashPaid || false);
                 setAccountantName(entryData.accountantName || '');
                 setMakerName(entryData.makerName || '');
                 setHamaliRate(entryData.hamaliRate !== undefined ? entryData.hamaliRate.toString() : (billingSettings.hamaliRate !== undefined ? billingSettings.hamaliRate.toString() : '15'));
@@ -196,7 +189,7 @@ function Aavak({ currentUser }) {
         let entriesToExport = [];
         if (filtered && dateRange.start && dateRange.end) {
             const q = query(
-                collection(db, 'cottonEntries'),
+                collection(db, 'cottonEntries'), 
                 where('billingDate', '>=', dateRange.start),
                 where('billingDate', '<=', dateRange.end)
             );
@@ -252,44 +245,6 @@ function Aavak({ currentUser }) {
         }
     };
 
-    // Append payments safely to the database logs using atomic arrayUnion operations
-    const handleAddInstallment = async (installmentAmount, installmentType) => {
-        if (!currentEntryId || !installmentAmount || installmentAmount <= 0) return;
-
-        // Build the payload with local timezone dates (YYYY-MM-DD)
-        const localDateString = new Date().toLocaleDateString('en-CA');
-        const newPaymentObj = {
-            amount: parseFloat(installmentAmount),
-            type: installmentType.toUpperCase(),
-            date: localDateString,
-            timestamp: new Date().toISOString()
-        };
-
-        try {
-            const entryRef = doc(db, 'cottonEntries', currentEntryId);
-
-            // 1. Instantly trigger reactive state to speed up user experiences
-            setPaymentHistory(prev => [...prev, newPaymentObj]);
-
-            // 2. Perform physical atomic update to Firestore
-            await updateDoc(entryRef, {
-                paymentHistory: arrayUnion(newPaymentObj),
-                amountPaid: totalPaidSoFar + parseFloat(installmentAmount),
-                balanceAmount: currentLiveBalance - parseFloat(installmentAmount)
-            });
-
-
-            if (typeof setStatusMessage === 'function') {
-                setStatusMessage({ text: 'Installment logged successfully!', type: 'success' });
-            } else {
-                alert('Installment logged successfully!');
-            }
-        } catch (error) {
-            console.error("Error logging payment installment:", error);
-            alert('Database synchronization failed.');
-        }
-    };
-
     const formatVehicleNumber = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
         if (cleaned.length <= 2) return cleaned;
@@ -332,13 +287,13 @@ function Aavak({ currentUser }) {
 
         if (parsedGrossWt && parsedTareWt) {
             netWt = parsedGrossWt - parsedTareWt;
-
+            
             // Cotton deductions are re-enabled exactly like standard management system
             const deductionRate = parsedGeneralDeductionPercent / 100;
-
+            
             netWtAfterDeduction = netWt * (1 - deductionRate);
             const netWtInQuintals = netWt / 100;
-
+            
             hamaliDeduction = netWtInQuintals * parsedHamaliRate;
             weighmentDeduction = netWtInQuintals * parsedWeighmentRate;
         }
@@ -347,7 +302,7 @@ function Aavak({ currentUser }) {
             grossAmount = (parsedRate / 100) * netWtAfterDeduction;
             netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
         }
-
+        
         if (parsedAmountPaid > netAmount) {
             setStatusMessage({ text: `Warning: Amount Paid (₹${parsedAmountPaid}) is more than Net Amount (₹${netAmount})`, type: 'error' });
         }
@@ -357,12 +312,12 @@ function Aavak({ currentUser }) {
         // Accountant/Maker logic
         let finalAccountant = accountantName;
         let finalMaker = makerName;
-
+        
         const isAmountIncreased = parsedAmountPaid > (originalAmountPaid || 0);
 
         if (isNewEntry || isAmountIncreased) {
             if (parsedAmountPaid > 0) {
-                if (paymentMode === 'Immediate Cash/RTGS' || paymentMode === 'CASH') {
+                if (paymentMode === 'CASH') {
                     finalAccountant = currentUser.name;
                     finalMaker = '';
                 } else {
@@ -371,6 +326,10 @@ function Aavak({ currentUser }) {
                 }
             }
         }
+
+        const localDateString = new Date().toLocaleDateString('en-CA');
+        const isImmediate = paymentMode === 'CASH' || paymentMode === 'RTGS' || paymentMode === 'IMMEDIATE';
+        const finalPaymentDueDate = isImmediate ? localDateString : (paymentDueDate || localDateString);
 
         const entryData = {
             billingDate: billingDate || null,
@@ -393,9 +352,8 @@ function Aavak({ currentUser }) {
             amountPaid: Math.round(parsedAmountPaid) || null,
             balanceAmount: balanceAmount || null,
             paymentMode: paymentMode || null,
-            paymentDueDate: paymentDueDate || null,
-            chequePassed: chequePassed,
-            cashPaid: cashPaid,
+            paymentDueDate: finalPaymentDueDate,
+            paymentHistory: paymentHistory || [],
             accountantName: finalAccountant || null,
             makerName: finalMaker || null,
             entryMaker: currentUser.name,
@@ -418,7 +376,7 @@ function Aavak({ currentUser }) {
             }
 
             // Payment Method Filter for Cash Management
-            if (paymentMode && (paymentMode === 'Immediate Cash/RTGS' || paymentMode === 'CASH')) {
+            if (paymentMode && paymentMode.toUpperCase() === 'CASH') {
                 const cashRef = doc(db, 'cashTransactions', `Cash-Token-${tokenNo}`);
                 await setDoc(cashRef, {
                     tokenNo: tokenNo,
@@ -466,10 +424,206 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
         window.open('https://api.whatsapp.com/send?phone=91' + tx.farmerPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
+    const generateEODReport = (rawEntries, operatorName = currentUser?.name || "Admin Counter") => {
+        const todayStrLocal = new Date().toLocaleDateString('en-CA');
+        const baseEntries = rawEntries || recentEntries;
+        const todayEntries = baseEntries.filter(entry => entry.billingDate === todayStrLocal);
+        
+        const totalPattis = todayEntries.length;
+        let totalAccumulatedWeight = 0;
+        let grossOutflowCommitted = 0;
+        let realizedOutflowPaid = 0;
+        
+        const rows = todayEntries.map((entry) => {
+            const tokenNo = entry.tokenNo || entry.id || 'N/A';
+            const farmerName = entry.Name || entry.farmerName || 'N/A';
+            const netWeight = parseFloat(entry.netWt || entry.netWeight || 0);
+            const netAmount = parseFloat(entry.netAmount || 0);
+            
+            let paidAmount = 0;
+            if (entry.paymentHistory && Array.isArray(entry.paymentHistory)) {
+                entry.paymentHistory.forEach(item => {
+                    if (item.date === todayStrLocal) {
+                        paidAmount += parseFloat(item.amount || 0);
+                    }
+                });
+            } else {
+                paidAmount = parseFloat(entry.amountPaid || 0);
+            }
+            
+            const remainingBalance = netAmount - paidAmount;
+            
+            totalAccumulatedWeight += netWeight;
+            grossOutflowCommitted += netAmount;
+            realizedOutflowPaid += paidAmount;
+            
+            return [
+                tokenNo,
+                farmerName,
+                `${netWeight.toLocaleString('en-IN')} kg`,
+                `₹${netAmount.toLocaleString('en-IN')}`,
+                `₹${paidAmount.toLocaleString('en-IN')}`,
+                `₹${remainingBalance.toLocaleString('en-IN')}`
+            ];
+        });
+        
+        const remainingOutstandingLiability = grossOutflowCommitted - realizedOutflowPaid;
+        
+        const doc = new jsPDF();
+        
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 210, 40, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text("VENKATESH COTTON COMPANY", 14, 15);
+        doc.setFontSize(11);
+        doc.setFont('Helvetica', 'normal');
+        doc.text("MANDI OPERATIONS - DAILY EOD REPORT", 14, 23);
+        
+        doc.setFontSize(9);
+        doc.text(`DATE: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 32);
+        doc.text(`OPERATOR: ${operatorName.toUpperCase()}`, 140, 32);
+        
+        let startY = 50;
+        doc.setFillColor(248, 250, 252);
+        doc.rect(14, startY, 182, 35, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(14, startY, 182, 35, 'S');
+        
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(10);
+        doc.setFont('Helvetica', 'bold');
+        doc.text("TODAY'S RUNNING METRICS SUMMARY", 20, startY + 8);
+        
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text(`Total Pattis Generated:  ${totalPattis}`, 20, startY + 16);
+        doc.text(`Acc. Weight Received:  ${totalAccumulatedWeight.toLocaleString('en-IN')} kg`, 20, startY + 22);
+        doc.text(`Gross Outflow:          ₹${grossOutflowCommitted.toLocaleString('en-IN')}`, 20, startY + 28);
+        
+        doc.text(`Realized Paid Today:   ₹${realizedOutflowPaid.toLocaleString('en-IN')}`, 110, startY + 16);
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`Outstanding Credit:    ₹${remainingOutstandingLiability.toLocaleString('en-IN')}`, 110, startY + 22);
+        
+        doc.autoTable({
+            startY: startY + 45,
+            head: [['Token No', 'Farmer Name', 'Net Wt', 'Net Amount', 'Paid Today', 'Remaining']],
+            body: rows,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [30, 41, 59],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 9
+            },
+            bodyStyles: {
+                fontSize: 8,
+                textColor: [51, 65, 85]
+            },
+            alternateRowStyles: {
+                fillColor: [248, 250, 252]
+            },
+            styles: {
+                lineColor: [241, 245, 249],
+                lineWidth: 0.5
+            }
+        });
+        
+        const finalY = doc.lastAutoTable.finalY || (startY + 90);
+        const pageHeight = doc.internal.pageSize.height;
+        
+        let sigY = finalY + 25;
+        if (sigY > pageHeight - 30) {
+            doc.addPage();
+            sigY = 40;
+        }
+        
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(71, 85, 105);
+        
+        doc.text("__________________________", 20, sigY);
+        doc.setFont('Helvetica', 'bold');
+        doc.text("Accountant Signature", 20, sigY + 5);
+        
+        doc.text("__________________________", 130, sigY);
+        doc.setFont('Helvetica', 'bold');
+        doc.text("Authorized Admin Sign", 130, sigY + 5);
+        
+        doc.save(`EOD_Report_${todayStrLocal}.pdf`);
+    };
+
+    const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMode) => {
+        if (!tokenNo || !installmentAmount || parseFloat(installmentAmount) <= 0) {
+            setStatusMessage({ text: 'Invalid installment amount', type: 'error' });
+            return;
+        }
+
+        const amt = parseFloat(installmentAmount);
+        const todayStrLocal = new Date().toLocaleDateString('en-CA');
+        
+        try {
+            const entryRef = doc(db, 'cottonEntries', tokenNo);
+            const entrySnap = await getDoc(entryRef);
+            
+            if (entrySnap.exists()) {
+                const data = entrySnap.data();
+                const pastHistory = data.paymentHistory || [];
+                const updatedHistory = [
+                    ...pastHistory,
+                    {
+                        amount: amt,
+                        date: todayStrLocal,
+                        type: installmentMode || 'CASH'
+                    }
+                ];
+
+                const totalPaid = updatedHistory.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+                const netAmount = parseFloat(data.netAmount || 0);
+                const newBalance = Math.max(0, netAmount - totalPaid);
+
+                await updateDoc(entryRef, {
+                    paymentHistory: updatedHistory,
+                    amountPaid: totalPaid,
+                    balanceAmount: newBalance
+                });
+
+                setPaymentHistory(updatedHistory);
+                setAmountPaid(totalPaid);
+                setOriginalAmountPaid(totalPaid);
+                
+                setStatusMessage({ text: 'Installment recorded successfully', type: 'success' });
+                
+                if (installmentMode === 'CASH') {
+                    const cashRef = doc(db, 'cashTransactions', `Cash-Installment-${tokenNo}-${Date.now()}`);
+                    await setDoc(cashRef, {
+                        tokenNo: tokenNo,
+                        farmerName: data.Name || 'UNKNOWN',
+                        amountPaid: amt,
+                        amount: amt,
+                        type: "Farmer Payment",
+                        timestamp: serverTimestamp(),
+                        reason: `FARMER INSTALLMENT - TOKEN ${tokenNo}`,
+                        recipient: (data.Name || 'UNKNOWN').toUpperCase(),
+                        source: 'CASH BOX',
+                        recordedBy: currentUser.name
+                    });
+                }
+            } else {
+                setStatusMessage({ text: 'Entry not found for token', type: 'error' });
+            }
+        } catch (error) {
+            console.error("Error adding installment log: ", error);
+            setStatusMessage({ text: 'Error adding installment log', type: 'error' });
+        }
+    };
+
     const generatePdf = async (entryToPrint, isBlank = false) => {
         const pdfContentElement = document.createElement('div');
         pdfContentElement.className = "p-8 bg-white w-[210mm]";
-
+        
         const data = isBlank ? {
             tokenNo: '__________',
             Village: '__________',
@@ -623,7 +777,31 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
 
     const hasTareWtBeenEntered = tareWt !== '' && tareWt !== null && parseFloat(tareWt) > 0;
 
-    const filteredEntries = recentEntries.filter(entry =>
+    const parsedGrossWtForCalc = parseFloat(grossWt || 0);
+    const parsedTareWtForCalc = parseFloat(tareWt || 0);
+    const parsedRateForCalc = parseFloat(rate || 0);
+    let calculatedNetAmount = 0;
+    if (parsedGrossWtForCalc && parsedTareWtForCalc && parsedRateForCalc) {
+        const netWtLocal = parsedGrossWtForCalc - parsedTareWtForCalc;
+        const parsedHamaliRate = parseFloat(hamaliRate || 0);
+        const parsedWeighmentRate = parseFloat(weighmentRate || 0);
+        const parsedGeneralDeductionPercent = parseFloat(generalDeductionPercent || 0);
+            
+        const deductionRate = parsedGeneralDeductionPercent / 100;
+        const netWtAfterDeduction = netWtLocal * (1 - deductionRate);
+        const netWtInQuintals = netWtLocal / 100;
+        const hamaliDeduction = netWtInQuintals * parsedHamaliRate;
+        const weighmentDeduction = netWtInQuintals * parsedWeighmentRate;
+        const grossAmountLocal = (parsedRateForCalc / 100) * netWtAfterDeduction;
+        calculatedNetAmount = Math.round(grossAmountLocal - hamaliDeduction - weighmentDeduction);
+    }
+    const totalPaidSoFar = paymentHistory.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+    const currentLiveBalance = Math.max(0, calculatedNetAmount - totalPaidSoFar);
+
+    const [installmentLogAmount, setInstallmentLogAmount] = useState('');
+    const [installmentLogMode, setInstallmentLogMode] = useState('CASH');
+
+    const filteredEntries = recentEntries.filter(entry => 
         entry.tokenNo?.toLowerCase().includes(globalSearch.toLowerCase()) ||
         entry.Name?.toLowerCase().includes(globalSearch.toLowerCase()) ||
         entry.Village?.toLowerCase().includes(globalSearch.toLowerCase()) ||
@@ -632,26 +810,23 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
 
     return (
         <div className="space-y-8">
-            {/* Maturity Forecast Alert Widget */}
-            <MaturityForecastWidget />
-
             {/* Search & Action Header */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className="relative w-full md:w-80">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
-                        <input
-                            type="text"
-                            placeholder="Search Token, Farmer, Village..."
+                        <input 
+                            type="text" 
+                            placeholder="Search Token, Farmer, Village..." 
                             className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                             value={globalSearch}
                             onChange={(e) => setGlobalSearch(e.target.value)}
                         />
                     </div>
                     <div className="relative w-full md:w-48">
-                        <input
-                            type="text"
-                            placeholder="Load Token No..."
+                        <input 
+                            type="text" 
+                            placeholder="Load Token No..." 
                             className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                             value={searchToken}
                             onChange={(e) => setSearchToken(e.target.value)}
@@ -679,8 +854,14 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                     <button onClick={resetForm} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                         <X className="w-4 h-4" /> Clear
                     </button>
+                    <button 
+                        onClick={() => generateEODReport(recentEntries)} 
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
+                    >
+                        <span>📊 Download EOD PDF Report</span>
+                    </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                        <button
+                        <button 
                             onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: 'admin' }))}
                             className="btn-secondary transition-all hover:bg-slate-100 dark:hover:bg-slate-800 border-indigo-200 dark:border-indigo-900 flex-shrink-0 flex items-center justify-center gap-2"
                         >
@@ -691,8 +872,9 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
             </div>
 
             {statusMessage.text && (
-                <div className={`px-4 py-3 rounded-xl text-sm font-bold animate-in fade-in slide-in-from-top-4 ${statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    }`}>
+                <div className={`px-4 py-3 rounded-xl text-sm font-bold animate-in fade-in slide-in-from-top-4 ${
+                    statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
                     {statusMessage.text}
                 </div>
             )}
@@ -710,7 +892,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                             </span>
                         </div>
                         {isNewEntry && lastEntry && (
-                            <button
+                            <button 
                                 onClick={handleRepeatLastEntry}
                                 className="text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 hover:underline"
                             >
@@ -734,12 +916,12 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Farmer Phone Number</label>
-                            <input
-                                type="text"
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={farmerPhone}
-                                onChange={handlePhoneChange}
-                                placeholder="10-DIGIT MOBILE NO"
+                            <input 
+                                type="text" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={farmerPhone} 
+                                onChange={handlePhoneChange} 
+                                placeholder="10-DIGIT MOBILE NO" 
                                 disabled={hasTareWtBeenEntered && !isNewEntry}
                             />
                         </div>
@@ -749,12 +931,12 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Vehicle No</label>
-                            <input
-                                type="text"
-                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={vehicleNo}
-                                onChange={handleVehicleChange}
-                                required
+                            <input 
+                                type="text" 
+                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={vehicleNo} 
+                                onChange={handleVehicleChange} 
+                                required 
                                 disabled={hasTareWtBeenEntered && !isNewEntry}
                                 placeholder="MH-26-BS-4852"
                             />
@@ -778,16 +960,16 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Amount Paid (₹)</label>
                             <div className="flex gap-2">
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                    value={amountPaid}
+                                <input 
+                                    type="number" 
+                                    step="0.01" 
+                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                    value={amountPaid} 
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         setAmountPaid(val);
                                         if (parseFloat(val || 0) > originalAmountPaid) {
-                                            if (paymentMode === 'Immediate Cash/RTGS' || paymentMode === 'CASH') {
+                                            if (paymentMode === 'CASH') {
                                                 setAccountantName(currentUser.name);
                                                 setMakerName('');
                                             } else {
@@ -795,9 +977,9 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                                 setAccountantName('');
                                             }
                                         }
-                                    }}
+                                    }} 
                                 />
-                                <button
+                                <button 
                                     type="button"
                                     onClick={() => {
                                         const parsedGrossWt = parseFloat(grossWt || 0);
@@ -808,7 +990,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                             const parsedHamaliRate = parseFloat(hamaliRate || 0);
                                             const parsedWeighmentRate = parseFloat(weighmentRate || 0);
                                             const parsedGeneralDeductionPercent = parseFloat(generalDeductionPercent || 0);
-
+                                                
                                             const deductionRate = parsedGeneralDeductionPercent / 100;
                                             const netWtAfterDeduction = netWt * (1 - deductionRate);
                                             const netWtInQuintals = netWt / 100;
@@ -817,11 +999,9 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                             const grossAmount = (parsedRate / 100) * netWtAfterDeduction;
                                             const netAmount = Math.round(grossAmount - hamaliDeduction - weighmentDeduction);
                                             setAmountPaid(netAmount.toString());
-                                            const totalPaidSoFar = paymentHistory.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
-                                            const currentLiveBalance = parseFloat(netAmount || 0) - totalPaidSoFar;
-
+                                            
                                             if (netAmount > originalAmountPaid) {
-                                                if (paymentMode === 'Immediate Cash/RTGS' || paymentMode === 'CASH') {
+                                                if (paymentMode === 'CASH') {
                                                     setAccountantName(currentUser.name);
                                                     setMakerName('');
                                                 } else {
@@ -839,33 +1019,33 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Hamali Rate (₹/Quintal)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={hamaliRate}
-                                onChange={(e) => setHamaliRate(e.target.value)}
-                                required
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={hamaliRate} 
+                                onChange={(e) => setHamaliRate(e.target.value)} 
+                                required 
                             />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Weighment Rate (₹/Quintal)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={weighmentRate}
-                                onChange={(e) => setWeighmentRate(e.target.value)}
-                                required
+                            <input 
+                                type="number" 
+                                step="0.01" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={weighmentRate} 
+                                onChange={(e) => setWeighmentRate(e.target.value)} 
+                                required 
                             />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">General Deduction (%)</label>
-                            <input
-                                type="number"
-                                step="any"
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={generalDeductionPercent}
+                            <input 
+                                type="number" 
+                                step="any" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={generalDeductionPercent} 
                                 onChange={(e) => {
                                     const val = e.target.value;
                                     if (val === '' || val.endsWith('.')) {
@@ -874,142 +1054,127 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                         const parsed = parseFloat(val);
                                         setGeneralDeductionPercent(isNaN(parsed) ? '' : parsed);
                                     }
-                                }}
-                                required
+                                }} 
+                                required 
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Payment Mode</label>
-                            <select
-                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={paymentMode}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setPaymentMode(val);
-                                    if (val === 'Immediate Cash/RTGS') {
-                                        setPaymentDueDate(new Date().toISOString().split('T')[0]);
-                                    }
-                                }}
-                            >
-                                <option value="Immediate Cash/RTGS">Immediate Cash/RTGS</option>
-                                <option value="Delayed Payment">Delayed Payment</option>
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Mode of Payment</label>
+                            <select className="input-field uppercase" value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                                <option value="CASH">CASH</option>
+                                <option value="RTGS">RTGS</option>
+                                <option value="DELAYED">DELAYED PAYMENT</option>
                             </select>
                         </div>
-                        {paymentMode === 'Delayed Payment' && (
+                        {paymentMode === 'DELAYED' && (
                             <div className="space-y-1">
-                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Promised Pay Date</label>
-                                <input
-                                    type="date"
-                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                    value={paymentDueDate}
-                                    min={new Date().toISOString().split('T')[0]}
-                                    onChange={(e) => setPaymentDueDate(e.target.value)}
-                                    required
+                                <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Payment Due Date / Maturity</label>
+                                <input 
+                                    type="date" 
+                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                    value={paymentDueDate} 
+                                    onChange={(e) => setPaymentDueDate(e.target.value)} 
+                                    required 
                                 />
                             </div>
                         )}
-                        {/* Installment History Log & Live Running Balance HUD */}
-                        <div className="mt-6 p-5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                                        Installment Payment Logs
-                                    </h4>
-                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">Interactive Ledger</p>
-                                </div>
-                                <div className="text-right">
-                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase block font-medium">Live Balance Due</span>
-                                    <span className={`text-lg font-black tracking-tight ${currentLiveBalance > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                        ₹{(currentLiveBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {paymentHistory.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-6 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg">
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 italic">No installment history found.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                    {paymentHistory.map((pmt, idx) => (
-                                        <div key={idx} className="flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded uppercase">
-                                                    {pmt.type}
-                                                </span>
-                                                <span className="text-xs text-slate-500 font-medium">
-                                                    {pmt.date}
-                                                </span>
-                                            </div>
-                                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-mono">
-                                                + ₹{(parseFloat(pmt.amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Dynamic Total Paid Summary row */}
-                            <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-                                <span>Accumulated Outflow:</span>
-                                <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
-                                    ₹{(totalPaidSoFar || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                </span>
-                            </div>
-
-                            {/* Fast Installment Entry Widgets */}
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Amount (₹)</label>
-                                    <input
-                                        id="inst-amount"
-                                        type="number"
-                                        placeholder="0.00"
-                                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Payment Mode</label>
-                                    <select
-                                        id="inst-type"
-                                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
-                                    >
-                                        <option value="CASH">CASH</option>
-                                        <option value="RTGS">RTGS</option>
-                                        <option value="CHEQUE">CHEQUE</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const amtEl = document.getElementById('inst-amount');
-                                            const typeEl = document.getElementById('inst-type');
-                                            if (amtEl && amtEl.value && parseFloat(amtEl.value) > 0) {
-                                                handleAddInstallment(parseFloat(amtEl.value), typeEl.value);
-                                                amtEl.value = '';
-                                            }
-                                        }}
-                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 uppercase tracking-wide shadow-sm"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" />
-                                        <span>Add Installment</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Accountant / Maker</label>
-                            <input
-                                type="text"
-                                className="input-field bg-slate-50 dark:bg-slate-800 uppercase"
-                                value={parseFloat(amountPaid) > 0 ? ((paymentMode === 'Immediate Cash/RTGS' || paymentMode === 'CASH') ? accountantName : makerName) : ''}
-                                readOnly
-                                disabled
+                            <input 
+                                type="text" 
+                                className="input-field bg-slate-50 dark:bg-slate-800 uppercase" 
+                                value={parseFloat(amountPaid) > 0 ? (paymentMode === 'CASH' ? accountantName : makerName) : ''} 
+                                readOnly 
+                                disabled 
                                 placeholder="AUTO-FILLED ON PAYMENT"
                             />
                         </div>
+
+                        {/* Installment History and Addition for Existing Entries */}
+                        {!isNewEntry && tokenNo && (
+                            <div className="lg:col-span-3 border-t border-slate-200 dark:border-slate-800 pt-6 mt-4 space-y-6">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div>
+                                        <h4 className="text-md font-bold text-slate-950 dark:text-white uppercase font-mono">Installment Payment History</h4>
+                                        <p className="text-xs text-slate-500 uppercase">Manage multi-installment payments for Token {tokenNo}</p>
+                                    </div>
+                                    <div className="bg-slate-50 dark:bg-slate-800/80 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/50 flex items-center gap-6">
+                                        <div className="text-center">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Total Paid</p>
+                                            <p className="text-sm font-black text-indigo-600 dark:text-indigo-400">₹{totalPaidSoFar.toLocaleString('en-IN')}</p>
+                                        </div>
+                                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
+                                        <div className="text-center">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Live Balance</p>
+                                            <p className="text-sm font-black text-red-500 dark:text-red-400">₹{currentLiveBalance.toLocaleString('en-IN')}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {/* Installment List ledger */}
+                                    <div className="lg:col-span-2 space-y-3">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Payments Ledger</p>
+                                        <div className="border border-slate-100 dark:border-slate-800/50 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800/50 max-h-[180px] overflow-y-auto">
+                                            {paymentHistory.length > 0 ? (
+                                                paymentHistory.map((item, index) => (
+                                                    <div key={index} className="flex justify-between items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-xs bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold px-2 py-0.5 rounded-full uppercase text-[10px]">
+                                                                {item.type || 'CASH'}
+                                                            </span>
+                                                            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold font-mono">{item.date}</span>
+                                                        </div>
+                                                        <span className="text-xs font-black text-slate-800 dark:text-slate-200 font-mono">₹{parseFloat(item.amount || 0).toLocaleString('en-IN')}</span>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-slate-400 dark:text-slate-500 text-xs italic text-center py-6">No previous installments found. Add one below!</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Record New Installment Action Form */}
+                                    <div className="bg-slate-50 dark:bg-slate-800/20 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 space-y-4">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Record New Installment</p>
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Amount (₹)</label>
+                                                <input 
+                                                    type="number" 
+                                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                                    placeholder="Enter installment amount..."
+                                                    value={installmentLogAmount}
+                                                    onChange={(e) => setInstallmentLogAmount(e.target.value)}
+                                                    max={currentLiveBalance}
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-500 uppercase">Payment Mode</label>
+                                                <select 
+                                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                                    value={installmentLogMode}
+                                                    onChange={(e) => setInstallmentLogMode(e.target.value)}
+                                                >
+                                                    <option value="CASH">CASH</option>
+                                                    <option value="RTGS">RTGS</option>
+                                                </select>
+                                            </div>
+                                            <button 
+                                                type="button"
+                                                onClick={() => {
+                                                    handleAddInstallmentLog(tokenNo, installmentLogAmount, installmentLogMode);
+                                                    setInstallmentLogAmount('');
+                                                }}
+                                                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl tracking-wider uppercase transition-colors"
+                                            >
+                                                Add Installment
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="lg:col-span-3 flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
                             <button type="button" onClick={resetForm} className="btn-secondary uppercase">Cancel</button>
@@ -1025,7 +1190,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
             <AnimatePresence>
                 {showExportModal && (
                     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <motion.div
+                        <motion.div 
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -1041,32 +1206,32 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
-                                        <input
-                                            type="date"
-                                            className="input-field"
+                                        <input 
+                                            type="date" 
+                                            className="input-field" 
                                             value={dateRange.start}
-                                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                            onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
                                         />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
-                                        <input
-                                            type="date"
-                                            className="input-field"
+                                        <input 
+                                            type="date" 
+                                            className="input-field" 
                                             value={dateRange.end}
-                                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                            onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
                                         />
                                     </div>
                                 </div>
                                 <div className="space-y-3">
-                                    <button
+                                    <button 
                                         onClick={() => exportToExcel(true)}
                                         disabled={!dateRange.start || !dateRange.end}
                                         className="w-full btn-primary flex items-center justify-center gap-2 uppercase"
                                     >
                                         <Download className="w-4 h-4" /> Export Range (Excel)
                                     </button>
-                                    <button
+                                    <button 
                                         onClick={() => exportToExcel(false)}
                                         className="w-full btn-secondary flex items-center justify-center gap-2 uppercase"
                                     >
@@ -1120,7 +1285,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                     </td>
                                     <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
                                         {entry.farmerPhone && (
-                                            <button
+                                            <button 
                                                 onClick={() => sharePattiToWhatsApp(entry)}
                                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 uppercase"
                                                 title="Share Patti via WhatsApp"
@@ -1129,7 +1294,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                                 <span>Share Patti</span>
                                             </button>
                                         )}
-                                        <button
+                                        <button 
                                             onClick={() => generatePdf(entry)}
                                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
                                             title="Download PDF"
@@ -1138,13 +1303,13 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                         </button>
                                         {deleteConfirmId === (entry.tokenNo || entry.id) ? (
                                             <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200">
-                                                <button
+                                                <button 
                                                     onClick={() => handleDeleteEntry(entry.tokenNo || entry.id)}
                                                     className="px-2 py-1 bg-red-600 text-white text-[10px] font-bold rounded hover:bg-red-700 transition-colors uppercase"
                                                 >
                                                     Confirm
                                                 </button>
-                                                <button
+                                                <button 
                                                     onClick={() => setDeleteConfirmId(null)}
                                                     className="px-2 py-1 bg-slate-200 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-300 transition-colors uppercase"
                                                 >
@@ -1152,7 +1317,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                                 </button>
                                             </div>
                                         ) : (
-                                            <button
+                                            <button 
                                                 onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)}
                                                 className="p-2 text-slate-400 hover:text-red-600 transition-colors"
                                                 title="Delete Entry"
@@ -1191,7 +1356,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                                     <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.Name}</p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 uppercase">{entry.Village}</p>
                                     {entry.farmerPhone && (
-                                        <button
+                                        <button 
                                             onClick={() => sharePattiToWhatsApp(entry)}
                                             className="mt-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded flex items-center gap-1 uppercase tracking-wider"
                                         >
@@ -1218,74 +1383,6 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                         </div>
                     ))}
                 </div>
-            </div>
-        </div>
-    );
-}
-
-export function MaturityForecastWidget() {
-    const [dueEntries, setDueEntries] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const q = query(
-            collection(db, 'cottonEntries'),
-            where('paymentDueDate', '==', todayStr),
-            where('chequePassed', '==', false),
-            where('cashPaid', '==', false)
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setDueEntries(data);
-            setLoading(false);
-        }, (err) => {
-            console.error("Error loading forecast: ", err);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    if (loading) return null;
-    if (dueEntries.length === 0) return null;
-
-    const totalAmount = dueEntries.reduce((sum, entry) => sum + (entry.netAmount || 0), 0);
-
-    return (
-        <div id="maturity-forecast-widget" className="bg-amber-50 dark:bg-amber-955/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-400">
-                <span className="text-xl">⚠️</span>
-                <span className="font-bold text-base md:text-lg">
-                    Attention Cashier: ₹{totalAmount.toLocaleString()} across {dueEntries.length} {dueEntries.length === 1 ? 'Patti' : 'Pattis'} is due for payment today.
-                </span>
-            </div>
-
-            <div className="overflow-x-auto border border-amber-200/60 dark:border-amber-900/30 rounded-lg">
-                <table className="w-full text-left border-collapse bg-white dark:bg-slate-900/60 text-sm">
-                    <thead>
-                        <tr className="bg-amber-100/50 dark:bg-amber-95/40 text-amber-900 dark:text-amber-300 font-semibold border-b border-amber-200/60 dark:border-amber-900/30">
-                            <th className="px-4 py-2.5">Token No</th>
-                            <th className="px-4 py-2.5">Farmer Name</th>
-                            <th className="px-4 py-2.5">Phone Number</th>
-                            <th className="px-4 py-2.5 text-right">Amount Due</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-amber-100 dark:divide-amber-900/20 text-slate-700 dark:text-slate-300">
-                        {dueEntries.map((entry) => (
-                            <tr key={entry.id} className="hover:bg-amber-50/50 dark:hover:bg-amber-950/10">
-                                <td className="px-4 py-2.5 font-mono font-bold text-amber-900 dark:text-amber-400">{entry.tokenNo || entry.id}</td>
-                                <td className="px-4 py-2.5 font-medium uppercase">{entry.Name || 'N/A'}</td>
-                                <td className="px-4 py-2.5 font-mono">{entry.farmerPhone || 'N/A'}</td>
-                                <td className="px-4 py-2.5 text-right font-bold text-slate-950 dark:text-white">₹{(entry.netAmount || 0).toLocaleString()}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
             </div>
         </div>
     );
