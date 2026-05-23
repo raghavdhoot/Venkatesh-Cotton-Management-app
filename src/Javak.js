@@ -384,6 +384,13 @@ function Javak({ currentUser }) {
         setVehicleNumber(formatted);
     };
 
+    const handleDriverPhoneChange = (e) => {
+        const val = e.target.value.replace(/[^0-9]/g, '');
+        if (val.length <= 10) {
+            setDriverPhone(val);
+        }
+    };
+
     const calculateNetWt = () => {
         const gross = parseFloat(grossWt);
         const tare = parseFloat(tareWt);
@@ -552,7 +559,14 @@ function Javak({ currentUser }) {
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Phone</label>
-                            <input type="tel" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white font-mono" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="e.g., 9876543210" />
+                            <input 
+                                type="text" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white font-mono" 
+                                value={driverPhone} 
+                                onChange={handleDriverPhoneChange} 
+                                placeholder="10-DIGIT MOBILE NO" 
+                                maxLength={10}
+                            />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Photo</label>

@@ -17,6 +17,7 @@ function Aavak({ currentUser }) {
     const [tokenNo, setTokenNo] = useState('');
     const [itemName, setItemName] = useState('KAPAS');
     const [Name, setName] = useState('');    
+    const [farmerPhone, setFarmerPhone] = useState('');
     const [Village, setVillage] = useState('');    
     const [vehicleNo, setVehicleNo] = useState('');
     const [grossWt, setGrossWt] = useState('');
@@ -106,6 +107,7 @@ function Aavak({ currentUser }) {
         setTokenNo('');
         setItemName('KAPAS');
         setName('');
+        setFarmerPhone('');
         setVillage('');
         setVehicleNo('');
         setGrossWt('');
@@ -125,6 +127,7 @@ function Aavak({ currentUser }) {
     const handleRepeatLastEntry = () => {
         if (!lastEntry) return;
         setName(lastEntry.Name || '');
+        setFarmerPhone(lastEntry.farmerPhone || '');
         setVillage(lastEntry.Village || '');
         setItemName(lastEntry.itemName || 'KAPAS');
         setVehicleNo(lastEntry.vehicleNo || '');
@@ -147,6 +150,7 @@ function Aavak({ currentUser }) {
                 setTokenNo(entryData.tokenNo || '');
                 setItemName(entryData.itemName || '');
                 setName(entryData.Name || '');
+                setFarmerPhone(entryData.farmerPhone || '');
                 setVillage(entryData.Village || '');
                 setVehicleNo(entryData.vehicleNo || '');
                 setGrossWt(entryData.grossWt || '');
@@ -247,6 +251,13 @@ function Aavak({ currentUser }) {
         setVehicleNo(formatted);
     };
 
+    const handlePhoneChange = (e) => {
+        const val = e.target.value.replace(/[^0-9]/g, '');
+        if (val.length <= 10) {
+            setFarmerPhone(val);
+        }
+    };
+
     const handleSaveOrUpdateEntry = async (e) => {
         e.preventDefault();
         if (!tokenNo) return;
@@ -314,6 +325,7 @@ function Aavak({ currentUser }) {
             tokenNo: tokenNo || null,
             itemName: normalizeItemName(itemName) || null,
             Name: Name || null,
+            farmerPhone: farmerPhone || null,
             Village: Village || null,
             vehicleNo: vehicleNo || null,
             grossWt: parsedGrossWt || null,
@@ -640,6 +652,17 @@ function Aavak({ currentUser }) {
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Farmer Name</label>
                             <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={Name} onChange={(e) => setName(e.target.value.toUpperCase())} required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Farmer Phone Number</label>
+                            <input 
+                                type="text" 
+                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                value={farmerPhone} 
+                                onChange={handlePhoneChange} 
+                                placeholder="10-DIGIT MOBILE NO" 
+                                disabled={hasTareWtBeenEntered && !isNewEntry}
+                            />
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">Village</label>
