@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, setDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, setDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { IndianRupee, Plus, Trash2, ArrowDownCircle, ArrowUpCircle, History, Wallet, Lock, Unlock } from 'lucide-react';
 
 const formatDate = (date) => {
@@ -14,11 +14,6 @@ const getTodayDateStr = () => {
     return formatDate(new Date());
 };
 
-const getYesterdayDateStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return formatDate(d);
-};
 
 function CashManagement({ currentUser }) {
     const [transactions, setTransactions] = useState([]);
@@ -49,7 +44,6 @@ function CashManagement({ currentUser }) {
     useEffect(() => {
         if (!isAuthorized) return;
         const todayStr = getTodayDateStr();
-        const yesterdayStr = getYesterdayDateStr();
 
         // Listen for today's closure
         const unsubToday = onSnapshot(doc(db, 'dailyClosures', `Closure-${todayStr}`), (docSnap) => {
@@ -60,17 +54,34 @@ function CashManagement({ currentUser }) {
             }
         });
 
-        // Listen for yesterday's closure to set opening balance automatically
-        const unsubYesterday = onSnapshot(doc(db, 'dailyClosures', `Closure-${yesterdayStr}`), (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                setOpeningBalance(data.expectedClosingBalance || 0);
+        // Fetch the most recent daily closure to set opening balance automatically
+        const q = query(collection(db, "dailyClosures"), orderBy("createdAt", "desc"), limit(1));
+        const unsubLatestClosure = onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+                const lastClosureDoc = snapshot.docs[0].data();
+                setOpeningBalance(lastClosureDoc.closingBalance || lastClosureDoc.expectedClosingBalance || 0);
+            } else {
+                // Try querying with 'timestamp' descending as fallback for older documents
+                const qFallback = query(collection(db, "dailyClosures"), orderBy("timestamp", "desc"), limit(1));
+                getDocs(qFallback).then(fallbackSnapshot => {
+                    if (!fallbackSnapshot.empty) {
+                        const lastDoc = fallbackSnapshot.docs[0].data();
+                        setOpeningBalance(lastDoc.closingBalance || lastDoc.expectedClosingBalance || 0);
+                    } else {
+                        setOpeningBalance(0);
+                    }
+                }).catch(() => {
+                    setOpeningBalance(0);
+                });
             }
+        }, (error) => {
+            console.error("Error fetching latest closure on mount:", error);
+            setOpeningBalance(0);
         });
 
         return () => {
             unsubToday();
-            unsubYesterday();
+            unsubLatestClosure();
         };
     }, [isAuthorized]);
 
@@ -206,8 +217,10 @@ function CashManagement({ currentUser }) {
                 totalCashIn: parseFloat(todayIn) || 0,
                 totalCashOut: parseFloat(todayOut) || 0,
                 expectedClosingBalance: parseFloat(expectedClosingBalance) || 0,
+                closingBalance: parseFloat(expectedClosingBalance) || 0,
                 closedBy: currentUser?.name || 'ADMIN',
-                timestamp: serverTimestamp()
+                timestamp: serverTimestamp(),
+                createdAt: serverTimestamp()
             });
 
             setStatusMessage({ text: 'Counter closed successfully!', type: 'success' });
@@ -434,16 +447,16 @@ function CashManagement({ currentUser }) {
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
                         <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 flex flex-col justify-between">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                                Opening Balance <span className="text-amber-500">(Admin Override)</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                Opening Balance <span className="text-emerald-500 font-extrabold">(Automated)</span>
                             </span>
                             <div className="flex items-center gap-1">
                                 <span className="text-sm font-bold text-slate-500 dark:text-slate-400">₹</span>
                                 <input 
                                     type="number"
-                                    className="w-full bg-transparent border-b border-slate-200 dark:border-slate-700 font-extrabold text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                    className="w-full bg-transparent border-b border-slate-200 dark:border-slate-700 font-extrabold text-sm text-slate-800 dark:text-slate-100 focus:outline-none"
                                     value={openingBalance}
-                                    onChange={(e) => setOpeningBalance(parseFloat(e.target.value) || 0)}
+                                    readOnly
                                     placeholder="0"
                                 />
                             </div>
