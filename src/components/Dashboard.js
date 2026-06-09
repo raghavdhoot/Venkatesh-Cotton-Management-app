@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-// Serial No. 3: jsPDF + autoTable for EOD Report generation
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
   <div className="card flex items-center gap-4">
@@ -56,6 +55,13 @@ function Dashboard({ currentUser }) {
   const todayStr = new Date().toLocaleDateString('en-CA');
 
   useEffect(() => {
+    const getLocalDate = () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+      return localDate.toISOString().split('T')[0];
+    };
+    const today = getLocalDate();
     const maturityQuery = query(
       collection(db, 'cottonEntries'),
       where('paymentDueDate', '==', todayStr)
@@ -131,17 +137,73 @@ function Dashboard({ currentUser }) {
 
     const unsubscribeAavak = onSnapshot(collection(db, 'cottonEntries'), (snapshot) => {
       const aavakData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRawData(prev => ({ ...prev, aavak: aavakData }));
-    });
+      
+      const unsubscribeJavak = onSnapshot(collection(db, 'javakEntries'), (javakSnapshot) => {
+        const javakData = javakSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        let totalAavakWt = 0;
+        let totalAavakAmt = 0;
+        let totalJavakWt = 0;
+        let totalJavakBags = 0;
+        let todayAavakWt = 0;
+        let todayJavakTrucks = 0;
+        let todayAavakAmt = 0;
+        const breakdown = {};
 
-    const unsubscribeJavak = onSnapshot(collection(db, 'javakEntries'), (snapshot) => {
-      const javakData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRawData(prev => ({ ...prev, javak: javakData }));
+        aavakData.forEach(data => {
+          const weight = parseFloat(data.netWt || 0);
+          const item = data.itemName || 'Uncategorized';
+          const amt = parseFloat(data.amountPaid || 0);
+          totalAavakWt += weight;
+          totalAavakAmt += amt;
+          
+          if (data.billingDate === today) {
+            todayAavakWt += weight;
+            todayAavakAmt += amt;
+          }
+
+          if (breakdown[item]) {
+            breakdown[item] += weight;
+          } else {
+            breakdown[item] = weight;
+          }
+        });
+
+        javakData.forEach(data => {
+          const weight = parseFloat(data.netWt || 0);
+          const item = data.commodity || 'Uncategorized';
+          totalJavakWt += weight;
+          totalJavakBags += parseInt(data.numberOfBags || 0, 10);
+          
+          if (data.date === today) {
+            todayJavakTrucks += 1;
+          }
+
+          if (breakdown[item]) {
+            breakdown[item] -= weight;
+          } else {
+            breakdown[item] = -weight;
+          }
+        });
+
+        setStats({
+          totalAavakNetWt: totalAavakWt,
+          totalAavakAmount: totalAavakAmt,
+          totalJavakNetWt: totalJavakWt,
+          totalJavakBags: totalJavakBags,
+          todayAavakWt,
+          todayJavakTrucks,
+          todayAavakAmount: todayAavakAmt
+        });
+        setItemBreakdown(breakdown);
+        setRawData({ aavak: aavakData, javak: javakData });
+      });
+
+      return () => unsubscribeJavak();
     });
 
     return () => {
       unsubscribeAavak();
-      unsubscribeJavak();
       unsubscribeBardana();
       unsubscribeNotes();
       unsubscribeTasks();
@@ -151,76 +213,6 @@ function Dashboard({ currentUser }) {
       unsubscribeMaturity();
     };
   }, [currentUser?.employeeId, currentUser?.role, todayStr]);
-
-  // Recalculate stats when rawData changes
-  useEffect(() => {
-    const aavakData = rawData.aavak;
-    const javakData = rawData.javak;
-
-    const getLocalDate = () => {
-      const now = new Date();
-      const offset = now.getTimezoneOffset();
-      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-      return localDate.toISOString().split('T')[0];
-    };
-    const today = getLocalDate();
-
-    let totalAavakWt = 0;
-    let totalAavakAmt = 0;
-    let totalJavakWt = 0;
-    let totalJavakBags = 0;
-    let todayAavakWt = 0;
-    let todayJavakTrucks = 0;
-    let todayAavakAmt = 0;
-    const breakdown = {};
-
-    aavakData.forEach(data => {
-      const weight = parseFloat(data.netWt || 0);
-      const item = data.itemName || 'Uncategorized';
-      const amt = parseFloat(data.amountPaid || 0);
-      totalAavakWt += weight;
-      totalAavakAmt += amt;
-      
-      if (data.billingDate === today) {
-        todayAavakWt += weight;
-        todayAavakAmt += amt;
-      }
-
-      if (breakdown[item]) {
-        breakdown[item] += weight;
-      } else {
-        breakdown[item] = weight;
-      }
-    });
-
-    javakData.forEach(data => {
-      const weight = parseFloat(data.netWt || 0);
-      const item = data.commodity || 'Uncategorized';
-      totalJavakWt += weight;
-      totalJavakBags += parseInt(data.numberOfBags || 0, 10);
-      
-      if (data.date === today) {
-        todayJavakTrucks += 1;
-      }
-
-      if (breakdown[item]) {
-        breakdown[item] -= weight;
-      } else {
-        breakdown[item] = -weight;
-      }
-    });
-
-    setStats({
-      totalAavakNetWt: totalAavakWt,
-      totalAavakAmount: totalAavakAmt,
-      totalJavakNetWt: totalJavakWt,
-      totalJavakBags: totalJavakBags,
-      todayAavakWt,
-      todayJavakTrucks,
-      todayAavakAmount: todayAavakAmt
-    });
-    setItemBreakdown(breakdown);
-  }, [rawData]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -375,170 +367,136 @@ function Dashboard({ currentUser }) {
     return { aavakDetails, javakDetails };
   };
 
-  const generateEODReport = () => {
-    try {
-      const getLocalDate = () => {
-        const now = new Date();
-        const offset = now.getTimezoneOffset();
-        const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-        return localDate.toISOString().split('T')[0];
-      };
-      const todayStr = getLocalDate();
-      const dateLabel = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-      const timeLabel = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-
-      const todayAavak = rawData.aavak.filter(e => e.billingDate === todayStr);
-      const todayJavak = rawData.javak.filter(e => (e.date || e.billingDate || '') === todayStr);
-
-      // Totals
-      const totalWeight  = todayAavak.reduce((s, e) => s + parseFloat(e.netWt || 0), 0);
-      const totalAmount  = todayAavak.reduce((s, e) => s + parseFloat(e.netAmount || 0), 0);
-      const totalPaid    = todayAavak.reduce((s, e) => s + parseFloat(e.amountPaid || 0), 0);
-      const totalPending = totalAmount - totalPaid;
-
-      const doc = new jsPDF();
-      const W = doc.internal.pageSize.width;
-
-      // ── Header ──────────────────────────────────────────────────────────────
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, W, 38, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(17);
-      doc.setFont('Helvetica', 'bold');
-      doc.text('VENKATESH COTTON CO.', 14, 14);
-
-      doc.setFontSize(9);
-      doc.setFont('Helvetica', 'normal');
-      doc.text('END OF DAY REPORT', 14, 22);
-      doc.text(`Date: ${dateLabel}   |   Time: ${timeLabel}   |   By: ${(currentUser?.name || 'ADMIN').toUpperCase()}`, 14, 30);
-
-      // ── Summary Cards ────────────────────────────────────────────────────────
-      const cards = [
-        { label: 'Total Pattis',    value: String(todayAavak.length) },
-        { label: 'Net Weight',      value: `${totalWeight.toLocaleString('en-IN')} kg` },
-        { label: 'Gross Amount',    value: `Rs ${totalAmount.toLocaleString('en-IN')}` },
-        { label: 'Amount Paid',     value: `Rs ${totalPaid.toLocaleString('en-IN')}` },
-        { label: 'Pending Amount',  value: `Rs ${totalPending.toLocaleString('en-IN')}` },
-        { label: 'Dispatches',      value: String(todayJavak.length) },
-      ];
-
-      const cardW = (W - 28) / 3;
-      const cardH = 20;
-      let cx = 14, cy = 44;
-      cards.forEach((card, i) => {
-        if (i === 3) { cx = 14; cy += cardH + 3; }
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(203, 213, 225);
-        doc.roundedRect(cx, cy, cardW - 2, cardH, 2, 2, 'FD');
-        doc.setFontSize(7);
-        doc.setTextColor(100, 116, 139);
-        doc.setFont('Helvetica', 'normal');
-        doc.text(card.label.toUpperCase(), cx + 3, cy + 6);
-        doc.setFontSize(10);
-        doc.setTextColor(15, 23, 42);
-        doc.setFont('Helvetica', 'bold');
-        doc.text(card.value, cx + 3, cy + 15);
-        cx += cardW + 1;
-      });
-
-      // ── Aavak Table ──────────────────────────────────────────────────────────
-      const tableStartY = cy + cardH + 8;
-      doc.setFontSize(10);
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(30, 41, 59);
-      doc.text('AAVAK — Incoming Entries', 14, tableStartY);
-
-      doc.autoTable({
-        startY: tableStartY + 4,
-        head: [['Token', 'Farmer Name', 'Item', 'Net Wt (kg)', 'Amount (Rs)', 'Paid (Rs)', 'Pending (Rs)', 'Mode']],
-        body: todayAavak.length > 0
-          ? todayAavak.map(e => {
-              const amt     = parseFloat(e.netAmount || 0);
-              const paid    = parseFloat(e.amountPaid || 0);
-              return [
-                e.tokenNo || '-',
-                (e.Name || e.farmerName || 'N/A').toUpperCase(),
-                (e.itemName || '-').toUpperCase(),
-                parseFloat(e.netWt || 0).toLocaleString('en-IN'),
-                amt.toLocaleString('en-IN'),
-                paid.toLocaleString('en-IN'),
-                (amt - paid).toLocaleString('en-IN'),
-                (e.paymentMode || 'CASH').toUpperCase(),
-              ];
-            })
-          : [['—', 'No entries for today', '', '', '', '', '', '']],
-        theme: 'grid',
-        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-        bodyStyles: { fontSize: 7.5, textColor: [51, 65, 85] },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: {
-          3: { halign: 'right' },
-          4: { halign: 'right' },
-          5: { halign: 'right' },
-          6: { halign: 'right', fontStyle: 'bold' },
-        },
-      });
-
-      // ── Javak Table ───────────────────────────────────────────────────────────
-      const lastFinalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : (tableStartY + 40);
-      const javakY = lastFinalY + 8;
-      doc.setFontSize(10);
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(30, 41, 59);
-      doc.text('JAVAK — Outgoing Dispatches', 14, javakY);
-
-      doc.autoTable({
-        startY: javakY + 4,
-        head: [['Gate Pass', 'Vehicle No', 'Commodity', 'Destination', 'Bags', 'Net Wt (kg)']],
-        body: todayJavak.length > 0
-          ? todayJavak.map(e => [
-              e.gatePassNo || '-',
-              (e.vehicleNumber || e.vehicleNo || '-').toUpperCase(),
-              (e.commodity || '-').toUpperCase(),
-              (e.destination || '-').toUpperCase(),
-              parseInt(e.numberOfBags || e.bags || 0, 10).toLocaleString('en-IN'),
-              parseFloat(e.netWt || 0).toLocaleString('en-IN'),
-            ])
-          : [['—', 'No dispatches today', '', '', '', '']],
-        theme: 'grid',
-        headStyles: { fillColor: [15, 118, 110], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-        bodyStyles: { fontSize: 7.5, textColor: [51, 65, 85] },
-        alternateRowStyles: { fillColor: [240, 253, 250] },
-        columnStyles: {
-          4: { halign: 'right' },
-          5: { halign: 'right' },
-        },
-      });
-
-      // ── Footer on every page ──────────────────────────────────────────────────
-      const pages = doc.getNumberOfPages();
-      for (let i = 1; i <= pages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(7.5);
-        doc.setFont('Helvetica', 'italic');
-        doc.setTextColor(148, 163, 184);
-        doc.text(
-          `Venkatesh Cotton Co. • EOD Report • ${dateLabel} • Page ${i} of ${pages}`,
-          W / 2, doc.internal.pageSize.height - 8,
-          { align: 'center' }
-        );
+  const generateEODReport = (rawEntries, operatorName = currentUser?.name || "Admin Counter") => {
+    const todayStrLocal = new Date().toLocaleDateString('en-CA');
+    const baseEntries = rawEntries || [];
+    const todayEntries = baseEntries.filter(entry => entry.billingDate === todayStrLocal);
+    
+    const totalPattis = todayEntries.length;
+    let totalAccumulatedWeight = 0;
+    let grossOutflowCommitted = 0;
+    let realizedOutflowPaid = 0;
+    
+    const rows = todayEntries.map((entry) => {
+      const tokenNo = entry.tokenNo || entry.id || 'N/A';
+      const farmerName = entry.Name || entry.farmerName || 'N/A';
+      const netWeight = parseFloat(entry.netWt || entry.netWeight || 0);
+      const netAmount = parseFloat(entry.netAmount || 0);
+      
+      let paidAmount = 0;
+      if (entry.paymentHistory && Array.isArray(entry.paymentHistory)) {
+        entry.paymentHistory.forEach(item => {
+          if (item.date === todayStrLocal) {
+            paidAmount += parseFloat(item.amount || 0);
+          }
+        });
+      } else {
+        paidAmount = parseFloat(entry.amountPaid || 0);
       }
-
-      doc.save(`EOD_${todayStr}.pdf`);
-      setMessageStatus({ text: `EOD Report saved as EOD_${todayStr}.pdf`, type: 'success' });
-      setTimeout(() => setMessageStatus({ text: '', type: '' }), 4000);
-
-    } catch (err) {
-      console.error('EOD generation error:', err);
-      setMessageStatus({ text: `EOD Error: ${err.message}`, type: 'error' });
-      setTimeout(() => setMessageStatus({ text: '', type: '' }), 5000);
+      
+      const remainingBalance = netAmount - paidAmount;
+      
+      totalAccumulatedWeight += netWeight;
+      grossOutflowCommitted += netAmount;
+      realizedOutflowPaid += paidAmount;
+      
+      return [
+        tokenNo,
+        farmerName,
+        `${netWeight.toLocaleString('en-IN')} kg`,
+        `₹${netAmount.toLocaleString('en-IN')}`,
+        `₹${paidAmount.toLocaleString('en-IN')}`,
+        `₹${remainingBalance.toLocaleString('en-IN')}`
+      ];
+    });
+    
+    const remainingOutstandingLiability = grossOutflowCommitted - realizedOutflowPaid;
+    
+    const doc = new jsPDF();
+    
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text("VENKATESH COTTON COMPANY", 14, 15);
+    doc.setFontSize(11);
+    doc.setFont('Helvetica', 'normal');
+    doc.text("MANDI OPERATIONS - DAILY EOD REPORT", 14, 23);
+    
+    doc.setFontSize(9);
+    doc.text(`DATE: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 32);
+    doc.text(`OPERATOR: ${operatorName.toUpperCase()}`, 140, 32);
+    
+    let startY = 50;
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, startY, 182, 35, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(14, startY, 182, 35, 'S');
+    
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(10);
+    doc.setFont('Helvetica', 'bold');
+    doc.text("TODAY'S RUNNING METRICS SUMMARY", 20, startY + 8);
+    
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Total Pattis Generated:  ${totalPattis}`, 20, startY + 16);
+    doc.text(`Acc. Weight Received:  ${totalAccumulatedWeight.toLocaleString('en-IN')} kg`, 20, startY + 22);
+    doc.text(`Gross Outflow:          ₹${grossOutflowCommitted.toLocaleString('en-IN')}`, 20, startY + 28);
+    
+    doc.text(`Realized Paid Today:   ₹${realizedOutflowPaid.toLocaleString('en-IN')}`, 110, startY + 16);
+    doc.setFont('Helvetica', 'bold');
+    doc.text(`Outstanding Credit:    ₹${remainingOutstandingLiability.toLocaleString('en-IN')}`, 110, startY + 22);
+    
+    doc.autoTable({
+      startY: startY + 45,
+      head: [['Token No', 'Farmer Name', 'Net Wt', 'Net Amount', 'Paid Today', 'Remaining']],
+      body: rows,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [51, 65, 85]
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      styles: {
+        lineColor: [241, 245, 249],
+        lineWidth: 0.5
+      }
+    });
+    
+    const finalY = doc.lastAutoTable.finalY || (startY + 90);
+    const pageHeight = doc.internal.pageSize.height;
+    
+    let sigY = finalY + 25;
+    if (sigY > pageHeight - 30) {
+      doc.addPage();
+      sigY = 40;
     }
+    
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    
+    doc.text("__________________________", 20, sigY);
+    doc.setFont('Helvetica', 'bold');
+    doc.text("Accountant Signature", 20, sigY + 5);
+    
+    doc.text("__________________________", 130, sigY);
+    doc.setFont('Helvetica', 'bold');
+    doc.text("Authorized Admin Sign", 130, sigY + 5);
+    
+    doc.save(`EOD_Report_${todayStrLocal}.pdf`);
   };
-
-  const isAdmin = 
-    currentUser?.role?.toUpperCase() === 'ADMIN' || 
-    currentUser?.employeeId?.toUpperCase() === 'ADMIN';
 
   return (
     <div className="space-y-6">
@@ -563,13 +521,12 @@ function Dashboard({ currentUser }) {
           >
             <Share2 className="w-4 h-4" /> Share WhatsApp
           </button>
-          {isAdmin && (
-            <button
-              onClick={generateEODReport}
-              className="flex items-center gap-2 whitespace-nowrap text-xs py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-200 dark:shadow-none"
-              title="Download End of Day PDF Report"
+          {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+            <button 
+              onClick={() => generateEODReport(rawData.aavak)}
+              className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
             >
-              📊 Download EOD PDF Report
+              <span>📊 EOD Report</span>
             </button>
           )}
         </div>

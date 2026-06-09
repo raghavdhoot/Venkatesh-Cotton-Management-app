@@ -14,6 +14,25 @@ import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeContext';
 
+// Styled SVG representation of a high-quality cotton emblem for the VCC logo
+const VccLogo = () => (
+    <svg viewBox="0 0 100 100" className="w-full h-full text-indigo-600 dark:text-indigo-400 p-1" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="45" className="fill-indigo-50/50 dark:fill-indigo-950/40 stroke-indigo-500/20" strokeWidth="1.5" />
+        {/* Soft cotton clouds */}
+        <circle cx="42" cy="42" r="14" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
+        <circle cx="58" cy="42" r="14" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
+        <circle cx="50" cy="56" r="16" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
+        <circle cx="36" cy="54" r="10" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
+        <circle cx="64" cy="54" r="10" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
+        {/* Plant stem / leaves */}
+        <path d="M50 78 L50 62" className="stroke-emerald-600 dark:stroke-emerald-400" strokeWidth="3" strokeLinecap="round" />
+        <path d="M50 70 Q38 68 34 58" className="stroke-emerald-600 dark:stroke-emerald-400" strokeWidth="2" strokeLinecap="round" />
+        <path d="M50 70 Q62 68 66 58" className="stroke-emerald-600 dark:stroke-emerald-400" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+);
+
+// NOTE: FAVICON CONFIGURATION: To change the browser tab favicon to the VCC logo emblem, update %PUBLIC_URL%/logo192.png in /public/index.html or replace public/favicon.ico with your custom VCC icon.
+
 function App() {
     const { darkMode, toggleDarkMode } = useTheme();
     const [view, setView] = useState('dashboard');
@@ -188,16 +207,7 @@ function App() {
                         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-                                    <img 
-                                        src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
-                                        alt="Logo" 
-                                        className="w-full h-full object-cover"
-                                        referrerPolicy="no-referrer"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = "https://via.placeholder.com/40?text=VCC";
-                                        }}
-                                    />
+                                    <VccLogo />
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="font-black text-slate-900 dark:text-white leading-none tracking-tight">VENKATESH</span>
@@ -243,16 +253,7 @@ function App() {
             <aside className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
                     <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 shadow-lg shadow-indigo-100 dark:shadow-none">
-                        <img 
-                            src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
-                            alt="Logo" 
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = "https://via.placeholder.com/40?text=VCC";
-                            }}
-                        />
+                        <VccLogo />
                     </div>
                     {isSidebarOpen && (
                         <div className="flex flex-col">

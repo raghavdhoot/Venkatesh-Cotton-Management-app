@@ -245,16 +245,12 @@ function Aavak({ currentUser }) {
         }
     };
 
-    // Serial No. 4: Vehicle Number Formatting
-    // Allows letters, digits, and spaces — strips everything else — forces uppercase
-    const formatVehicleNumber = (val) => {
-        return val.replace(/[^A-Z0-9\s]/gi, '').toUpperCase();
-    };
-
-    const handleVehicleChange = (e) => {
-        const formatted = formatVehicleNumber(e.target.value);
-        setVehicleNo(formatted);
-    };
+    // Isko replace kar do apni file mein
+const handleVehicleChange = (e) => {
+    // Purane formatVehicleNumber ko hata kar seedhe uppercase kar diya
+    const upperValue = e.target.value.toUpperCase(); 
+    setVehicleNo(upperValue);
+};
 
     const handlePhoneChange = (e) => {
         const val = e.target.value.replace(/[^0-9]/g, '');
@@ -422,7 +418,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
         window.open('https://api.whatsapp.com/send?phone=91' + tx.farmerPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
-const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMode) => {
+    const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMode) => {
         if (!tokenNo || !installmentAmount || parseFloat(installmentAmount) <= 0) {
             setStatusMessage({ text: 'Invalid installment amount', type: 'error' });
             return;
@@ -676,71 +672,50 @@ const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMo
     );
 
     return (
-        <div
-            className="space-y-6"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-            {/* Search & Action Header Card */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm space-y-4">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-80">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Search Token, Farmer, Village..."
-                                className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white w-full"
-                                value={globalSearch}
-                                onChange={(e) => setGlobalSearch(e.target.value)}
-                            />
-                        </div>
-                        <div className="w-44">
-                            <input
-                                type="text"
-                                placeholder="Load Token No..."
-                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white w-full"
-                                value={searchToken}
-                                onChange={(e) => setSearchToken(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
-                            />
-                        </div>
+        <div className="space-y-8">
+            {/* Search & Action Header */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="relative w-full md:w-80">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
+                        <input 
+                            type="text" 
+                            placeholder="Search Token, Farmer, Village..." 
+                            className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                            value={globalSearch}
+                            onChange={(e) => setGlobalSearch(e.target.value)}
+                        />
                     </div>
-                    <button
-                        onClick={handleLookupEntry}
-                        className="btn-primary w-full md:w-auto flex items-center justify-center gap-2 uppercase tracking-widest text-xs py-3"
-                    >
-                        <Plus className="w-4 h-4" /> Load / New Entry
-                    </button>
+                    <div className="relative w-full md:w-48">
+                        <input 
+                            type="text" 
+                            placeholder="Load Token No..." 
+                            className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                            value={searchToken}
+                            onChange={(e) => setSearchToken(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
+                        />
+                    </div>
                 </div>
-
-                <div className="flex flex-wrap items-center justify-center gap-3 w-full py-1">
+                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                    <button onClick={handleLookupEntry} className="btn-primary flex-shrink-0 flex items-center justify-center gap-2">
+                        <Plus className="w-4 h-4" /> Load/Create
+                    </button>
                     {lastEntry && (
-                        <button
-                            onClick={handleRepeatLastEntry}
-                            className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
-                        >
+                        <button onClick={handleRepeatLastEntry} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                             <History className="w-4 h-4" /> Repeat Last
                         </button>
                     )}
-                    <button
-                        onClick={resetForm}
-                        className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
-                    >
-                        <X className="w-4 h-4" /> Clear
+                    <button onClick={() => setShowExportModal(true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
+                        <Download className="w-4 h-4" /> Export
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                        <button
-                            onClick={() => generatePdf(null, true)}
-                            className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
-                        >
+                        <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                             <Printer className="w-4 h-4" /> Blank Print
                         </button>
                     )}
-                    <button
-                        onClick={() => setShowExportModal(true)}
-                        className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
-                    >
-                        <Download className="w-4 h-4" /> Export Excel
+                    <button onClick={resetForm} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
+                        <X className="w-4 h-4" /> Clear
                     </button>
                 </div>
             </div>
