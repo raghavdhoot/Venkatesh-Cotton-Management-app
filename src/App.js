@@ -189,17 +189,12 @@ function App() {
                     >
                         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-                                    <img 
-                                        src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
-                                        alt="Logo" 
-                                        className="w-full h-full object-cover"
-                                        referrerPolicy="no-referrer"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src = "https://via.placeholder.com/40?text=VCC";
-                                        }}
-                                    />
+                                <div className="w-10 h-10 bg-indigo-600 dark:bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100 dark:shadow-none">
+                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c-1.2 0-2.4.4-3.3 1.2a5 5 0 00-7.2 7.2c.8.9 1.2 2.1 1.2 3.3a5 5 0 007.2 7.2c.9-.8 2.1-1.2 3.3-1.2s2.4.4 3.3 1.2a5 5 0 007.2-7.2c-.8-.9-1.2-2.1-1.2-3.3s.4-2.4 1.2-3.3a5 5 0 00-7.2-7.2c-.9.8-2.1 1.2-3.3 1.2z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 14v5" />
+                                    </svg>
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="font-black text-slate-900 dark:text-white leading-none tracking-tight">VENKATESH</span>
@@ -244,17 +239,12 @@ function App() {
             {/* Sidebar */}
             <aside className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 shadow-lg shadow-indigo-100 dark:shadow-none">
-                        <img 
-                            src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
-                            alt="Logo" 
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = "https://via.placeholder.com/40?text=VCC";
-                            }}
-                        />
+                    <div className="w-10 h-10 bg-indigo-600 dark:bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100 dark:shadow-none">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c-1.2 0-2.4.4-3.3 1.2a5 5 0 00-7.2 7.2c.8.9 1.2 2.1 1.2 3.3a5 5 0 007.2 7.2c.9-.8 2.1-1.2 3.3-1.2s2.4.4 3.3 1.2a5 5 0 007.2-7.2c-.8-.9-1.2-2.1-1.2-3.3s.4-2.4 1.2-3.3a5 5 0 00-7.2-7.2c-.9.8-2.1 1.2-3.3 1.2z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 14v5" />
+                        </svg>
                     </div>
                     {isSidebarOpen && (
                         <div className="flex flex-col">

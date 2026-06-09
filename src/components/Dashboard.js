@@ -4,7 +4,7 @@ import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where 
 import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
   <div className="card flex items-center gap-4">
@@ -53,6 +53,7 @@ function Dashboard({ currentUser }) {
   const [outTurnResults, setOutTurnResults] = useState(null);
   const [maturedEntries, setMaturedEntries] = useState([]);
   const todayStr = new Date().toLocaleDateString('en-CA');
+  const [eodDate, setEodDate] = useState(new Date().toLocaleDateString('en-CA'));
 
   useEffect(() => {
     const getLocalDate = () => {
@@ -367,8 +368,8 @@ function Dashboard({ currentUser }) {
     return { aavakDetails, javakDetails };
   };
 
-  const generateEODReport = (rawEntries, operatorName = currentUser?.name || "Admin Counter") => {
-    const todayStrLocal = new Date().toLocaleDateString('en-CA');
+  const generateEODReport = (rawEntries, selectedDate, operatorName = currentUser?.name || "Admin Counter") => {
+    const todayStrLocal = selectedDate || new Date().toLocaleDateString('en-CA');
     const baseEntries = rawEntries || rawData.aavak || [];
     const todayEntries = baseEntries.filter(entry => entry.billingDate === todayStrLocal);
     
@@ -425,8 +426,10 @@ function Dashboard({ currentUser }) {
     doc.setFont('Helvetica', 'normal');
     doc.text("MANDI OPERATIONS - DAILY EOD REPORT", 14, 23);
     
+    // Format document date display gracefully
+    const displayDate = new Date(todayStrLocal + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
     doc.setFontSize(9);
-    doc.text(`DATE: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 32);
+    doc.text(`REPORT DATE: ${displayDate}`, 14, 32);
     doc.text(`OPERATOR: ${operatorName.toUpperCase()}`, 140, 32);
     
     let startY = 50;
@@ -450,7 +453,7 @@ function Dashboard({ currentUser }) {
     doc.setFont('Helvetica', 'bold');
     doc.text(`Outstanding Credit:    ₹${remainingOutstandingLiability.toLocaleString('en-IN')}`, 110, startY + 22);
     
-    doc.autoTable({
+    autoTable(doc, {
       startY: startY + 45,
       head: [['Token No', 'Farmer Name', 'Net Wt', 'Net Amount', 'Paid Today', 'Remaining']],
       body: rows,
@@ -504,12 +507,20 @@ function Dashboard({ currentUser }) {
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-            <button 
-              onClick={() => generateEODReport(rawData.aavak)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
-            >
-              <span>📊 Download EOD PDF Report</span>
-            </button>
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1 shadow-sm">
+              <input 
+                type="date"
+                value={eodDate}
+                onChange={(e) => setEodDate(e.target.value)}
+                className="bg-transparent text-xs font-bold font-mono px-2 py-1.5 focus:outline-none text-slate-700 dark:text-slate-300 border-none rounded-lg"
+              />
+              <button 
+                onClick={() => generateEODReport(rawData.aavak, eodDate)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 uppercase tracking-wide shadow-sm"
+              >
+                <span>📊 Download EOD PDF Report</span>
+              </button>
+            </div>
           )}
           <button 
             onClick={() => setIsPeriodModalOpen(true)}
