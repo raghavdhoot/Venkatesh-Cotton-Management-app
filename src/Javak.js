@@ -8,289 +8,175 @@ import { normalizeItemName } from './utils/normalization';
 
 function Javak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
-    const [searchGatePass, setSearchGatePass] = useState('');
     const [isNewEntry, setIsNewEntry] = useState(false);
-    const [lastEntry, setLastEntry] = useState(null);
-    
-    const [gatePassNo, setGatePassNo] = useState('');
-    const [entryDate, setEntryDate] = useState('');
-    const [vehicleNumber, setVehicleNumber] = useState('');
-    const [destination, setDestination] = useState('');
-    const [commodity, setCommodity] = useState('');
-    const [grossWt, setGrossWt] = useState('');
-    const [tareWt, setTareWt] = useState('');
-    const [numberOfBags, setNumberOfBags] = useState('');
-    const [driverName, setDriverName] = useState('');
-    const [driverPhone, setDriverPhone] = useState('');
-    const [driverPhoto, setDriverPhoto] = useState(null);
-    const [bardanaType, setBardanaType] = useState('BARDANA');
-    const [sutliCount, setSutliCount] = useState('');
-    
-    const [recentJavakEntries, setRecentJavakEntries] = useState([]);
-    const [isFormOpen, setIsFormOpen] = useState(false);
-    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [entries, setEntries] = useState([]);
+    const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
 
-    useEffect(() => {
-        if (statusMessage.text) {
-            const timer = setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
-            return () => clearTimeout(timer);
+    const [gatePassNo, setGatePassNo] = useState('');
+    const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
+    const [vehicleNumber, setVehicleNumber] = useState('');
+    const [destination, setDestination] = useState('');
+    const [driverName, setDriverName] = useState('');
+    const [driverPhone, setDriverPhone] = useState('');
+    const [commodity, setCommodity] = useState('BALES');
+    const [numberOfBags, setNumberOfBags] = useState('');
+    const [grossWt, setGrossWt] = useState('');
+    const [tareWt, setTareWt] = useState('');
+    const [netWt, setNetWt] = useState('');
+
+    const [isCameraActive, setIsCameraActive] = useState(false);
+    const [driverPhoto, setDriverPhoto] = useState(null);
+    const [videoStream, setVideoStream] = useState(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+    const runCleanupAfterSevenDays = async () => {
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        const dateStr = sevenDaysAgo.toISOString().split('T')[0];
+        try {
+            const q = query(collection(db, 'javak'), where('date', '<', dateStr));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(async (docRef) => {
+                await deleteDoc(doc(db, 'javak', docRef.id));
+            });
+        } catch (error) {
+            console.error("Historical cleanup failed: ", error);
         }
-    }, [statusMessage]);
+    };
 
     useEffect(() => {
-        const q = query(collection(db, 'javakEntries'), orderBy('timestamp', 'desc'));
+        runCleanupAfterSevenDays();
+
+        const q = query(collection(db, 'javak'), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const entriesData = snapshot.docs.map(doc => ({
+            const list = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
-            setRecentJavakEntries(entriesData);
-            if (entriesData.length > 0) {
-                setLastEntry(entriesData[0]);
-            }
+            setEntries(list);
+            setFilteredEntries(list);
         }, (error) => {
-            console.error("Error fetching javak entries: ", error);
+            console.error("Firestore loading error: ", error);
         });
+
         return () => unsubscribe();
     }, []);
 
-    const resetForm = () => {
-        setCurrentEntryId(null);
-        setSearchGatePass('');
-        setIsNewEntry(false);
-        setGatePassNo('');
-        setEntryDate('');
-        setVehicleNumber('');
-        setDestination('');
-        setCommodity('');
-        setGrossWt('');
-        setTareWt('');
-        setNumberOfBags('');
-        setDriverName('');
-        setDriverPhone('');
-        setDriverPhoto(null);
-        setBardanaType('BARDANA');
-        setSutliCount('');
-        setIsFormOpen(false);
-    };
+    useEffect(() => {
+        const lowerSearch = searchQuery.toLowerCase();
+        const filtered = entries.filter(e => 
+            (e.gatePassNo && e.gatePassNo.toLowerCase().includes(lowerSearch)) ||
+            (e.vehicleNumber && e.vehicleNumber.toLowerCase().includes(lowerSearch)) ||
+            (e.destination && e.destination.toLowerCase().includes(lowerSearch)) ||
+            (e.commodity && e.commodity.toLowerCase().includes(lowerSearch)) ||
+            (e.driverName && e.driverName.toLowerCase().includes(lowerSearch))
+        );
+        setFilteredEntries(filtered);
+    }, [searchQuery, entries]);
 
-    const handleRepeatLastEntry = () => {
-        if (!lastEntry) return;
-        setEntryDate(new Date().toISOString().split('T')[0]);
-        setVehicleNumber(lastEntry.vehicleNumber || '');
-        setDestination(lastEntry.destination || '');
-        setCommodity(lastEntry.commodity || '');
-        setBardanaType(lastEntry.bardanaType || 'BARDANA');
-        setDriverName(lastEntry.driverName || '');
-        setDriverPhone(lastEntry.driverPhone || '');
-        setIsFormOpen(true);
-    };
+    const parsedGross = parseFloat(grossWt || 0);
+    const parsedTare = parseFloat(tareWt || 0);
 
-    const handleLookupEntry = async () => {
-        if (!searchGatePass) return;
+    useEffect(() => {
+        if (parsedGross > 0 && parsedTare > 0) {
+            const calculatedNet = Math.max(0, parsedGross - parsedTare);
+            setNetWt(calculatedNet);
+        } else {
+            setNetWt('');
+        }
+    }, [parsedGross, parsedTare]);
+
+    const startCamera = async () => {
+        setIsCameraActive(true);
         try {
-            const entryRef = doc(db, 'javakEntries', searchGatePass);
-            const entrySnap = await getDoc(entryRef);
-
-            if (entrySnap.exists()) {
-                const entryData = entrySnap.data();
-                setCurrentEntryId(searchGatePass);
-                setIsNewEntry(false);
-                setGatePassNo(entryData.gatePassNo || searchGatePass);
-                setEntryDate(entryData.date || '');
-                setVehicleNumber(entryData.vehicleNumber || '');
-                setDestination(entryData.destination || '');
-                setCommodity(entryData.commodity || '');
-                setGrossWt(entryData.grossWt || '');
-                setTareWt(entryData.tareWt || '');
-                setNumberOfBags(entryData.numberOfBags || '');
-                setDriverName(entryData.driverName || '');
-                setDriverPhone(entryData.driverPhone || '');
-                setDriverPhoto(entryData.driverPhoto || null);
-                setBardanaType(entryData.bardanaType || 'BARDANA');
-                setSutliCount(entryData.sutliCount || '');
-                setIsFormOpen(true);
-            } else {
-                resetForm();
-                setIsNewEntry(true);
-                setGatePassNo(searchGatePass);
-                setIsFormOpen(true);
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+            setVideoStream(stream);
+            const videoElement = document.getElementById('camera-preview');
+            if (videoElement) {
+                videoElement.srcObject = stream;
             }
         } catch (error) {
-            console.error("Error looking up entry: ", error);
+            console.error("Error accessing camera: ", error);
+            setStatusMessage({ text: 'Unable to access camera. Please check permissions.', type: 'error' });
+            setIsCameraActive(false);
         }
     };
 
-    const handleSubmit = async (e) => {
+    const stopCamera = () => {
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            setVideoStream(null);
+        }
+        setIsCameraActive(false);
+    };
+
+    const capturePhoto = () => {
+        const videoElement = document.getElementById('camera-preview');
+        const canvasElement = document.createElement('canvas');
+        if (videoElement) {
+            canvasElement.width = videoElement.videoWidth || 320;
+            canvasElement.height = videoElement.videoHeight || 240;
+            const ctx = canvasElement.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            const photoUrl = canvasElement.toDataURL('image/jpeg');
+            setDriverPhoto(photoUrl);
+            stopCamera();
+        }
+    };
+
+    const handleFormSubmit = async (e) => {
         e.preventDefault();
-        if (!gatePassNo || !entryDate || !vehicleNumber) return;
+        setStatusMessage({ text: 'Saving Gatepass record...', type: 'info' });
 
-        const addAutomatedBardanaEntry = async (entryPayload) => {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${month}-${day}`;
-
-            const startId = `${dateStr}-00`;
-            const endId = `${dateStr}-99`;
-
-            const dateQuery = query(
-                collection(db, 'bardana'),
-                where(documentId(), '>=', startId),
-                where(documentId(), '<=', endId)
-            );
-            const querySnapshot = await getDocs(dateQuery);
-            const count = querySnapshot.size;
-
-            const nextSrNo = count + 1;
-            const padSrNo = String(nextSrNo).padStart(2, '0');
-            const customId = `${dateStr}-${padSrNo}`;
-
-            await setDoc(doc(db, 'bardana', customId), {
-                ...entryPayload,
-                timestamp: serverTimestamp()
-            });
-        };
-
-        const parsedGrossWt = parseFloat(grossWt || 0);
-        const parsedTareWt = parseFloat(tareWt || 0);
-        const netWt = parsedGrossWt - parsedTareWt;
-
-        const entryData = {
-            gatePassNo,
-            date: entryDate,
-            vehicleNumber,
-            destination: destination || null,
-            commodity: normalizeItemName(commodity) || null,
-            grossWt: parsedGrossWt || null,
-            tareWt: parsedTareWt || null,
-            netWt: parseFloat(netWt.toFixed(2)) || null,
-            numberOfBags: numberOfBags ? parseInt(numberOfBags, 10) : null,
-            bardanaType: bardanaType || null,
-            sutliCount: sutliCount ? parseInt(sutliCount, 10) : 0,
-            driverName: driverName || null,
-            driverPhone: driverPhone || null,
+        const payload = {
+            gatePassNo: gatePassNo.toUpperCase() || null,
+            date: date || new Date().toLocaleDateString('en-CA'),
+            vehicleNumber: formatVehicleNumber(vehicleNumber) || null,
+            destination: destination.toUpperCase() || null,
+            driverName: driverName.toUpperCase() || '',
+            driverPhone: driverPhone || '',
+            commodity: commodity || 'BALES',
+            numberOfBags: numberOfBags ? parseInt(numberOfBags) : null,
+            grossWt: grossWt ? parseFloat(grossWt) : null,
+            tareWt: tareWt ? parseFloat(tareWt) : null,
+            netWt: netWt ? parseFloat(netWt) : null,
             driverPhoto: driverPhoto || null,
-            entryMaker: currentUser.name,
-            timestamp: serverTimestamp()
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
         };
 
         try {
-            const entryRef = doc(db, 'javakEntries', gatePassNo);
-            if (currentEntryId) {
-                await updateDoc(entryRef, entryData);
-                
-                // Update Bardana entries: Delete old ones and add new ones
-                const q = query(collection(db, 'bardana'), where('javakId', '==', gatePassNo));
-                const snap = await getDocs(q);
-                for (const d of snap.docs) {
-                    await deleteDoc(doc(db, 'bardana', d.id));
-                }
-
-                if (numberOfBags) {
-                    await addAutomatedBardanaEntry({
-                        itemName: bardanaType,
-                        quantity: parseInt(numberOfBags, 10),
-                        personName: driverName || 'N/A',
-                        employeeName: currentUser.name,
-                        type: 'OUT',
-                        entryMaker: 'System (Javak Update)',
-                        javakId: gatePassNo
-                    });
-                }
-
-                if (sutliCount && parseInt(sutliCount, 10) > 0) {
-                    await addAutomatedBardanaEntry({
-                        itemName: 'SUTLI',
-                        quantity: parseInt(sutliCount, 10),
-                        personName: driverName || 'N/A',
-                        employeeName: currentUser.name,
-                        type: 'OUT',
-                        entryMaker: 'System (Javak Update)',
-                        javakId: gatePassNo
-                    });
-                }
-
-                setStatusMessage({ text: 'Entry updated successfully', type: 'success' });
+            if (isNewEntry) {
+                const docId = `javak_${Date.now()}`;
+                await setDoc(doc(db, 'javak', docId), payload);
+                setStatusMessage({ text: 'Gatepass generated successfully!', type: 'success' });
+                resetState();
             } else {
-                await setDoc(entryRef, entryData);
-                
-                // Automatically subtract from Bardana
-                if (numberOfBags) {
-                    await addAutomatedBardanaEntry({
-                        itemName: bardanaType,
-                        quantity: parseInt(numberOfBags, 10),
-                        personName: driverName || 'N/A',
-                        employeeName: currentUser.name,
-                        type: 'OUT',
-                        entryMaker: 'System (Javak)',
-                        javakId: gatePassNo
-                    });
-                }
-
-                // Also subtract Sutli if provided
-                if (sutliCount && parseInt(sutliCount, 10) > 0) {
-                    await addAutomatedBardanaEntry({
-                        itemName: 'SUTLI',
-                        quantity: parseInt(sutliCount, 10),
-                        personName: driverName || 'N/A',
-                        employeeName: currentUser.name,
-                        type: 'OUT',
-                        entryMaker: 'System (Javak)',
-                        javakId: gatePassNo
-                    });
-                }
-                
-                setStatusMessage({ text: 'New entry created successfully', type: 'success' });
+                await updateDoc(doc(db, 'javak', currentEntryId), payload);
+                setStatusMessage({ text: 'Gatepass details updated successfully!', type: 'success' });
             }
-            resetForm();
         } catch (error) {
-            console.error("Error saving/updating document: ", error);
-            setStatusMessage({ text: 'Error saving entry', type: 'error' });
+            console.error("Error saving to Firestore: ", error);
+            setStatusMessage({ text: 'Error executing transaction. Try again.', type: 'error' });
         }
     };
 
     const handleDeleteEntry = async (id) => {
         try {
-            await deleteDoc(doc(db, 'javakEntries', String(id)));
+            await deleteDoc(doc(db, 'javak', id));
+            setStatusMessage({ text: 'Gatepass entry deleted.', type: 'success' });
             setDeleteConfirmId(null);
-            setStatusMessage({ text: 'Entry deleted successfully', type: 'success' });
+            resetState();
         } catch (error) {
-            console.error("Error deleting entry: ", error);
-            setStatusMessage({ text: 'Error deleting entry', type: 'error' });
+            console.error("Firestore deletion failed: ", error);
+            setStatusMessage({ text: 'Deletion error. Please retry.', type: 'error' });
         }
     };
 
-    const handlePhotoChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setDriverPhoto(reader.result);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const shareGatePassToWhatsApp = (tx) => {
-        if (!tx || !tx.driverPhone) return;
-
-        const gatePassNo = tx.gatePassNo || '';
-        const vehicleNo = tx.vehicleNo || tx.vehicleNumber || '';
-        const commodity = tx.commodity || '';
-        const netWeight = tx.netWeight !== undefined ? tx.netWeight : (tx.netWt || 0);
-
-        const messageText = `*VENKATESH COTTON CO.*
-----------------------------------
-*Gate Pass No:* ${gatePassNo}
-*Vehicle No:* ${vehicleNo}
-*Commodity:* ${commodity}
-*Net Weight:* ${netWeight} kg
-----------------------------------
-This text confirms vehicle exit registration in our database.`;
-
+    const handleShareWhatsApp = (tx) => {
+        const messageText = `*Venkatesh Cotton Company Gate Pass*\n\nGate Pass No: ${tx.gatePassNo || tx.id}\nDate: ${tx.date}\nVehicle: ${tx.vehicleNumber}\nDestination: ${tx.destination}\nDriver Name: ${tx.driverName}\nCommodity: ${tx.commodity}\nNo. of Bags: ${tx.numberOfBags}\nNet Wt: ${tx.netWt} kg\n\nThank you, Have a safe journey!`;
         window.open('https://api.whatsapp.com/send?phone=91' + tx.driverPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
@@ -379,16 +265,39 @@ This text confirms vehicle exit registration in our database.`;
             ${slipHtml}
         `;
 
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @media print {
+                body > *:not(#print-section) {
+                    display: none !important;
+                }
+                #print-section {
+                    display: block !important;
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    background: white !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        pdfContentElement.id = 'print-section';
         document.body.appendChild(pdfContentElement);
-        try {
-            const canvas = await html2canvas(pdfContentElement, { scale: 2 });
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, (canvas.height * 210) / canvas.width);
-            pdf.save(`GatePass_${entryToPrint.gatePassNo || entryToPrint.vehicleNumber}.pdf`);
-        } finally {
-            document.body.removeChild(pdfContentElement);
-        }
+
+        const images = pdfContentElement.getElementsByTagName('img');
+        const imagePromises = Array.from(images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
+            });
+        });
+        await Promise.all(imagePromises);
+
+        window.print();
+        document.body.removeChild(pdfContentElement);
+        document.head.removeChild(style);
     };
 
     const formatVehicleNumber = (val) => {
@@ -399,399 +308,344 @@ This text confirms vehicle exit registration in our database.`;
         return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
     };
 
-    const handleVehicleChange = (e) => {
-        const formatted = formatVehicleNumber(e.target.value);
-        setVehicleNumber(formatted);
+    const handleSelectEntry = (entry) => {
+        setCurrentEntryId(entry.id);
+        setIsNewEntry(false);
+        setGatePassNo(entry.gatePassNo || '');
+        setDate(entry.date || '');
+        setVehicleNumber(entry.vehicleNumber || '');
+        setDestination(entry.destination || '');
+        setDriverName(entry.driverName || '');
+        setDriverPhone(entry.driverPhone || '');
+        setCommodity(entry.commodity || 'BALES');
+        setNumberOfBags(entry.numberOfBags || '');
+        setGrossWt(entry.grossWt || '');
+        setTareWt(entry.tareWt || '');
+        setNetWt(entry.netWt || '');
+        setDriverPhoto(entry.driverPhoto || null);
     };
 
-    const handleDriverPhoneChange = (e) => {
-        const val = e.target.value.replace(/[^0-9]/g, '');
-        if (val.length <= 10) {
-            setDriverPhone(val);
-        }
-    };
-
-    const calculateNetWt = () => {
-        const gross = parseFloat(grossWt);
-        const tare = parseFloat(tareWt);
-        if (!isNaN(gross) && !isNaN(tare)) return (gross - tare).toFixed(2);
-        return '0.00';
+    const resetState = () => {
+        setCurrentEntryId(null);
+        setIsNewEntry(false);
+        setGatePassNo('');
+        setDate(new Date().toLocaleDateString('en-CA'));
+        setVehicleNumber('');
+        setDestination('');
+        setDriverName('');
+        setDriverPhone('');
+        setCommodity('BALES');
+        setNumberOfBags('');
+        setGrossWt('');
+        setTareWt('');
+        setNetWt('');
+        setDriverPhoto(null);
+        stopCamera();
     };
 
     return (
-        <div className="space-y-8">
-            {/* Action Header */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="relative w-full md:w-96">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
-                            <input 
-                                type="text" 
-                                placeholder="Search Gate Pass No..." 
-                                className="input-field pl-10 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                value={searchGatePass}
-                                onChange={(e) => setSearchGatePass(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
-                            />
-                        </div>
-                    {statusMessage.text && (
-                        <div className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 whitespace-nowrap ${
-                            statusMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}>
-                            {statusMessage.text}
-                        </div>
-                    )}
+        <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400 font-extrabold text-xl">
+                        J
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Javak Gate Pass</h1>
+                        <p className="text-xs text-slate-500">Outward Bales & Seed Gatepasses, Weight Inspections & Truck Dispatch Desk</p>
+                    </div>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={handleLookupEntry} className="btn-primary flex-1 md:flex-none flex items-center justify-center gap-2">
-                        <Plus className="w-4 h-4" /> Load/Create
+
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => { resetState(); setIsNewEntry(true); }}
+                        className="btn-primary flex items-center gap-2 bg-amber-600 hover:bg-amber-700 border-none shadow-md shadow-amber-100"
+                    >
+                        <Plus className="w-4 h-4" /> New Gate Pass
                     </button>
-                    {lastEntry && (
-                        <button onClick={handleRepeatLastEntry} className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2">
-                            <History className="w-4 h-4" /> Repeat Last
-                        </button>
-                    )}
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generateJavakPdf({
                             gatePassNo: '__________',
                             date: '__________',
                             vehicleNumber: '__________',
                             destination: '__________',
+                            driverName: '__________',
                             commodity: '__________',
-                            numberOfBags: '_____',
+                            numberOfBags: '__________',
                             grossWt: '_____',
                             tareWt: '_____',
-                            netWt: '_____',
-                            driverName: '____________________'
-                        })} className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2">
-                            <FileText className="w-4 h-4" /> Blank Print
+                            netWt: '_____'
+                        })} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
+                            <Printer className="w-4 h-4" /> Blank Print
                         </button>
                     )}
-                    <button onClick={resetForm} className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2">
-                        <X className="w-4 h-4" /> Clear
-                    </button>
                 </div>
             </div>
 
-            {/* Form Section */}
-            {isFormOpen && (
-                <div className="card animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center gap-3">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                                {isNewEntry ? 'New Outgoing Entry' : 'Update Outgoing Entry'} - Gate Pass: {gatePassNo}
-                            </h3>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${isNewEntry ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {isNewEntry ? 'NEW' : 'EDITING'}
-                            </span>
-                        </div>
-                        {isNewEntry && lastEntry && (
-                            <button 
-                                onClick={handleRepeatLastEntry}
-                                className="text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center gap-1 hover:underline"
-                            >
-                                <Copy className="w-3 h-3" /> Repeat Last Entry
-                            </button>
-                        )}
-                    </div>
-                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600">Gate Pass No</label>
-                            <div className="relative">
-                                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 bg-slate-50" value={gatePassNo} readOnly disabled />
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Date</label>
-                            <input type="date" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} required />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Vehicle Number</label>
-                            <div className="relative">
-                                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
-                                <input 
-                                    type="text" 
-                                    className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
-                                    value={vehicleNumber} 
-                                    onChange={handleVehicleChange} 
-                                    required 
-                                    placeholder="MH-26-BS-4852"
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Destination</label>
-                            <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={destination} onChange={(e) => setDestination(e.target.value.toUpperCase())} placeholder="E.G., MUMBAI" />
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Commodity</label>
-                            <div className="relative">
-                                <Package className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
-                                <input type="text" className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={commodity} onChange={(e) => setCommodity(e.target.value.toUpperCase())} placeholder="E.G., COTTON BALES" />
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Gross Wt (kg)</label>
-                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Tare Wt (kg)</label>
-                            <input type="number" step="0.01" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => setTareWt(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Net Wt (kg)</label>
-                            <input type="text" className="input-field bg-slate-50 dark:bg-slate-800/50 font-bold text-indigo-600 dark:text-indigo-400" value={calculateNetWt()} readOnly disabled />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">No. of Bags</label>
-                            <input type="number" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Bardana Type</label>
-                            <select 
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
-                                value={bardanaType} 
-                                onChange={(e) => setBardanaType(e.target.value)}
-                            >
-                                <option value="BARDANA">BARDANA (GUNNY BAGS)</option>
-                                <option value="PLASTIC BARDANA">PLASTIC BARDANA</option>
-                                <option value="OLD BAGS">OLD BAGS</option>
-                                <option value="NEW BAGS">NEW BAGS</option>
-                            </select>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Sutli Used (Qty)</label>
-                            <input 
-                                type="number" 
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
-                                value={sutliCount} 
-                                onChange={(e) => {
-                                    // Serial No. 16: Parse to base-10 integer immediately.
-                                    // Storing raw e.target.value (a string) causes silent NaN or
-                                    // string concatenation when the value is later used in arithmetic.
-                                    const parsed = parseInt(e.target.value, 10);
-                                    setSutliCount(isNaN(parsed) ? '' : parsed);
-                                }}
-                                placeholder="0"
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Name</label>
-                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={driverName} onChange={(e) => setDriverName(e.target.value.toUpperCase())} placeholder="e.g., RAJESH KUMAR" required />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Phone</label>
-                            <input 
-                                type="text" 
-                                className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white font-mono" 
-                                value={driverPhone} 
-                                onChange={handleDriverPhoneChange} 
-                                placeholder="10-DIGIT MOBILE NO" 
-                                maxLength={10}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Driver Photo</label>
-                            <div className="flex items-center gap-4">
-                                <label className="flex-1 flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
-                                    <Camera className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-                                    <span className="text-sm text-slate-500 dark:text-slate-400">Upload Photo</span>
-                                    <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
-                                </label>
-                                {driverPhoto && (
-                                    <div className="relative w-12 h-12">
-                                        <img src={driverPhoto} alt="Preview" className="w-full h-full object-cover rounded-lg border border-slate-200" />
-                                        <button type="button" onClick={() => setDriverPhoto(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 shadow-sm">
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="lg:col-span-3 flex justify-end gap-3 pt-4 border-t border-slate-100">
-                            <button type="button" onClick={resetForm} className="btn-secondary">Cancel</button>
-                            <button type="submit" className="btn-primary flex items-center gap-2">
-                                <Save className="w-4 h-4" /> {isNewEntry ? 'Save Entry' : 'Update Entry'}
-                            </button>
-                        </div>
-                    </form>
+            {statusMessage.text && (
+                <div className={`p-4 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between ${
+                    statusMessage.type === 'error' ? 'bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400' :
+                    statusMessage.type === 'success' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' :
+                    'bg-amber-50 text-amber-600 dark:bg-slate-800'
+                }`}>
+                    <span>{statusMessage.text}</span>
+                    <button onClick={() => setStatusMessage({ text: '', type: '' })} className="font-bold">✕</button>
                 </div>
             )}
 
-            {/* Table Section */}
-            <div className="card overflow-hidden !p-0">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight">Recent Outgoing Entries</h3>
-                </div>
-
-                {/* Mobile Cards */}
-                <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
-                    {recentJavakEntries
-                        .sort((a, b) => (a.destination || '').localeCompare(b.destination || ''))
-                        .map(entry => (
-                        <div key={entry.id} className="p-4 space-y-4">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{entry.date}</p>
-                                    <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.gatePassNo || entry.id}</h4>
-                                </div>
-                                <div className="flex gap-1">
-                                    <button onClick={() => generateJavakPdf(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
-                                        <FileText className="w-5 h-5" />
-                                    </button>
-                                    <button onClick={() => setDeleteConfirmId(entry.gatePassNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                <div className="lg:col-span-8 space-y-6">
+                    {(isNewEntry || currentEntryId) && (
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-6 shadow-sm">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                                <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">{isNewEntry ? 'Generate gate pass' : 'Modify outward gate pass details'}</h3>
+                                <button onClick={resetState} className="p-1 px-3 bg-slate-50 dark:bg-slate-800 dark:text-white hover:bg-slate-100 rounded-lg text-xs">✕ Close</button>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Driver & Vehicle</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.driverName || 'N/A'}</p>
-                                        {entry.driverPhone && (
-                                            <a 
-                                                href={`tel:${entry.driverPhone}`}
-                                                className="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full hover:bg-emerald-200 transition-colors"
-                                                title="Call Driver"
-                                            >
-                                                <Phone className="w-4 h-4" />
-                                            </a>
-                                        )}
+
+                            <form onSubmit={handleFormSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Gate Pass No *</label>
+                                        <div className="relative">
+                                            <Hash className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                            <input type="text" className="input-field pl-9 uppercase font-mono font-bold dark:bg-slate-800 dark:border-slate-700" value={gatePassNo} onChange={(e) => setGatePassNo(e.target.value)} required placeholder="GP-750" />
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] font-mono text-slate-500 mt-1">{entry.vehicleNumber}</p>
-                                    {entry.driverPhone && (
-                                        <button 
-                                            onClick={() => shareGatePassToWhatsApp(entry)}
-                                            className="mt-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold rounded flex items-center gap-1 uppercase tracking-wider"
-                                            title="Share Gate Pass via WhatsApp"
-                                        >
-                                            <Share2 className="w-3 h-3" />
-                                            <span>Share Gate Pass</span>
-                                        </button>
-                                    )}
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Billing date</label>
+                                        <input type="date" className="input-field dark:bg-slate-800 dark:border-slate-700" value={date} onChange={(e) => setDate(e.target.value)} required />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Commodity Cargo</label>
+                                        <select className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={commodity} onChange={(e) => setCommodity(e.target.value)}>
+                                            <option value="BALES">COTTON BALES</option>
+                                            <option value="COTTON SEED">COTTON SEED</option>
+                                            <option value="KAPAS">KAPAS RAW</option>
+                                            <option value="OIL TANKER">COTTON SEED OIL</option>
+                                            <option value="COCONUT HUSK">OTHER BY-PROD</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Destination</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white uppercase flex items-center gap-1">
-                                        <MapPin className="w-3 h-3" /> {entry.destination}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Net Weight</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.netWt?.toFixed(2)} KG</p>
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Bags</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white uppercase">{entry.numberOfBags} BAGS</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
 
-                <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-                                <th className="px-6 py-4 font-semibold">Date</th>
-                                <th className="px-6 py-4 font-semibold">Gate Pass</th>
-                                <th className="px-6 py-4 font-semibold">Vehicle No</th>
-                                <th className="px-6 py-4 font-semibold">Driver</th>
-                                <th className="px-6 py-4 font-semibold">Destination</th>
-                                <th className="px-6 py-4 font-semibold">Net Wt</th>
-                                <th className="px-6 py-4 font-semibold">Bags</th>
-                                <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {recentJavakEntries
-                                .sort((a, b) => (a.destination || '').localeCompare(b.destination || ''))
-                                .map(entry => (
-                                <tr key={entry.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                    <td className="px-6 py-4 text-sm">{entry.date}</td>
-                                    <td className="px-6 py-4 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400">{entry.gatePassNo || entry.id}</td>
-                                    <td className="px-6 py-4 text-sm uppercase">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold">{entry.vehicleNumber}</span>
-                                            {entry.driverName && <span className="text-[10px] text-slate-400 italic">{entry.driverName}</span>}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Vehicle Registration *</label>
+                                        <div className="relative">
+                                            <Truck className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                            <input type="text" className="input-field pl-9 uppercase font-mono font-bold dark:bg-slate-800 dark:border-slate-700" value={vehicleNumber} onChange={(e) => setVehicleNumber(formatVehicleNumber(e.target.value))} required placeholder="MH-26-Y-9000" />
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-medium text-slate-900 dark:text-slate-100">{entry.driverName || 'N/A'}</span>
-                                            {entry.driverPhone && (
-                                                <a 
-                                                    href={`tel:${entry.driverPhone}`}
-                                                    className="p-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 transition-colors"
-                                                    title="Call Driver"
-                                                >
-                                                    <Phone className="w-3 h-3" />
-                                                </a>
-                                            )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Cargo Destination *</label>
+                                        <div className="relative">
+                                            <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                            <input type="text" className="input-field pl-9 uppercase font-bold dark:bg-slate-800 dark:border-slate-700" value={destination} onChange={(e) => setDestination(e.target.value)} required placeholder="e.g. GUJARAT, COIMBATORE" />
                                         </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{entry.destination}</td>
-                                    <td className="px-6 py-4 text-sm font-bold">{entry.netWt?.toFixed(2)} kg</td>
-                                    <td className="px-6 py-4 text-sm">
-                                        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-600 dark:text-slate-400">
-                                            {entry.numberOfBags} Bags
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
-                                        {entry.driverPhone && (
-                                            <button 
-                                                onClick={() => shareGatePassToWhatsApp(entry)}
-                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 uppercase"
-                                                title="Share Gate Pass via WhatsApp"
-                                            >
-                                                <Share2 className="w-3.5 h-3.5" />
-                                                <span>Share Gate Pass</span>
-                                            </button>
-                                        )}
-                                        <button 
-                                            onClick={() => generateJavakPdf(entry)}
-                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                            title="Download Gate Pass"
-                                        >
-                                            <FileText className="w-5 h-5" />
-                                        </button>
-                                        {deleteConfirmId === (entry.gatePassNo || entry.id) ? (
-                                            <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200">
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">No. of Bales/Bags *</label>
+                                        <div className="relative">
+                                            <Package className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                            <input type="number" className="input-field pl-9 font-bold dark:bg-slate-800" value={numberOfBags} onChange={(e) => setNumberOfBags(e.target.value)} required placeholder="Bales qty" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-5 border border-slate-100 dark:border-slate-800">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Gross Weight (kg) *</label>
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required placeholder="Empty weight" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Tare Weight (kg) *</label>
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => set開areWt ? setTareWt(e.target.value) : setTareWt(e.target.value)} required placeholder="Filled weight" />
+                                    </div>
+                                    <div className="flex flex-col justify-center items-center p-3 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-lg">
+                                        <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-1">Calculated Net Weight</span>
+                                        <span className="text-base font-black text-indigo-700 dark:text-blue-400">{netWt || '0.00'} kg</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Driver KYC Details</h4>
+                                        <div>
+                                            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Driver Full Name</label>
+                                            <input type="text" className="input-field uppercase dark:bg-slate-800" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="Name as per DL" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Driver Phone Number</label>
+                                            <input type="text" className="input-field dark:bg-slate-800" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="WhatsApp Contact" />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col items-center justify-center space-y-3">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Security Snapshot Camera</span>
+                                        
+                                        {driverPhoto ? (
+                                            <div className="relative border border-slate-300 dark:border-slate-700 p-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                                                <img src={driverPhoto} className="w-[120px] h-[150px] object-cover rounded" />
                                                 <button 
-                                                    onClick={() => handleDeleteEntry(entry.gatePassNo || entry.id)}
-                                                    className="px-2 py-1 bg-red-600 text-white text-[10px] font-bold rounded hover:bg-red-700 transition-colors"
+                                                    type="button" 
+                                                    onClick={() => setDriverPhoto(null)} 
+                                                    className="absolute -top-2 -right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded-full shadow"
                                                 >
-                                                    Confirm
+                                                    <X className="w-4 h-4" />
                                                 </button>
-                                                <button 
-                                                    onClick={() => setDeleteConfirmId(null)}
-                                                    className="px-2 py-1 bg-slate-200 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-300 transition-colors"
-                                                >
-                                                    Cancel
-                                                </button>
+                                            </div>
+                                        ) : isCameraActive ? (
+                                            <div className="relative flex flex-col items-center">
+                                                <video id="camera-preview" autoPlay playsInline className="w-[200px] h-[150px] object-cover rounded-lg border border-slate-300 dark:border-slate-700 bg-black" />
+                                                <div className="flex gap-2 mt-2">
+                                                    <button type="button" onClick={capturePhoto} className="p-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded uppercase">Capture</button>
+                                                    <button type="button" onClick={stopCamera} className="p-2 py-1 bg-slate-500 hover:bg-slate-600 text-white text-[10px] font-bold rounded uppercase">Cancel</button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <button 
-                                                onClick={() => setDeleteConfirmId(entry.gatePassNo || entry.id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                                                title="Delete Entry"
+                                                type="button" 
+                                                onClick={startCamera} 
+                                                className="p-4 px-6 border-2 border-dashed border-indigo-200 hover:border-indigo-400 dark:border-slate-800 dark:hover:border-slate-700 rounded-xl flex flex-col items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase"
                                             >
-                                                <Trash2 className="w-5 h-5" />
+                                                <Camera className="w-5 h-5" /> Activate Cam DL Verification
                                             </button>
                                         )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <button 
+                                        type="submit" 
+                                        className="p-3 px-6 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-amber-100 dark:shadow-none flex items-center gap-2"
+                                    >
+                                        <Save className="w-4 h-4" /> Issue Gate Pass
+                                    </button>
+                                    <button type="button" onClick={resetState} className="p-3 px-6 bg-slate-105 hover:bg-slate-200 rounded-xl text-xs font-black dark:text-white uppercase">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4">
+                        <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">Active Dispatch Log (Last 7 Days)</h3>
+                        
+                        <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-150 dark:border-slate-800 text-[9px] font-black uppercase text-slate-500 tracking-widest whitespace-nowrap">
+                                        <th className="px-5 py-3">Gatepass No</th>
+                                        <th className="px-5 py-3">Truck Details</th>
+                                        <th className="px-5 py-3">Cargo Spec</th>
+                                        <th className="px-5 py-3">Weight Specs</th>
+                                        <th className="px-5 py-3">Driver Profile</th>
+                                        <th className="px-5 py-3 text-right">Gatepass Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                                    {filteredEntries.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="6" className="text-center p-8 text-xs font-semibold text-slate-400 uppercase">No active outward dispatches</td>
+                                        </tr>
+                                    ) : (
+                                        filteredEntries.map(e => (
+                                            <tr key={e.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors whitespace-nowrap">
+                                                <td className="px-5 py-4 font-mono font-bold text-slate-900 dark:text-white">{e.gatePassNo || e.id}</td>
+                                                <td className="px-5 py-4">
+                                                    <div className="font-mono font-bold text-slate-900 dark:text-white">{e.vehicleNumber}</div>
+                                                    <div className="text-[10px] text-slate-400 uppercase">{e.destination} | {e.date}</div>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <div className="font-bold text-slate-900 dark:text-white">{e.commodity}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono font-bold">Qty: {e.numberOfBags} Bales</div>
+                                                </td>
+                                                <td className="px-5 py-4 font-mono font-semibold">
+                                                    <div>Net: <span className="font-bold text-slate-900 dark:text-white">{e.netWt} kg</span></div>
+                                                    <div className="text-[9px] text-slate-400">G: {e.grossWt} | T: {e.tareWt}</div>
+                                                </td>
+                                                <td className="px-5 py-4 flex items-center gap-2">
+                                                    {e.driverPhoto && (
+                                                        <img src={e.driverPhoto} className="w-8 h-10 object-cover rounded border border-slate-200" />
+                                                    )}
+                                                    <div>
+                                                        <div className="font-extrabold text-slate-900 dark:text-white">{e.driverName || 'N/A'}</div>
+                                                        <div className="text-[10px] text-slate-400">{e.driverPhone || 'N/A'}</div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <button 
+                                                            onClick={() => generateJavakPdf(e)} 
+                                                            className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg text-slate-500 dark:text-slate-400"
+                                                            title="Download PDF"
+                                                        >
+                                                            <FileText className="w-4 h-4" />
+                                                        </button>
+
+                                                        {e.driverPhone && (
+                                                            <button 
+                                                                onClick={() => handleShareWhatsApp(e)} 
+                                                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100/50 rounded-lg text-emerald-600"
+                                                                title="Share DL slip via WhatsApp"
+                                                            >
+                                                                <Share2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+
+                                                        <button 
+                                                            onClick={() => handleSelectEntry(e)} 
+                                                            className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-600 text-[10px] font-bold uppercase rounded p-1 px-3 ml-1"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        
+                                                        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+                                                            <button 
+                                                                onClick={() => setDeleteConfirmId(e.id)} 
+                                                                className="p-1.5 text-slate-400 hover:text-red-600"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-xs space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <Search className="w-4 h-4 text-slate-400" />
+                            <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Verify Outlet Gate Pass</h4>
+                        </div>
+                        <input 
+                            type="text" 
+                            className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
+                            placeholder="SEARCH GATEPASS NO / VEHICLE..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
                 </div>
             </div>
+
+            {deleteConfirmId && (
+                <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-3">
+                    <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl text-center space-y-4 shadow-xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+                        <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-sm tracking-wide">Are you absolute sure?</h4>
+                        <p className="text-xs text-slate-500">This action permanently purges this gatepass outwards record database logs.</p>
+                        <div className="flex items-center justify-center gap-3">
+                            <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="btn-primary bg-red-600 hover:bg-red-700 font-bold text-xs p-2 px-6 uppercase tracking-wider shadow shadow-red-200">Yes Delete</button>
+                            <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary text-xs uppercase font-bold p-2 px-6">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
