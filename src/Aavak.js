@@ -422,138 +422,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
         window.open('https://api.whatsapp.com/send?phone=91' + tx.farmerPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
-    const generateEODReport = (rawEntries, operatorName = currentUser?.name || "Admin Counter") => {
-        const todayStrLocal = new Date().toLocaleDateString('en-CA');
-        const baseEntries = rawEntries || recentEntries;
-        const todayEntries = baseEntries.filter(entry => entry.billingDate === todayStrLocal);
-        
-        const totalPattis = todayEntries.length;
-        let totalAccumulatedWeight = 0;
-        let grossOutflowCommitted = 0;
-        let realizedOutflowPaid = 0;
-        
-        const rows = todayEntries.map((entry) => {
-            const tokenNo = entry.tokenNo || entry.id || 'N/A';
-            const farmerName = entry.Name || entry.farmerName || 'N/A';
-            const netWeight = parseFloat(entry.netWt || entry.netWeight || 0);
-            const netAmount = parseFloat(entry.netAmount || 0);
-            
-            let paidAmount = 0;
-            if (entry.paymentHistory && Array.isArray(entry.paymentHistory)) {
-                entry.paymentHistory.forEach(item => {
-                    if (item.date === todayStrLocal) {
-                        paidAmount += parseFloat(item.amount || 0);
-                    }
-                });
-            } else {
-                paidAmount = parseFloat(entry.amountPaid || 0);
-            }
-            
-            const remainingBalance = netAmount - paidAmount;
-            
-            totalAccumulatedWeight += netWeight;
-            grossOutflowCommitted += netAmount;
-            realizedOutflowPaid += paidAmount;
-            
-            return [
-                tokenNo,
-                farmerName,
-                `${netWeight.toLocaleString('en-IN')} kg`,
-                `₹${netAmount.toLocaleString('en-IN')}`,
-                `₹${paidAmount.toLocaleString('en-IN')}`,
-                `₹${remainingBalance.toLocaleString('en-IN')}`
-            ];
-        });
-        
-        const remainingOutstandingLiability = grossOutflowCommitted - realizedOutflowPaid;
-        
-        const doc = new jsPDF();
-        
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, 210, 40, 'F');
-        
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('Helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text("VENKATESH COTTON COMPANY", 14, 15);
-        doc.setFontSize(11);
-        doc.setFont('Helvetica', 'normal');
-        doc.text("MANDI OPERATIONS - DAILY EOD REPORT", 14, 23);
-        
-        doc.setFontSize(9);
-        doc.text(`DATE: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 32);
-        doc.text(`OPERATOR: ${operatorName.toUpperCase()}`, 140, 32);
-        
-        let startY = 50;
-        doc.setFillColor(248, 250, 252);
-        doc.rect(14, startY, 182, 35, 'F');
-        doc.setDrawColor(226, 232, 240);
-        doc.rect(14, startY, 182, 35, 'S');
-        
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(10);
-        doc.setFont('Helvetica', 'bold');
-        doc.text("TODAY'S RUNNING METRICS SUMMARY", 20, startY + 8);
-        
-        doc.setFont('Helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text(`Total Pattis Generated:  ${totalPattis}`, 20, startY + 16);
-        doc.text(`Acc. Weight Received:  ${totalAccumulatedWeight.toLocaleString('en-IN')} kg`, 20, startY + 22);
-        doc.text(`Gross Outflow:          ₹${grossOutflowCommitted.toLocaleString('en-IN')}`, 20, startY + 28);
-        
-        doc.text(`Realized Paid Today:   ₹${realizedOutflowPaid.toLocaleString('en-IN')}`, 110, startY + 16);
-        doc.setFont('Helvetica', 'bold');
-        doc.text(`Outstanding Credit:    ₹${remainingOutstandingLiability.toLocaleString('en-IN')}`, 110, startY + 22);
-        
-        doc.autoTable({
-            startY: startY + 45,
-            head: [['Token No', 'Farmer Name', 'Net Wt', 'Net Amount', 'Paid Today', 'Remaining']],
-            body: rows,
-            theme: 'striped',
-            headStyles: {
-                fillColor: [30, 41, 59],
-                textColor: [255, 255, 255],
-                fontStyle: 'bold',
-                fontSize: 9
-            },
-            bodyStyles: {
-                fontSize: 8,
-                textColor: [51, 65, 85]
-            },
-            alternateRowStyles: {
-                fillColor: [248, 250, 252]
-            },
-            styles: {
-                lineColor: [241, 245, 249],
-                lineWidth: 0.5
-            }
-        });
-        
-        const finalY = doc.lastAutoTable.finalY || (startY + 90);
-        const pageHeight = doc.internal.pageSize.height;
-        
-        let sigY = finalY + 25;
-        if (sigY > pageHeight - 30) {
-            doc.addPage();
-            sigY = 40;
-        }
-        
-        doc.setFont('Helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(71, 85, 105);
-        
-        doc.text("__________________________", 20, sigY);
-        doc.setFont('Helvetica', 'bold');
-        doc.text("Accountant Signature", 20, sigY + 5);
-        
-        doc.text("__________________________", 130, sigY);
-        doc.setFont('Helvetica', 'bold');
-        doc.text("Authorized Admin Sign", 130, sigY + 5);
-        
-        doc.save(`EOD_Report_${todayStrLocal}.pdf`);
-    };
-
-    const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMode) => {
+const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMode) => {
         if (!tokenNo || !installmentAmount || parseFloat(installmentAmount) <= 0) {
             setStatusMessage({ text: 'Invalid installment amount', type: 'error' });
             return;
@@ -811,10 +680,9 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
             className="space-y-6"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-            {/* Search & Action Header */}
-            <div className="flex flex-col gap-4">
-                {/* Row 1 — Token lookup + primary CTA */}
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            {/* Search & Action Header Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
                     <div className="flex items-center gap-3 w-full md:w-auto">
                         <div className="relative flex-1 md:w-80">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
@@ -837,52 +705,43 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                             />
                         </div>
                     </div>
+                    <button
+                        onClick={handleLookupEntry}
+                        className="btn-primary w-full md:w-auto flex items-center justify-center gap-2 uppercase tracking-widest text-xs py-3"
+                    >
+                        <Plus className="w-4 h-4" /> Load / New Entry
+                    </button>
+                </div>
 
-                    {/* Row 1 right — action buttons */}
-                    <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
+                <div className="flex flex-wrap items-center justify-center gap-3 w-full py-1">
+                    {lastEntry && (
                         <button
-                            onClick={handleLookupEntry}
-                            className="btn-primary flex-shrink-0 flex items-center justify-center gap-2"
+                            onClick={handleRepeatLastEntry}
+                            className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
                         >
-                            <Plus className="w-4 h-4" /> Load / New Entry
+                            <History className="w-4 h-4" /> Repeat Last
                         </button>
-                        {lastEntry && (
-                            <button
-                                onClick={handleRepeatLastEntry}
-                                className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
-                            >
-                                <History className="w-4 h-4" /> Repeat Last
-                            </button>
-                        )}
+                    )}
+                    <button
+                        onClick={resetForm}
+                        className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
+                    >
+                        <X className="w-4 h-4" /> Clear
+                    </button>
+                    {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button
-                            onClick={resetForm}
-                            className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
+                            onClick={() => generatePdf(null, true)}
+                            className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
                         >
-                            <X className="w-4 h-4" /> Clear
+                            <Printer className="w-4 h-4" /> Blank Print
                         </button>
-                        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                            <button
-                                onClick={() => generatePdf(null, true)}
-                                className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
-                            >
-                                <Printer className="w-4 h-4" /> Blank Print
-                            </button>
-                        )}
-                        <button
-                            onClick={() => setShowExportModal(true)}
-                            className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
-                        >
-                            <Download className="w-4 h-4" /> Export
-                        </button>
-                        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                            <button
-                                onClick={() => generateEODReport(recentEntries)}
-                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
-                            >
-                                📊 Download EOD PDF Report
-                            </button>
-                        )}
-                    </div>
+                    )}
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="btn-secondary flex items-center justify-center gap-2 uppercase tracking-wider text-xs py-2.5"
+                    >
+                        <Download className="w-4 h-4" /> Export Excel
+                    </button>
                 </div>
             </div>
 

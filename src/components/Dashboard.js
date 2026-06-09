@@ -56,13 +56,6 @@ function Dashboard({ currentUser }) {
   const todayStr = new Date().toLocaleDateString('en-CA');
 
   useEffect(() => {
-    const getLocalDate = () => {
-      const now = new Date();
-      const offset = now.getTimezoneOffset();
-      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-      return localDate.toISOString().split('T')[0];
-    };
-    const today = getLocalDate();
     const maturityQuery = query(
       collection(db, 'cottonEntries'),
       where('paymentDueDate', '==', todayStr)
@@ -138,73 +131,17 @@ function Dashboard({ currentUser }) {
 
     const unsubscribeAavak = onSnapshot(collection(db, 'cottonEntries'), (snapshot) => {
       const aavakData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      const unsubscribeJavak = onSnapshot(collection(db, 'javakEntries'), (javakSnapshot) => {
-        const javakData = javakSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        let totalAavakWt = 0;
-        let totalAavakAmt = 0;
-        let totalJavakWt = 0;
-        let totalJavakBags = 0;
-        let todayAavakWt = 0;
-        let todayJavakTrucks = 0;
-        let todayAavakAmt = 0;
-        const breakdown = {};
+      setRawData(prev => ({ ...prev, aavak: aavakData }));
+    });
 
-        aavakData.forEach(data => {
-          const weight = parseFloat(data.netWt || 0);
-          const item = data.itemName || 'Uncategorized';
-          const amt = parseFloat(data.amountPaid || 0);
-          totalAavakWt += weight;
-          totalAavakAmt += amt;
-          
-          if (data.billingDate === today) {
-            todayAavakWt += weight;
-            todayAavakAmt += amt;
-          }
-
-          if (breakdown[item]) {
-            breakdown[item] += weight;
-          } else {
-            breakdown[item] = weight;
-          }
-        });
-
-        javakData.forEach(data => {
-          const weight = parseFloat(data.netWt || 0);
-          const item = data.commodity || 'Uncategorized';
-          totalJavakWt += weight;
-          totalJavakBags += parseInt(data.numberOfBags || 0, 10);
-          
-          if (data.date === today) {
-            todayJavakTrucks += 1;
-          }
-
-          if (breakdown[item]) {
-            breakdown[item] -= weight;
-          } else {
-            breakdown[item] = -weight;
-          }
-        });
-
-        setStats({
-          totalAavakNetWt: totalAavakWt,
-          totalAavakAmount: totalAavakAmt,
-          totalJavakNetWt: totalJavakWt,
-          totalJavakBags: totalJavakBags,
-          todayAavakWt,
-          todayJavakTrucks,
-          todayAavakAmount: todayAavakAmt
-        });
-        setItemBreakdown(breakdown);
-        setRawData({ aavak: aavakData, javak: javakData });
-      });
-
-      return () => unsubscribeJavak();
+    const unsubscribeJavak = onSnapshot(collection(db, 'javakEntries'), (snapshot) => {
+      const javakData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRawData(prev => ({ ...prev, javak: javakData }));
     });
 
     return () => {
       unsubscribeAavak();
+      unsubscribeJavak();
       unsubscribeBardana();
       unsubscribeNotes();
       unsubscribeTasks();
@@ -214,6 +151,76 @@ function Dashboard({ currentUser }) {
       unsubscribeMaturity();
     };
   }, [currentUser?.employeeId, currentUser?.role, todayStr]);
+
+  // Recalculate stats when rawData changes
+  useEffect(() => {
+    const aavakData = rawData.aavak;
+    const javakData = rawData.javak;
+
+    const getLocalDate = () => {
+      const now = new Date();
+      const offset = now.getTimezoneOffset();
+      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+      return localDate.toISOString().split('T')[0];
+    };
+    const today = getLocalDate();
+
+    let totalAavakWt = 0;
+    let totalAavakAmt = 0;
+    let totalJavakWt = 0;
+    let totalJavakBags = 0;
+    let todayAavakWt = 0;
+    let todayJavakTrucks = 0;
+    let todayAavakAmt = 0;
+    const breakdown = {};
+
+    aavakData.forEach(data => {
+      const weight = parseFloat(data.netWt || 0);
+      const item = data.itemName || 'Uncategorized';
+      const amt = parseFloat(data.amountPaid || 0);
+      totalAavakWt += weight;
+      totalAavakAmt += amt;
+      
+      if (data.billingDate === today) {
+        todayAavakWt += weight;
+        todayAavakAmt += amt;
+      }
+
+      if (breakdown[item]) {
+        breakdown[item] += weight;
+      } else {
+        breakdown[item] = weight;
+      }
+    });
+
+    javakData.forEach(data => {
+      const weight = parseFloat(data.netWt || 0);
+      const item = data.commodity || 'Uncategorized';
+      totalJavakWt += weight;
+      totalJavakBags += parseInt(data.numberOfBags || 0, 10);
+      
+      if (data.date === today) {
+        todayJavakTrucks += 1;
+      }
+
+      if (breakdown[item]) {
+        breakdown[item] -= weight;
+      } else {
+        breakdown[item] = -weight;
+      }
+    });
+
+    setStats({
+      totalAavakNetWt: totalAavakWt,
+      totalAavakAmount: totalAavakAmt,
+      totalJavakNetWt: totalJavakWt,
+      totalJavakBags: totalJavakBags,
+      todayAavakWt,
+      todayJavakTrucks,
+      todayAavakAmount: todayAavakAmt
+    });
+    setItemBreakdown(breakdown);
+  }, [rawData]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -370,10 +377,15 @@ function Dashboard({ currentUser }) {
 
   const generateEODReport = () => {
     try {
-      const today = new Date();
-      const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD
-      const dateLabel = today.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-      const timeLabel = today.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const getLocalDate = () => {
+        const now = new Date();
+        const offset = now.getTimezoneOffset();
+        const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+        return localDate.toISOString().split('T')[0];
+      };
+      const todayStr = getLocalDate();
+      const dateLabel = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+      const timeLabel = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
       const todayAavak = rawData.aavak.filter(e => e.billingDate === todayStr);
       const todayJavak = rawData.javak.filter(e => (e.date || e.billingDate || '') === todayStr);
@@ -469,7 +481,8 @@ function Dashboard({ currentUser }) {
       });
 
       // ── Javak Table ───────────────────────────────────────────────────────────
-      const javakY = doc.lastAutoTable.finalY + 8;
+      const lastFinalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : (tableStartY + 40);
+      const javakY = lastFinalY + 8;
       doc.setFontSize(10);
       doc.setFont('Helvetica', 'bold');
       doc.setTextColor(30, 41, 59);
