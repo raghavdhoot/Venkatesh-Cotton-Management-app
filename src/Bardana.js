@@ -71,7 +71,8 @@ function Bardana({ currentUser }) {
 
             const newEntry = {
                 itemName: finalItemName,
-                quantity: parseInt(quantity, 10),
+                // Serial No. 16: parseInt with radix 10 + fallback 0 prevents NaN going to Firestore
+                quantity: parseInt(quantity, 10) || 0,
                 personName: personName || 'N/A',
                 employeeName: employeeName || currentUser?.name || 'N/A',
                 type,
@@ -110,10 +111,14 @@ function Bardana({ currentUser }) {
         const stock = {};
         bardanaEntries.forEach(entry => {
             if (!stock[entry.itemName]) stock[entry.itemName] = 0;
+            // Serial No. 16: Strictly parse quantity as base-10 integer before arithmetic.
+            // Firestore may return values as strings in some edge cases, which causes
+            // += to do string concatenation ("10" + "5" = "105") instead of addition (15).
+            const qty = parseInt(entry.quantity, 10) || 0;
             if (entry.type === 'IN') {
-                stock[entry.itemName] += entry.quantity;
+                stock[entry.itemName] += qty;
             } else {
-                stock[entry.itemName] -= entry.quantity;
+                stock[entry.itemName] -= qty;
             }
         });
         return stock;

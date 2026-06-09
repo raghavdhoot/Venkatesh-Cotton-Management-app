@@ -569,7 +569,13 @@ This text confirms vehicle exit registration in our database.`;
                                 type="number" 
                                 className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
                                 value={sutliCount} 
-                                onChange={(e) => setSutliCount(e.target.value)} 
+                                onChange={(e) => {
+                                    // Serial No. 16: Parse to base-10 integer immediately.
+                                    // Storing raw e.target.value (a string) causes silent NaN or
+                                    // string concatenation when the value is later used in arithmetic.
+                                    const parsed = parseInt(e.target.value, 10);
+                                    setSutliCount(isNaN(parsed) ? '' : parsed);
+                                }}
                                 placeholder="0"
                             />
                         </div>
