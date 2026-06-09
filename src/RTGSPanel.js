@@ -61,13 +61,25 @@ function RTGSPanel({ currentUser }) {
                 try {
                     const mappedData = snapshot.docs.map((docSnap) => {
                         const data = docSnap.data();
+                        // Serial No. 7: RTGS Checkbox Automation
+                        // All entries here are already RTGS (filtered by query).
+                        // If makerDone / chequePassed are null or undefined in Firestore,
+                        // default them to true so checkboxes appear pre-ticked.
+                        // Explicit false (user unchecked) is preserved as false.
+                        const makerDone = data.makerDone === null || data.makerDone === undefined
+                            ? true
+                            : data.makerDone === true;
+                        const chequePassed = data.chequePassed === null || data.chequePassed === undefined
+                            ? true
+                            : data.chequePassed === true;
+
                         return {
-                            id: docSnap.id, // document ID
+                            id: docSnap.id,
                             tokenNo: data.tokenNo || docSnap.id,
                             farmerName: data.Name || data.farmerName || 'UNKNOWN FARMER',
                             amount: data.amountPaid || data.netAmount || data.amount || 0,
-                            makerDone: data.makerDone === true,
-                            chequePassed: data.chequePassed === true,
+                            makerDone,
+                            chequePassed,
                         };
                     });
                     setTransactions(mappedData);

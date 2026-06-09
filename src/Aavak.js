@@ -245,21 +245,16 @@ function Aavak({ currentUser }) {
         }
     };
 
+    // Serial No. 4: Vehicle Number Formatting
+    // Allows letters, digits, and spaces — strips everything else — forces uppercase
     const formatVehicleNumber = (val) => {
-    // 1. Sirf letters, numbers aur SPACES ko allow karo (baki faltu characters udao)
-    // Humne regex mein \s add kiya hai taaki space safe rahe
-    const cleaned = val.replace(/[^A-Z0-9\s]/gi, '').toUpperCase();
-    
-    // 2. Seedhe cleaned string return kar do bina kisi rigid break ke
-    return cleaned;
-};
+        return val.replace(/[^A-Z0-9\s]/gi, '').toUpperCase();
+    };
 
-   // Isko replace kar do apni file mein
-const handleVehicleChange = (e) => {
-    // Purane formatVehicleNumber ko hata kar seedhe uppercase kar diya
-    const upperValue = e.target.value.toUpperCase(); 
-    setVehicleNo(upperValue);
-};
+    const handleVehicleChange = (e) => {
+        const formatted = formatVehicleNumber(e.target.value);
+        setVehicleNo(formatted);
+    };
 
     const handlePhoneChange = (e) => {
         const val = e.target.value.replace(/[^0-9]/g, '');
