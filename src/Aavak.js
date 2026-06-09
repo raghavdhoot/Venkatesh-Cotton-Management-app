@@ -807,56 +807,83 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
     );
 
     return (
-        <div className="space-y-4">
-            {/* ── Compact Action Header ─────────────────────────────────────────── */}
-            <div className="flex flex-wrap items-center gap-2">
-                {/* Load Token input + button — primary action, left-most */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <input
-                        type="text"
-                        placeholder="Token No..."
-                        className="input-field w-36 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                        value={searchToken}
-                        onChange={(e) => setSearchToken(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
-                    />
-                    <button onClick={handleLookupEntry} className="btn-primary flex-shrink-0 flex items-center gap-2">
-                        <Plus className="w-4 h-4" /> Load / New Entry
-                    </button>
+        <div
+            className="space-y-6"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+            {/* Search & Action Header */}
+            <div className="flex flex-col gap-4">
+                {/* Row 1 — Token lookup + primary CTA */}
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-80">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
+                            <input
+                                type="text"
+                                placeholder="Search Token, Farmer, Village..."
+                                className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white w-full"
+                                value={globalSearch}
+                                onChange={(e) => setGlobalSearch(e.target.value)}
+                            />
+                        </div>
+                        <div className="w-44">
+                            <input
+                                type="text"
+                                placeholder="Load Token No..."
+                                className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white w-full"
+                                value={searchToken}
+                                onChange={(e) => setSearchToken(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleLookupEntry()}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Row 1 right — action buttons */}
+                    <div className="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
+                        <button
+                            onClick={handleLookupEntry}
+                            className="btn-primary flex-shrink-0 flex items-center justify-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" /> Load / New Entry
+                        </button>
+                        {lastEntry && (
+                            <button
+                                onClick={handleRepeatLastEntry}
+                                className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
+                            >
+                                <History className="w-4 h-4" /> Repeat Last
+                            </button>
+                        )}
+                        <button
+                            onClick={resetForm}
+                            className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
+                        >
+                            <X className="w-4 h-4" /> Clear
+                        </button>
+                        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+                            <button
+                                onClick={() => generatePdf(null, true)}
+                                className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
+                            >
+                                <Printer className="w-4 h-4" /> Blank Print
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setShowExportModal(true)}
+                            className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2"
+                        >
+                            <Download className="w-4 h-4" /> Export
+                        </button>
+                        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+                            <button
+                                onClick={() => generateEODReport(recentEntries)}
+                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
+                            >
+                                📊 Download EOD PDF Report
+                            </button>
+                        )}
+                    </div>
                 </div>
-
-                {/* Divider */}
-                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 hidden md:block" />
-
-                {/* Secondary actions */}
-                {lastEntry && (
-                    <button onClick={handleRepeatLastEntry} className="btn-secondary flex-shrink-0 flex items-center gap-2">
-                        <History className="w-4 h-4" /> Repeat Last
-                    </button>
-                )}
-                <button onClick={resetForm} className="btn-secondary flex-shrink-0 flex items-center gap-2">
-                    <X className="w-4 h-4" /> Clear
-                </button>
-                {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                    <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center gap-2">
-                        <Printer className="w-4 h-4" /> Blank Print
-                    </button>
-                )}
-                <button onClick={() => setShowExportModal(true)} className="btn-secondary flex-shrink-0 flex items-center gap-2">
-                    <Download className="w-4 h-4" /> Export
-                </button>
-            </div>
-
-            {/* ── Search Bar ───────────────────────────────────────────────────── */}
-            <div className="relative w-full md:w-96">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-5 h-5" />
-                <input
-                    type="text"
-                    placeholder="Search Token, Farmer, Village..."
-                    className="input-field pl-10 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                    value={globalSearch}
-                    onChange={(e) => setGlobalSearch(e.target.value)}
-                />
             </div>
 
             {statusMessage.text && (
