@@ -6,6 +6,48 @@ import { motion, AnimatePresence } from 'framer-motion';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+let globalAavakEntries = [];
+let globalJavakEntries = [];
+let globalListeners = [];
+
+const setupGlobalListeners = () => {
+  onSnapshot(collection(db, 'cottonEntries'), (snapshot) => {
+    globalAavakEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    globalListeners.forEach(l => {
+      if (l.type === 'aavak') {
+        l.callback(globalAavakEntries);
+      }
+    });
+  });
+
+  onSnapshot(collection(db, 'javakEntries'), (snapshot) => {
+    globalJavakEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    globalListeners.forEach(l => {
+      if (l.type === 'javak') {
+        l.callback(globalJavakEntries);
+      }
+    });
+  });
+};
+
+setupGlobalListeners();
+
+export const subscribeToAavak = (callback) => {
+  globalListeners.push({ type: 'aavak', callback });
+  callback(globalAavakEntries);
+  return () => {
+    globalListeners = globalListeners.filter(l => l.callback !== callback);
+  };
+};
+
+export const subscribeToJavak = (callback) => {
+  globalListeners.push({ type: 'javak', callback });
+  callback(globalJavakEntries);
+  return () => {
+    globalListeners = globalListeners.filter(l => l.callback !== callback);
+  };
+};
+
 const StatCard = ({ title, value, icon: Icon, color }) => (
   <div className="card flex items-center gap-4">
     <div className={`p-3 rounded-lg ${color}`}>
@@ -63,6 +105,64 @@ function Dashboard({ currentUser }) {
       return localDate.toISOString().split('T')[0];
     };
     const today = getLocalDate();
+
+    let aavakDataGlobal = [];
+    let javakDataGlobal = [];
+
+    const handleDataUpdate = (aavakData, javakData) => {
+      let totalAavakWt = 0;
+      let totalAavakAmt = 0;
+      let totalJavakWt = 0;
+      let totalJavakBags = 0;
+      let todayAavakWt = 0;
+      let todayJavakTrucks = 0;
+      let todayAavakAmt = 0;
+      const breakdown = {};
+
+      aavakData.forEach(data => {
+        const weight = parseFloat(data.netWt || 0);
+        const item = data.itemName || 'Uncategorized';
+        const amt = parseFloat(data.amountPaid || 0);
+        totalAavakWt += weight;
+        totalAavakAmt += amt;
+        if (data.billingDate === today) {
+          todayAavakWt += weight;
+          todayAavakAmt += amt;
+        }
+        if (breakdown[item]) {
+          breakdown[item] += weight;
+        } else {
+          breakdown[item] = weight;
+        }
+      });
+
+      javakData.forEach(data => {
+        const weight = parseFloat(data.netWt || 0);
+        const item = data.commodity || 'Uncategorized';
+        totalJavakWt += weight;
+        totalJavakBags += parseInt(data.numberOfBags || 0, 10);
+        if (data.date === today) {
+          todayJavakTrucks += 1;
+        }
+        if (breakdown[item]) {
+          breakdown[item] -= weight;
+        } else {
+          breakdown[item] = -weight;
+        }
+      });
+
+      setStats({
+        totalAavakNetWt: totalAavakWt,
+        totalAavakAmount: totalAavakAmt,
+        totalJavakNetWt: totalJavakWt,
+        totalJavakBags: totalJavakBags,
+        todayAavakWt,
+        todayJavakTrucks,
+        todayAavakAmount: todayAavakAmt
+      });
+      setItemBreakdown(breakdown);
+      setRawData({ aavak: aavakData, javak: javakData });
+    };
     const maturityQuery = query(
       collection(db, 'cottonEntries'),
       where('paymentDueDate', '==', todayStr)
@@ -136,75 +236,19 @@ function Dashboard({ currentUser }) {
       }
     });
 
-    const unsubscribeAavak = onSnapshot(collection(db, 'cottonEntries'), (snapshot) => {
-      const aavakData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      const unsubscribeJavak = onSnapshot(collection(db, 'javakEntries'), (javakSnapshot) => {
-        const javakData = javakSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        let totalAavakWt = 0;
-        let totalAavakAmt = 0;
-        let totalJavakWt = 0;
-        let totalJavakBags = 0;
-        let todayAavakWt = 0;
-        let todayJavakTrucks = 0;
-        let todayAavakAmt = 0;
-        const breakdown = {};
+    const unsubscribeAavak = subscribeToAavak((data) => {
+      aavakDataGlobal = data;
+      handleDataUpdate(aavakDataGlobal, javakDataGlobal);
+    });
 
-        aavakData.forEach(data => {
-          const weight = parseFloat(data.netWt || 0);
-          const item = data.itemName || 'Uncategorized';
-          const amt = parseFloat(data.amountPaid || 0);
-          totalAavakWt += weight;
-          totalAavakAmt += amt;
-          
-          if (data.billingDate === today) {
-            todayAavakWt += weight;
-            todayAavakAmt += amt;
-          }
-
-          if (breakdown[item]) {
-            breakdown[item] += weight;
-          } else {
-            breakdown[item] = weight;
-          }
-        });
-
-        javakData.forEach(data => {
-          const weight = parseFloat(data.netWt || 0);
-          const item = data.commodity || 'Uncategorized';
-          totalJavakWt += weight;
-          totalJavakBags += parseInt(data.numberOfBags || 0, 10);
-          
-          if (data.date === today) {
-            todayJavakTrucks += 1;
-          }
-
-          if (breakdown[item]) {
-            breakdown[item] -= weight;
-          } else {
-            breakdown[item] = -weight;
-          }
-        });
-
-        setStats({
-          totalAavakNetWt: totalAavakWt,
-          totalAavakAmount: totalAavakAmt,
-          totalJavakNetWt: totalJavakWt,
-          totalJavakBags: totalJavakBags,
-          todayAavakWt,
-          todayJavakTrucks,
-          todayAavakAmount: todayAavakAmt
-        });
-        setItemBreakdown(breakdown);
-        setRawData({ aavak: aavakData, javak: javakData });
-      });
-
-      return () => unsubscribeJavak();
+    const unsubscribeJavak = subscribeToJavak((data) => {
+      javakDataGlobal = data;
+      handleDataUpdate(aavakDataGlobal, javakDataGlobal);
     });
 
     return () => {
       unsubscribeAavak();
+      unsubscribeJavak();
       unsubscribeBardana();
       unsubscribeNotes();
       unsubscribeTasks();
