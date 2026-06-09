@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
+import { subscribeToAavak } from './components/Dashboard';
 
 function Aavak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -65,10 +66,10 @@ function Aavak({ currentUser }) {
         const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
         const dateStr = sevenDaysAgo.toISOString().split('T')[0];
         try {
-            const q = query(collection(db, 'aavak'), where('billingDate', '<', dateStr));
+            const q = query(collection(db, 'cottonEntries'), where('billingDate', '<', dateStr));
             const snapshot = await getDocs(q);
             snapshot.forEach(async (docRef) => {
-                await deleteDoc(doc(db, 'aavak', docRef.id));
+                await deleteDoc(doc(db, 'cottonEntries', docRef.id));
             });
         } catch (error) {
             console.error(error);
@@ -78,20 +79,9 @@ function Aavak({ currentUser }) {
     useEffect(() => {
         runCleanupAfterSevenDays();
         
-        const q = query(
-            collection(db, 'aavak'),
-            orderBy('updatedAt', 'desc')
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+        const unsubscribe = subscribeToAavak((data) => {
             setEntries(data);
             setFilteredEntries(data);
-        }, (error) => {
-            console.error("Firestore collection listen error:", error);
         });
 
         const settingsDocRef = doc(db, 'settings', 'billing');
@@ -182,7 +172,7 @@ function Aavak({ currentUser }) {
         const existingLogs = paymentHistoryEntry.installmentLogs || [];
 
         try {
-            await updateDoc(doc(db, 'aavak', paymentHistoryEntry.id), {
+            await updateDoc(doc(db, 'cottonEntries', paymentHistoryEntry.id), {
                 amountPaid: parseFloat(newPaid.toFixed(2)),
                 balanceAmount: parseFloat(newBalance.toFixed(2)),
                 installmentLogs: [...existingLogs, newLog],
@@ -190,7 +180,7 @@ function Aavak({ currentUser }) {
             });
             setStatusMessage({ text: 'Installment saved successfully!', type: 'success' });
             setPaymentLogValue('');
-            const updatedDoc = await getDoc(doc(db, 'aavak', paymentHistoryEntry.id));
+            const updatedDoc = await getDoc(doc(db, 'cottonEntries', paymentHistoryEntry.id));
             if (updatedDoc.exists()) {
                 setPaymentHistoryEntry({ id: updatedDoc.id, ...updatedDoc.data() });
             }
@@ -482,7 +472,7 @@ function Aavak({ currentUser }) {
         try {
             if (isNewEntry) {
                 const docId = `aavak_${Date.now()}`;
-                await setDoc(doc(db, 'aavak', docId), {
+                await setDoc(doc(db, 'cottonEntries', docId), {
                     ...dataPayload,
                     makerId: currentUser?.employeeId || 'ADMIN',
                     makerName: currentUser?.name || 'ADMIN',
@@ -492,23 +482,23 @@ function Aavak({ currentUser }) {
                 setStatusMessage({ text: 'Created successfully!', type: 'success' });
                 resetState();
             } else {
-                await updateDoc(doc(db, 'aavak', currentEntryId), dataPayload);
+                await updateDoc(doc(db, 'cottonEntries', currentEntryId), dataPayload);
                 setStatusMessage({ text: 'Updated successfully!', type: 'success' });
             }
         } catch (error) {
-            console.error("Error creating/updating in aavak collection: ", error);
+            console.error("Error creating/updating in cottonEntries collection: ", error);
             setStatusMessage({ text: 'Internal database error.', type: 'error' });
         }
     };
 
     const handleDeleteEntry = async (id) => {
         try {
-            await deleteDoc(doc(db, 'aavak', id));
+            await deleteDoc(doc(db, 'cottonEntries', id));
             setStatusMessage({ text: 'Deleted Entry', type: 'success' });
             setDeleteConfirmId(null);
             resetState();
         } catch (error) {
-            console.error("Error deleting document from aavak collection:", error);
+            console.error("Error deleting document from cottonEntries collection:", error);
             setStatusMessage({ text: 'Error deleting.', type: 'error' });
         }
     };

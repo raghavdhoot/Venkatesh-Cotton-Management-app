@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
+import { subscribeToJavak } from './components/Dashboard';
 
 function Javak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -36,10 +37,10 @@ function Javak({ currentUser }) {
         const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
         const dateStr = sevenDaysAgo.toISOString().split('T')[0];
         try {
-            const q = query(collection(db, 'javak'), where('date', '<', dateStr));
+            const q = query(collection(db, 'javakEntries'), where('date', '<', dateStr));
             const snapshot = await getDocs(q);
             snapshot.forEach(async (docRef) => {
-                await deleteDoc(doc(db, 'javak', docRef.id));
+                await deleteDoc(doc(db, 'javakEntries', docRef.id));
             });
         } catch (error) {
             console.error("Historical cleanup failed: ", error);
@@ -49,16 +50,9 @@ function Javak({ currentUser }) {
     useEffect(() => {
         runCleanupAfterSevenDays();
 
-        const q = query(collection(db, 'javak'), orderBy('createdAt', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+        const unsubscribe = subscribeToJavak((list) => {
             setEntries(list);
             setFilteredEntries(list);
-        }, (error) => {
-            console.error("Firestore loading error: ", error);
         });
 
         return () => unsubscribe();
@@ -150,11 +144,11 @@ function Javak({ currentUser }) {
         try {
             if (isNewEntry) {
                 const docId = `javak_${Date.now()}`;
-                await setDoc(doc(db, 'javak', docId), payload);
+                await setDoc(doc(db, 'javakEntries', docId), payload);
                 setStatusMessage({ text: 'Gatepass generated successfully!', type: 'success' });
                 resetState();
             } else {
-                await updateDoc(doc(db, 'javak', currentEntryId), payload);
+                await updateDoc(doc(db, 'javakEntries', currentEntryId), payload);
                 setStatusMessage({ text: 'Gatepass details updated successfully!', type: 'success' });
             }
         } catch (error) {
@@ -165,7 +159,7 @@ function Javak({ currentUser }) {
 
     const handleDeleteEntry = async (id) => {
         try {
-            await deleteDoc(doc(db, 'javak', id));
+            await deleteDoc(doc(db, 'javakEntries', id));
             setStatusMessage({ text: 'Gatepass entry deleted.', type: 'success' });
             setDeleteConfirmId(null);
             resetState();
@@ -537,7 +531,7 @@ function Javak({ currentUser }) {
                                         <th className="px-5 py-3">Truck Details</th>
                                         <th className="px-5 py-3">Cargo Spec</th>
                                         <th className="px-5 py-3">Weight Specs</th>
-                                        <th className="px-5 py-3 flex items-center gap-2">Driver Profile</th>
+                                        <th className="px-5 py-3">Driver Profile</th>
                                         <th className="px-5 py-3 text-right">Gatepass Action</th>
                                     </tr>
                                 </thead>
