@@ -1373,7 +1373,6 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                 </div>
             </div>
         </div>
-        </div>
     );
 }
 
