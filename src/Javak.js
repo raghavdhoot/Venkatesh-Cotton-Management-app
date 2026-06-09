@@ -3,7 +3,7 @@ import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, getDocs, where, documentId } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2 } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function Javak({ currentUser }) {
@@ -458,7 +458,7 @@ function Javak({ currentUser }) {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Tare Weight (kg) *</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => set開areWt ? setTareWt(e.target.value) : setTareWt(e.target.value)} required placeholder="Filled weight" />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => setTareWt(e.target.value)} required placeholder="Filled weight" />
                                     </div>
                                     <div className="flex flex-col justify-center items-center p-3 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-lg">
                                         <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-1">Calculated Net Weight</span>
@@ -537,7 +537,7 @@ function Javak({ currentUser }) {
                                         <th className="px-5 py-3">Truck Details</th>
                                         <th className="px-5 py-3">Cargo Spec</th>
                                         <th className="px-5 py-3">Weight Specs</th>
-                                        <th className="px-5 py-3">Driver Profile</th>
+                                        <th className="px-5 py-3 flex items-center gap-2">Driver Profile</th>
                                         <th className="px-5 py-3 text-right">Gatepass Action</th>
                                     </tr>
                                 </thead>
