@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where } from 'firebase/firestore';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
   <div className="card flex items-center gap-4">
@@ -369,7 +369,7 @@ function Dashboard({ currentUser }) {
 
   const generateEODReport = (rawEntries, operatorName = currentUser?.name || "Admin Counter") => {
     const todayStrLocal = new Date().toLocaleDateString('en-CA');
-    const baseEntries = rawEntries || [];
+    const baseEntries = rawEntries || rawData.aavak || [];
     const todayEntries = baseEntries.filter(entry => entry.billingDate === todayStrLocal);
     
     const totalPattis = todayEntries.length;
@@ -503,6 +503,14 @@ function Dashboard({ currentUser }) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+            <button 
+              onClick={() => generateEODReport(rawData.aavak)}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
+            >
+              <span>📊 Download EOD PDF Report</span>
+            </button>
+          )}
           <button 
             onClick={() => setIsPeriodModalOpen(true)}
             className="btn-secondary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
@@ -521,14 +529,6 @@ function Dashboard({ currentUser }) {
           >
             <Share2 className="w-4 h-4" /> Share WhatsApp
           </button>
-          {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-            <button 
-              onClick={() => generateEODReport(rawData.aavak)}
-              className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-wide flex-shrink-0 shadow-md shadow-emerald-200 dark:shadow-none"
-            >
-              <span>📊 EOD Report</span>
-            </button>
-          )}
         </div>
       </div>
       

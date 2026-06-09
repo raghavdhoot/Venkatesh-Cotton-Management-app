@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Share2 } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
 
@@ -245,7 +245,16 @@ function Aavak({ currentUser }) {
         }
     };
 
-    // Isko replace kar do apni file mein
+    const formatVehicleNumber = (val) => {
+    // 1. Sirf letters, numbers aur SPACES ko allow karo (baki faltu characters udao)
+    // Humne regex mein \s add kiya hai taaki space safe rahe
+    const cleaned = val.replace(/[^A-Z0-9\s]/gi, '').toUpperCase();
+    
+    // 2. Seedhe cleaned string return kar do bina kisi rigid break ke
+    return cleaned;
+};
+
+   // Isko replace kar do apni file mein
 const handleVehicleChange = (e) => {
     // Purane formatVehicleNumber ko hata kar seedhe uppercase kar diya
     const upperValue = e.target.value.toUpperCase(); 
@@ -417,6 +426,8 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
 
         window.open('https://api.whatsapp.com/send?phone=91' + tx.farmerPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
+
+
 
     const handleAddInstallmentLog = async (tokenNo, installmentAmount, installmentMode) => {
         if (!tokenNo || !installmentAmount || parseFloat(installmentAmount) <= 0) {
@@ -717,6 +728,7 @@ Note: This is a digital entry log confirmation only. Payouts are authorized stri
                     <button onClick={resetForm} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                         <X className="w-4 h-4" /> Clear
                     </button>
+
                 </div>
             </div>
 

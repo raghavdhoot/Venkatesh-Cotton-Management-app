@@ -14,25 +14,6 @@ import { LayoutDashboard, ArrowDownLeft, ArrowUpRight, Menu, X, Users, Package, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from './ThemeContext';
 
-// Styled SVG representation of a high-quality cotton emblem for the VCC logo
-const VccLogo = () => (
-    <svg viewBox="0 0 100 100" className="w-full h-full text-indigo-600 dark:text-indigo-400 p-1" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="45" className="fill-indigo-50/50 dark:fill-indigo-950/40 stroke-indigo-500/20" strokeWidth="1.5" />
-        {/* Soft cotton clouds */}
-        <circle cx="42" cy="42" r="14" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
-        <circle cx="58" cy="42" r="14" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
-        <circle cx="50" cy="56" r="16" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
-        <circle cx="36" cy="54" r="10" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
-        <circle cx="64" cy="54" r="10" className="fill-slate-100 dark:fill-slate-800 stroke-slate-300 dark:stroke-slate-600" strokeWidth="0.5" />
-        {/* Plant stem / leaves */}
-        <path d="M50 78 L50 62" className="stroke-emerald-600 dark:stroke-emerald-400" strokeWidth="3" strokeLinecap="round" />
-        <path d="M50 70 Q38 68 34 58" className="stroke-emerald-600 dark:stroke-emerald-400" strokeWidth="2" strokeLinecap="round" />
-        <path d="M50 70 Q62 68 66 58" className="stroke-emerald-600 dark:stroke-emerald-400" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-);
-
-// NOTE: FAVICON CONFIGURATION: To change the browser tab favicon to the VCC logo emblem, update %PUBLIC_URL%/logo192.png in /public/index.html or replace public/favicon.ico with your custom VCC icon.
-
 function App() {
     const { darkMode, toggleDarkMode } = useTheme();
     const [view, setView] = useState('dashboard');
@@ -41,6 +22,7 @@ function App() {
     const [user, setUser] = useState(null);
     const [loginId, setLoginId] = useState('');
     const [loginError, setLoginError] = useState('');
+    const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isBootstrapping, setIsBootstrapping] = useState(true);
 
     React.useEffect(() => {
@@ -99,6 +81,7 @@ function App() {
             if (empSnap.exists()) {
                 setUser(empSnap.data());
                 setLoginError('');
+                setIsLoginModalOpen(false); // Close dashboard auth modal on success
             } else {
                 setLoginError('Invalid Employee ID');
             }
@@ -207,7 +190,16 @@ function App() {
                         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-                                    <VccLogo />
+                                    <img 
+                                        src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
+                                        alt="Logo" 
+                                        className="w-full h-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = "https://via.placeholder.com/40?text=VCC";
+                                        }}
+                                    />
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="font-black text-slate-900 dark:text-white leading-none tracking-tight">VENKATESH</span>
@@ -253,7 +245,16 @@ function App() {
             <aside className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden md:flex flex-col`}>
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
                     <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-slate-200 shadow-lg shadow-indigo-100 dark:shadow-none">
-                        <VccLogo />
+                        <img 
+                            src="https://photos.google.com/photo/AF1QipOtPiI7jk3fLt_STea0vYaofq2VwQ0hXANGGnr3" 
+                            alt="Logo" 
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "https://via.placeholder.com/40?text=VCC";
+                            }}
+                        />
                     </div>
                     {isSidebarOpen && (
                         <div className="flex flex-col">
@@ -335,6 +336,29 @@ function App() {
                         >
                             {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         </button>
+                        {user ? (
+                            <button 
+                                onClick={handleLogout}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 dark:text-rose-400 text-xs font-bold rounded-xl transition-all border border-rose-200 dark:border-rose-900 shadow-sm uppercase tracking-wider"
+                                title="Log Out"
+                            >
+                                <LogOut className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Logout</span>
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={() => {
+                                    setLoginError('');
+                                    setLoginId('');
+                                    setIsLoginModalOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 dark:text-indigo-400 text-xs font-bold rounded-xl transition-all border border-indigo-200 dark:border-indigo-900 shadow-sm uppercase tracking-wider"
+                                title="Log In"
+                            >
+                                <Key className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Login</span>
+                            </button>
+                        )}
                         <span className="text-sm font-black text-slate-900 dark:text-white hidden sm:inline tracking-widest uppercase">VENKATESH COTTON COMPANY</span>
                     </div>
                 </header>
@@ -353,6 +377,59 @@ function App() {
                     </AnimatePresence>
                 </div>
             </main>
+
+            {/* Login Modal Overlay */}
+            <AnimatePresence>
+                {isLoginModalOpen && (
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: -20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
+                        >
+                            <div className="p-6 bg-indigo-600 text-white text-center relative">
+                                <button 
+                                    onClick={() => setIsLoginModalOpen(false)}
+                                    className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors animate-in duration-200"
+                                    type="button"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                                <Key className="w-8 h-8 mx-auto mb-2 text-indigo-100" />
+                                <h2 className="text-xl font-black uppercase tracking-wider">Employee Terminal</h2>
+                                <p className="text-indigo-200 text-xs font-bold uppercase mt-1">Provide credentials to authenticate</p>
+                            </div>
+                            <form onSubmit={handleLogin} className="p-6 space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Username / Employee ID</label>
+                                    <input 
+                                        type="text" 
+                                        className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white font-mono" 
+                                        placeholder="e.g., PRAD10"
+                                        value={loginId}
+                                        onChange={(e) => setLoginId(e.target.value.replace(/\s/g, ''))}
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Password</label>
+                                    <input 
+                                        type="password" 
+                                        className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                        placeholder="••••••••"
+                                    />
+                                    {loginError && <p className="text-red-500 text-xs font-bold mt-1 uppercase tracking-wide">⚠️ {loginError}</p>}
+                                </div>
+                                <button type="submit" className="btn-primary w-full py-3.5 font-black uppercase tracking-widest text-xs mt-2 shadow-lg shadow-indigo-100 dark:shadow-none">
+                                    Authenticate Connection
+                                </button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
