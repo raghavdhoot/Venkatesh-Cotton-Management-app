@@ -81,7 +81,6 @@ function Aavak({ currentUser }) {
         
         const unsubscribe = subscribeToAavak((data) => {
             setEntries(data);
-            setFilteredEntries(data);
         });
 
         const settingsDocRef = doc(db, 'settings', 'billing');

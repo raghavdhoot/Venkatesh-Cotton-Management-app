@@ -52,7 +52,6 @@ function Javak({ currentUser }) {
 
         const unsubscribe = subscribeToJavak((list) => {
             setEntries(list);
-            setFilteredEntries(list);
         });
 
         return () => unsubscribe();
@@ -60,7 +59,7 @@ function Javak({ currentUser }) {
 
     useEffect(() => {
         const lowerSearch = searchQuery.toLowerCase();
-        const filtered = entries.filter(e => 
+        const filtered = entries.filter(e =>
             (e.gatePassNo && e.gatePassNo.toLowerCase().includes(lowerSearch)) ||
             (e.vehicleNumber && e.vehicleNumber.toLowerCase().includes(lowerSearch)) ||
             (e.destination && e.destination.toLowerCase().includes(lowerSearch)) ||
@@ -180,7 +179,6 @@ function Javak({ currentUser }) {
         
         const slipHtml = `
             <div class="border-2 border-slate-900 p-3 mb-2 relative overflow-hidden flex gap-4">
-                <!-- Left Side: Main Details -->
                 <div class="flex-1">
                     <div class="text-center mb-3">
                         <h1 class="text-xl font-bold text-blue-700 uppercase">Venkatesh Cotton Co.</h1>
@@ -231,7 +229,6 @@ function Javak({ currentUser }) {
                     </div>
                 </div>
 
-                <!-- Right Side: Gate Pass & Photo -->
                 <div class="w-32 flex flex-col items-center">
                     <div class="border border-slate-900 p-1 mb-2 w-full text-center">
                         <p class="text-[7px] text-slate-500 uppercase font-bold">Gate Pass No.</p>
