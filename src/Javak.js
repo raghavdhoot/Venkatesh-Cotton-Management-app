@@ -221,60 +221,73 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
     const generateJavakPdf = async (entryToPrint) => {
         const pdfContentElement = document.createElement('div');
-        pdfContentElement.className = "p-2 bg-white w-[210mm]";
+        pdfContentElement.className = "bg-white w-[210mm]";
         
-        // Exact triplicate "Kaata Pavti" design specification for generateJavakPdf (Blank Print compatible)
+        // Formatted and fallback checked properties to prevent elements collapsing
+        const gpNo = entryToPrint.gatePassNo || "____________________";
+        const vehNo = entryToPrint.vehicleNumber || "____________________";
+        const dest = entryToPrint.destination || "____________________";
+        const comm = entryToPrint.commodity || "____________________";
+        
+        const grossVal = entryToPrint.grossWt !== undefined && entryToPrint.grossWt !== "" && entryToPrint.grossWt !== null ? `${entryToPrint.grossWt} kg` : "_______________ kg";
+        const tareVal = entryToPrint.tareWt !== undefined && entryToPrint.tareWt !== "" && entryToPrint.tareWt !== null ? `${entryToPrint.tareWt} kg` : "_______________ kg";
+        const netVal = entryToPrint.netWt !== undefined && entryToPrint.netWt !== "" && entryToPrint.netWt !== null ? `${entryToPrint.netWt} kg` : "_______________ kg";
+        const bagsVal = entryToPrint.numberOfBags !== undefined && entryToPrint.numberOfBags !== "" && entryToPrint.numberOfBags !== null ? entryToPrint.numberOfBags : "_______________";
+        
+        const dtVal = entryToPrint.date || "____________________";
+        const driverVal = entryToPrint.driverName || "____________________";
+
         const exactSlipHtml = `
-            <div style="border: 1.5px solid #000000; padding: 3px 6px; box-sizing: border-box; height: 90mm; max-height: 90mm; overflow: hidden; background: #ffffff; color: #000000; font-family: sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
-                <div style="text-align: center; border-bottom: 1.5px solid #000000; padding-bottom: 3px; margin-bottom: 4px;">
-                    <div style="font-size: 11pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">VENKATESH COTTON CO.</div>
-                    <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">NH752, POMNALA, MAHARASHTRA 431801</div>
+            <div style="border: 1.5px solid #000000; padding: 2px 5px; box-sizing: border-box; height: 87mm; max-height: 87mm; overflow: hidden; background: #ffffff; color: #000000; font-family: sans-serif; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid;">
+                <div style="text-align: center; border-bottom: 1.5px solid #000000; padding-bottom: 2px; margin-bottom: 2px;">
+                    <div style="font-size: 10.5pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1;">VENKATESH COTTON CO.</div>
+                    <div style="font-size: 7.5pt; font-weight: 700; text-transform: uppercase; line-height: 1;">NH752, POMNALA, MAHARASHTRA 431801</div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 34mm; gap: 6px; flex-grow: 1; align-items: stretch;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">GATE PASS NO.</span>
-                            <span style="font-weight: 800; font-family: monospace;">${entryToPrint.gatePassNo || entryToPrint.id || "____________________"}</span>
+                <div style="display: grid; grid-template-columns: 1fr 32mm; gap: 4px; flex-grow: 1; align-items: stretch; margin-top: 2px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3px;">
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">GATE PASS NO.</span>
+                            <span style="font-weight: 800; font-family: monospace; line-height: 1.2;">${gpNo}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">VEHICLE NO.</span>
-                            <span style="font-weight: 800; font-family: monospace;">${entryToPrint.vehicleNumber || "____________________"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">VEHICLE NO.</span>
+                            <span style="font-weight: 800; font-family: monospace; line-height: 1.2;">${vehNo}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">DESTINATION</span>
-                            <span style="font-weight: 800; text-transform: uppercase;">${entryToPrint.destination || "____________________"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">DESTINATION</span>
+                            <span style="font-weight: 800; text-transform: uppercase; line-height: 1.2;">${dest}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">COMMODITY</span>
-                            <span style="font-weight: 800; text-transform: uppercase;">${entryToPrint.commodity || "____________________"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">COMMODITY</span>
+                            <span style="font-weight: 800; text-transform: uppercase; line-height: 1.2;">${comm}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">GROSS (KG)</span>
-                            <span style="font-weight: 800;">${entryToPrint.grossWt !== undefined && entryToPrint.grossWt !== "" && entryToPrint.grossWt !== null ? `${entryToPrint.grossWt} kg` : "_______________ kg"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">GROSS (KG)</span>
+                            <span style="font-weight: 800; line-height: 1.2;">${grossVal}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">TARE (KG)</span>
-                            <span style="font-weight: 800;">${entryToPrint.tareWt !== undefined && entryToPrint.tareWt !== "" && entryToPrint.tareWt !== null ? `${entryToPrint.tareWt} kg` : "_______________ kg"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">TARE (KG)</span>
+                            <span style="font-weight: 800; line-height: 1.2;">${tareVal}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">NET (KG)</span>
-                            <span style="font-weight: 800;">${entryToPrint.netWt !== undefined && entryToPrint.netWt !== "" && entryToPrint.netWt !== null ? `${entryToPrint.netWt} kg` : "_______________ kg"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">NET (KG)</span>
+                            <span style="font-weight: 800; line-height: 1.2;">${netVal}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">BAGS</span>
-                            <span style="font-weight: 800;">${entryToPrint.numberOfBags !== undefined && entryToPrint.numberOfBags !== "" && entryToPrint.numberOfBags !== null ? entryToPrint.numberOfBags : "_______________"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">BAGS</span>
+                            <span style="font-weight: 800; line-height: 1.2;">${bagsVal}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">DATE</span>
-                            <span style="font-weight: 800;">${entryToPrint.date || "____________________"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">DATE</span>
+                            <span style="font-weight: 800; line-height: 1.2;">${dtVal}</span>
                         </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">DRIVER NAME</span>
-                            <span style="font-weight: 800; text-transform: uppercase;">${entryToPrint.driverName || "____________________"}</span>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">DRIVER NAME</span>
+                            <span style="font-weight: 800; text-transform: uppercase; line-height: 1.2;">${driverVal}</span>
                         </div>
                     </div>
-                    <div style="border: 1.5px solid #000000; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 7.5pt; font-weight: bold; padding: 3px; text-transform: uppercase; color: #000000; background: #ffffff; min-height: 40mm; width: 32mm; box-sizing: border-box;">
+                    <div style="border: 1px solid #000000; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 7pt; font-weight: bold; padding: 3px; text-transform: uppercase; color: #475569; background: #ffffff; width: 30mm; height: 100%; box-sizing: border-box; align-self: center;">
                         NO PHOTO AVAILABLE
                     </div>
                 </div>
@@ -282,7 +295,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         `;
 
         pdfContentElement.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 6mm; height: 285mm; max-height: 285mm; overflow: hidden; box-sizing: border-box;">
+            <div style="display: flex; flex-direction: column; justify-content: space-between; height: 285mm; max-height: 285mm; overflow: hidden; box-sizing: border-box; block-size: 100%; page-break-inside: avoid; padding: 0; margin: 0;">
                 ${exactSlipHtml}
                 ${exactSlipHtml}
                 ${exactSlipHtml}
@@ -297,12 +310,19 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     display: none !important;
                 }
                 #print-section {
-                    display: block !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: space-between !important;
                     position: absolute !important;
                     left: 0 !important;
                     top: 0 !important;
                     width: 100% !important;
+                    height: 285mm !important;
+                    max-height: 285mm !important;
+                    box-sizing: border-box !important;
+                    overflow: hidden !important;
                     background: white !important;
+                    page-break-inside: avoid !important;
                 }
             }
         `;
@@ -407,86 +427,102 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                         background: #ffffff !important;
                         color: #000000 !important;
                         page-break-inside: avoid !important;
+                        block-size: 100%;
                     }
                 }
             `}</style>
             {printableJavak && (
                 <div className="vcc-print-sheet font-sans text-black">
-                    {[0, 1, 2].map((copyIndex) => (
-                        <section 
-                            key={copyIndex} 
-                            style={{
-                                flex: 1,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                border: '1.5px solid #000000',
-                                padding: '3px 6px',
-                                boxSizing: 'border-box',
-                                height: '90mm',
-                                maxHeight: '90mm',
-                                overflow: 'hidden',
-                                background: '#ffffff',
-                                color: '#000000'
-                            }}
-                        >
-                            <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '3px', marginBottom: '4px' }}>
-                                <h1 style={{ fontSize: '11pt', fontWeight: 900, textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.2', letterSpacing: '0.5px' }}>VENKATESH COTTON CO.</h1>
-                                <p style={{ fontSize: '8pt', fontWeight: 700, textTransform: 'uppercase', margin: '2px 0 0 0', padding: 0 }}>NH752, POMNALA, MAHARASHTRA 431801</p>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 34mm', gap: '6px', flexGrow: 1, alignItems: 'stretch' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>GATE PASS NO.</span>
-                                        <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{printableJavak.gatePassNo || "____________________"}</span>
-                                    </div>
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>VEHICLE NO.</span>
-                                        <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{printableJavak.vehicleNumber || "____________________"}</span>
-                                    </div>
+                    {[0, 1, 2].map((copyIndex) => {
+                        const gpNo = printableJavak.gatePassNo || "____________________";
+                        const vehNo = printableJavak.vehicleNumber || "____________________";
+                        const dest = printableJavak.destination || "____________________";
+                        const comm = printableJavak.commodity || "____________________";
+                        
+                        const grossVal = printableJavak.grossWt !== undefined && printableJavak.grossWt !== "" && printableJavak.grossWt !== null ? `${printableJavak.grossWt} kg` : "_______________ kg";
+                        const tareVal = printableJavak.tareWt !== undefined && printableJavak.tareWt !== "" && printableJavak.tareWt !== null ? `${printableJavak.tareWt} kg` : "_______________ kg";
+                        const netVal = printableJavak.netWt !== undefined && printableJavak.netWt !== "" && printableJavak.netWt !== null ? `${printableJavak.netWt} kg` : "_______________ kg";
+                        const bagsVal = printableJavak.numberOfBags !== undefined && printableJavak.numberOfBags !== "" && printableJavak.numberOfBags !== null ? printableJavak.numberOfBags : "_______________";
+                        
+                        const dtVal = printableJavak.date || "____________________";
+                        const driverVal = printableJavak.driverName || "____________________";
 
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>DESTINATION</span>
-                                        <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{printableJavak.destination || "____________________"}</span>
-                                    </div>
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>COMMODITY</span>
-                                        <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{printableJavak.commodity || "____________________"}</span>
-                                    </div>
+                        return (
+                            <section 
+                                key={copyIndex} 
+                                style={{
+                                    height: '87mm',
+                                    maxHeight: '87mm',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    border: '1.5px solid #000000',
+                                    padding: '2px 5px',
+                                    boxSizing: 'border-box',
+                                    overflow: 'hidden',
+                                    background: '#ffffff',
+                                    color: '#000000',
+                                    pageBreakInside: 'avoid'
+                                }}
+                            >
+                                <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '2px', marginBottom: '2px' }}>
+                                    <h1 style={{ fontSize: '10.5pt', fontWeight: 900, textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.1', letterSpacing: '0.5px' }}>VENKATESH COTTON CO.</h1>
+                                    <p style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', margin: '2px 0 0 0', padding: 0, lineHeight: '1' }}>NH752, POMNALA, MAHARASHTRA 431801</p>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 32mm', gap: '4px', flexGrow: 1, alignItems: 'stretch', marginTop: '2px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>GATE PASS NO.</span>
+                                            <span style={{ fontWeight: 800, fontFamily: 'monospace', lineHeight: '1.2' }}>{gpNo}</span>
+                                        </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>VEHICLE NO.</span>
+                                            <span style={{ fontWeight: 800, fontFamily: 'monospace', lineHeight: '1.2' }}>{vehNo}</span>
+                                        </div>
 
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>GROSS (KG)</span>
-                                        <span style={{ fontWeight: 800 }}>{printableJavak.grossWt !== undefined && printableJavak.grossWt !== "" && printableJavak.grossWt !== null ? `${printableJavak.grossWt} kg` : "_______________ kg"}</span>
-                                    </div>
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>TARE (KG)</span>
-                                        <span style={{ fontWeight: 800 }}>{printableJavak.tareWt !== undefined && printableJavak.tareWt !== "" && printableJavak.tareWt !== null ? `${printableJavak.tareWt} kg` : "_______________ kg"}</span>
-                                    </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>DESTINATION</span>
+                                            <span style={{ fontWeight: 800, textTransform: 'uppercase', lineHeight: '1.2' }}>{dest}</span>
+                                        </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>COMMODITY</span>
+                                            <span style={{ fontWeight: 800, textTransform: 'uppercase', lineHeight: '1.2' }}>{comm}</span>
+                                        </div>
 
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>NET (KG)</span>
-                                        <span style={{ fontWeight: 800 }}>{printableJavak.netWt !== undefined && printableJavak.netWt !== "" && printableJavak.netWt !== null ? `${printableJavak.netWt} kg` : "_______________ kg"}</span>
-                                    </div>
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>BAGS</span>
-                                        <span style={{ fontWeight: 800 }}>{printableJavak.numberOfBags !== undefined && printableJavak.numberOfBags !== "" && printableJavak.numberOfBags !== null ? printableJavak.numberOfBags : "_______________"}</span>
-                                    </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>GROSS (KG)</span>
+                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{grossVal}</span>
+                                        </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>TARE (KG)</span>
+                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{tareVal}</span>
+                                        </div>
 
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>DATE</span>
-                                        <span style={{ fontWeight: 800 }}>{printableJavak.date || "____________________"}</span>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>NET (KG)</span>
+                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{netVal}</span>
+                                        </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>BAGS</span>
+                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{bagsVal}</span>
+                                        </div>
+
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>DATE</span>
+                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{dtVal}</span>
+                                        </div>
+                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>DRIVER NAME</span>
+                                            <span style={{ fontWeight: 800, textTransform: 'uppercase', lineHeight: '1.2' }}>{driverVal}</span>
+                                        </div>
                                     </div>
-                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
-                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>DRIVER NAME</span>
-                                        <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{printableJavak.driverName || "____________________"}</span>
+                                    <div style={{ border: '1px solid #000000', display: 'flex', alignItems: 'center', justifycontent: 'center', textAlign: 'center', fontSize: '7pt', fontWeight: 'bold', padding: '3px', textTransform: 'uppercase', color: '#475569', background: '#ffffff', width: '30mm', height: '100%', boxSizing: 'border-box', alignSelf: 'center' }}>
+                                        NO PHOTO AVAILABLE
                                     </div>
                                 </div>
-                                <div style={{ border: '1.5px solid #000000', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '7.5pt', fontWeight: 'bold', padding: '3px', textTransform: 'uppercase', color: '#000000', background: '#ffffff', minHeight: '40mm', width: '32mm', boxSizing: 'border-box' }}>
-                                    NO PHOTO AVAILABLE
-                                </div>
-                            </div>
-                        </section>
-                    ))}
+                            </section>
+                        );
+                    })}
                 </div>
             )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -746,73 +782,73 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                             <FileText className="w-4 h-4" />
                                                         </button>
 
-                                                        {e.driverPhone && (
-                                                            <button 
-                                                                onClick={() => handleShareWhatsApp(e)} 
-                                                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100/50 rounded-lg text-emerald-600"
-                                                                title="Share DL slip via WhatsApp"
-                                                            >
-                                                                <Share2 className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-
+                                                    {e.driverPhone && (
                                                         <button 
-                                                            onClick={() => handleSelectEntry(e)} 
-                                                            className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-600 text-[10px] font-bold uppercase rounded p-1 px-3 ml-1"
+                                                            onClick={() => handleShareWhatsApp(e)} 
+                                                            className="p-1.5 bg-emerald-50 hover:bg-emerald-100/50 rounded-lg text-emerald-600"
+                                                            title="Share DL slip via WhatsApp"
                                                         >
-                                                            Edit
+                                                            <Share2 className="w-4 h-4" />
                                                         </button>
-                                                        
-                                                        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                                                            <button 
-                                                                onClick={() => setDeleteConfirmId(e.id)} 
-                                                                className="p-1.5 text-slate-400 hover:text-red-600"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+                                                    )}
 
-                <div className="lg:col-span-4">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-xs space-y-4">
-                        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                            <Search className="w-4 h-4 text-slate-400" />
-                            <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Verify Outlet Gate Pass</h4>
-                        </div>
-                        <input 
-                            type="text" 
-                            className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
-                            placeholder="SEARCH FARMER / VILLAGE / VEHICLE / TOKEN..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+                                                    <button 
+                                                        onClick={() => handleSelectEntry(e)} 
+                                                        className="p-1 bg-amber-50 hover:bg-amber-100 text-amber-600 text-[10px] font-bold uppercase rounded p-1 px-3 ml-1"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    
+                                                    {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+                                                        <button 
+                                                            onClick={() => setDeleteConfirmId(e.id)} 
+                                                            className="p-1.5 text-slate-400 hover:text-red-600"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            {deleteConfirmId && (
-                <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-3">
-                    <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl text-center space-y-4 shadow-xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
-                        <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-sm tracking-wide">Are you absolute sure?</h4>
-                        <p className="text-xs text-slate-500">This action permanently purges this gatepass outwards record database logs.</p>
-                        <div className="flex items-center justify-center gap-3">
-                            <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="btn-primary bg-red-600 hover:bg-red-700 font-bold text-xs p-2 px-6 uppercase tracking-wider shadow shadow-red-200">Yes Delete</button>
-                            <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary text-xs uppercase font-bold p-2 px-6">Cancel</button>
-                        </div>
+            <div className="lg:col-span-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-xs space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <Search className="w-4 h-4 text-slate-400" />
+                        <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Verify Outlet Gate Pass</h4>
+                    </div>
+                    <input 
+                        type="text" 
+                        className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
+                        placeholder="SEARCH FARMER / VILLAGE / VEHICLE / TOKEN..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
+        </div>
+
+        {deleteConfirmId && (
+            <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-3">
+                <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl text-center space-y-4 shadow-xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+                    <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-sm tracking-wide">Are you absolute sure?</h4>
+                    <p className="text-xs text-slate-500">This action permanently purges this gatepass outwards record database logs.</p>
+                    <div className="flex items-center justify-center gap-3">
+                        <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="btn-primary bg-red-600 hover:bg-red-700 font-bold text-xs p-2 px-6 uppercase tracking-wider shadow shadow-red-200">Yes Delete</button>
+                        <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary text-xs uppercase font-bold p-2 px-6">Cancel</button>
                     </div>
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        )}
+    </div>
+);
 }
 
 export default Javak;
