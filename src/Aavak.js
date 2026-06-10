@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
@@ -41,7 +38,6 @@ function Aavak({ currentUser }) {
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
-    const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [billingSettings, setBillingSettings] = useState({
@@ -61,24 +57,8 @@ function Aavak({ currentUser }) {
         return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
     };
 
-    const runCleanupAfterSevenDays = async () => {
-        const now = new Date();
-        const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-        const dateStr = sevenDaysAgo.toISOString().split('T')[0];
-        try {
-            const q = query(collection(db, 'cottonEntries'), where('billingDate', '<', dateStr));
-            const snapshot = await getDocs(q);
-            snapshot.forEach(async (docRef) => {
-                await deleteDoc(doc(db, 'cottonEntries', docRef.id));
-            });
-        } catch (error) {
-            console.error(error);
-        }
-    };
 
     useEffect(() => {
-        runCleanupAfterSevenDays();
-        
         const unsubscribe = subscribeToAavak((data) => {
             setEntries(data);
         });
@@ -109,12 +89,9 @@ function Aavak({ currentUser }) {
             );
         }
 
-        if (dateRange.start && dateRange.end) {
-            result = result.filter(e => e.billingDate >= dateRange.start && e.billingDate <= dateRange.end);
-        }
 
         setFilteredEntries(result);
-    }, [globalSearch, dateRange, entries]);
+    }, [globalSearch, entries]);
 
     const handleSelectEntry = (entry) => {
         setCurrentEntryId(entry.id);
@@ -766,15 +743,16 @@ function Aavak({ currentUser }) {
 
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-4">
-                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Historical Transactions (7 days)</h3>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400">Filter Range</span>
-                                <input type="date" className="input-field text-xs px-2 py-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} />
-                                <span className="text-xs text-slate-400">to</span>
-                                <input type="date" className="input-field text-xs px-2 py-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} />
-                                {(dateRange.start || dateRange.end) && (
-                                    <button onClick={() => setDateRange({start: '', end: ''})} className="text-xs text-red-500 hover:underline">Clear</button>
-                                )}
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Historical Transactions</h3>
+                            <div className="relative w-full sm:w-80">
+                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    className="input-field pl-9 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                    placeholder="Search farmer, village, vehicle or token..."
+                                    value={globalSearch}
+                                    onChange={(e) => setGlobalSearch(e.target.value)}
+                                />
                             </div>
                         </div>
 
@@ -826,9 +804,9 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => generatePdf(entry)}
+                                                            onClick={() => window.print()}
                                                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                                            title="Download PDF"
+                                                            title="Print"
                                                         >
                                                             <FileText className="w-5 h-5" />
                                                         </button>
@@ -896,7 +874,7 @@ function Aavak({ currentUser }) {
                                             <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.tokenNo}</h4>
                                         </div>
                                         <div className="flex gap-1">
-                                            <button onClick={() => generatePdf(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+                                            <button onClick={() => window.print()} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
                                                 <FileText className="w-5 h-5" />
                                             </button>
                                             <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">

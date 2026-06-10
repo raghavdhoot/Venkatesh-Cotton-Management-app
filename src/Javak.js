@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, getDocs, where, documentId } from 'firebase/firestore';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
@@ -32,24 +30,8 @@ function Javak({ currentUser }) {
     const [videoStream, setVideoStream] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
-    const runCleanupAfterSevenDays = async () => {
-        const now = new Date();
-        const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-        const dateStr = sevenDaysAgo.toISOString().split('T')[0];
-        try {
-            const q = query(collection(db, 'javakEntries'), where('date', '<', dateStr));
-            const snapshot = await getDocs(q);
-            snapshot.forEach(async (docRef) => {
-                await deleteDoc(doc(db, 'javakEntries', docRef.id));
-            });
-        } catch (error) {
-            console.error("Historical cleanup failed: ", error);
-        }
-    };
 
     useEffect(() => {
-        runCleanupAfterSevenDays();
-
         const unsubscribe = subscribeToJavak((list) => {
             setEntries(list);
         });
@@ -58,8 +40,17 @@ function Javak({ currentUser }) {
     }, []);
 
     useEffect(() => {
-        const lowerSearch = searchQuery.toLowerCase();
+        const lowerSearch = searchQuery.trim().toLowerCase();
+        if (!lowerSearch) {
+            setFilteredEntries(entries);
+            return;
+        }
+
         const filtered = entries.filter(e =>
+            (e.Name && e.Name.toLowerCase().includes(lowerSearch)) ||
+            (e.Village && e.Village.toLowerCase().includes(lowerSearch)) ||
+            (e.tokenNo && e.tokenNo.toLowerCase().includes(lowerSearch)) ||
+            (e.vehicleNo && e.vehicleNo.toLowerCase().includes(lowerSearch)) ||
             (e.gatePassNo && e.gatePassNo.toLowerCase().includes(lowerSearch)) ||
             (e.vehicleNumber && e.vehicleNumber.toLowerCase().includes(lowerSearch)) ||
             (e.destination && e.destination.toLowerCase().includes(lowerSearch)) ||
@@ -518,7 +509,7 @@ function Javak({ currentUser }) {
                     )}
 
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4">
-                        <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">Active Dispatch Log (Last 7 Days)</h3>
+                        <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">Active Dispatch Log</h3>
                         
                         <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
                             <table className="w-full text-left border-collapse">
@@ -565,9 +556,9 @@ function Javak({ currentUser }) {
                                                 <td className="px-5 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => generateJavakPdf(e)} 
+                                                            onClick={() => window.print()} 
                                                             className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg text-slate-500 dark:text-slate-400"
-                                                            title="Download PDF"
+                                                            title="Print"
                                                         >
                                                             <FileText className="w-4 h-4" />
                                                         </button>
@@ -617,7 +608,7 @@ function Javak({ currentUser }) {
                         <input 
                             type="text" 
                             className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
-                            placeholder="SEARCH GATEPASS NO / VEHICLE..." 
+                            placeholder="SEARCH FARMER / VILLAGE / VEHICLE / TOKEN..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
