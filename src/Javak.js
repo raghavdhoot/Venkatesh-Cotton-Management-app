@@ -20,7 +20,10 @@ function Javak({ currentUser }) {
     const [driverName, setDriverName] = useState('');
     const [driverPhone, setDriverPhone] = useState('');
     const [commodity, setCommodity] = useState('BALES');
+    const [customCommodity, setCustomCommodity] = useState('');
     const [numberOfBags, setNumberOfBags] = useState('');
+    const [bardana, setBardana] = useState('');
+    const [sutli, setSutli] = useState('');
     const [grossWt, setGrossWt] = useState('');
     const [tareWt, setTareWt] = useState('');
     const [netWt, setNetWt] = useState('');
@@ -29,6 +32,9 @@ function Javak({ currentUser }) {
     const [driverPhoto, setDriverPhoto] = useState(null);
     const [videoStream, setVideoStream] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    const [printEntry, setPrintEntry] = useState(null);
+
+    const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS', 'OIL TANKER', 'COCONUT HUSK'];
 
 
     useEffect(() => {
@@ -114,6 +120,8 @@ function Javak({ currentUser }) {
         e.preventDefault();
         setStatusMessage({ text: 'Saving Gatepass record...', type: 'info' });
 
+        const resolvedCommodity = commodity === 'OTHER_PRODUCTS' ? customCommodity.trim().toUpperCase() : commodity;
+
         const payload = {
             gatePassNo: gatePassNo.toUpperCase() || null,
             date: date || new Date().toLocaleDateString('en-CA'),
@@ -121,8 +129,10 @@ function Javak({ currentUser }) {
             destination: destination.toUpperCase() || null,
             driverName: driverName.toUpperCase() || '',
             driverPhone: driverPhone || '',
-            commodity: commodity || 'BALES',
+            commodity: resolvedCommodity || 'BALES',
             numberOfBags: numberOfBags ? parseInt(numberOfBags) : null,
+            bardana: bardana ? parseFloat(bardana) : null,
+            sutli: sutli ? parseFloat(sutli) : null,
             grossWt: grossWt ? parseFloat(grossWt) : null,
             tareWt: tareWt ? parseFloat(tareWt) : null,
             netWt: netWt ? parseFloat(netWt) : null,
@@ -160,7 +170,7 @@ function Javak({ currentUser }) {
     };
 
     const handleShareWhatsApp = (tx) => {
-        const messageText = `*Venkatesh Cotton Company Gate Pass*\n\nGate Pass No: ${tx.gatePassNo || tx.id}\nDate: ${tx.date}\nVehicle: ${tx.vehicleNumber}\nDestination: ${tx.destination}\nDriver Name: ${tx.driverName}\nCommodity: ${tx.commodity}\nNo. of Bags: ${tx.numberOfBags}\nNet Wt: ${tx.netWt} kg\n\nThank you, Have a safe journey!`;
+        const messageText = `*Venkatesh Cotton Company Gate Pass*\n\nGate Pass No: ${tx.gatePassNo || tx.id}\nDate: ${tx.date}\nVehicle: ${tx.vehicleNumber}\nDestination: ${tx.destination}\nDriver Name: ${tx.driverName}\nCommodity: ${tx.commodity}\nNo. of Bags: ${tx.numberOfBags}\nBardana: ${tx.bardana || 0}\nSutli: ${tx.sutli || 0}\nNet Wt: ${tx.netWt} kg\n\nThank you, Have a safe journey!`;
         window.open('https://api.whatsapp.com/send?phone=91' + tx.driverPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
@@ -299,8 +309,17 @@ function Javak({ currentUser }) {
         setDestination(entry.destination || '');
         setDriverName(entry.driverName || '');
         setDriverPhone(entry.driverPhone || '');
-        setCommodity(entry.commodity || 'BALES');
+        const selectedCommodity = entry.commodity || 'BALES';
+        if (commodityOptions.includes(selectedCommodity)) {
+            setCommodity(selectedCommodity);
+            setCustomCommodity('');
+        } else {
+            setCommodity('OTHER_PRODUCTS');
+            setCustomCommodity(selectedCommodity);
+        }
         setNumberOfBags(entry.numberOfBags || '');
+        setBardana(entry.bardana || '');
+        setSutli(entry.sutli || '');
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
@@ -317,7 +336,10 @@ function Javak({ currentUser }) {
         setDriverName('');
         setDriverPhone('');
         setCommodity('BALES');
+        setCustomCommodity('');
         setNumberOfBags('');
+        setBardana('');
+        setSutli('');
         setGrossWt('');
         setTareWt('');
         setNetWt('');
@@ -325,8 +347,90 @@ function Javak({ currentUser }) {
         stopCamera();
     };
 
+    useEffect(() => {
+        const clearPrintEntry = () => setPrintEntry(null);
+        window.addEventListener('afterprint', clearPrintEntry);
+        return () => window.removeEventListener('afterprint', clearPrintEntry);
+    }, []);
+
+    const printableJavak = printEntry || (currentEntryId ? {
+        gatePassNo,
+        date,
+        vehicleNumber,
+        destination,
+        driverName,
+        driverPhone,
+        commodity: commodity === 'OTHER_PRODUCTS' ? customCommodity : commodity,
+        numberOfBags,
+        bardana,
+        sutli,
+        grossWt,
+        tareWt,
+        netWt,
+        driverPhoto
+    } : null);
+
     return (
         <div className="space-y-6">
+            <style>{`
+                @media screen {
+                    .vcc-print-sheet { display: none !important; }
+                }
+                @media print {
+                    @page { size: A4; margin: 10mm; }
+                    body { background: #ffffff !important; }
+                    body * { visibility: hidden !important; }
+                    .vcc-screen-only, aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
+                    .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
+                    .vcc-print-sheet {
+                        display: block !important;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #ffffff !important;
+                        color: #0f172a !important;
+                        box-shadow: none !important;
+                    }
+                }
+            `}</style>
+            {printableJavak && (
+                <div className="vcc-print-sheet font-sans">
+                    <div className="border-2 border-slate-900 p-5 bg-white text-slate-900">
+                        <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
+                            <h1 className="text-2xl font-black uppercase">VENKATESH COTTON COMPANY</h1>
+                            <p className="text-xs font-bold">Outgoing Gate Pass</p>
+                        </div>
+                        <div className="flex justify-between text-xs font-black uppercase border-b border-slate-900 pb-2 mb-4">
+                            <span>Gate Pass: {printableJavak.gatePassNo || '-'}</span>
+                            <span>Date: {printableJavak.date || '-'}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 text-xs mb-4">
+                            <div><span className="block text-slate-500 font-bold uppercase">Vehicle</span><strong>{printableJavak.vehicleNumber || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Destination</span><strong>{printableJavak.destination || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Driver</span><strong>{printableJavak.driverName || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Phone</span><strong>{printableJavak.driverPhone || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Commodity</span><strong>{printableJavak.commodity || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Bales/Bags</span><strong>{printableJavak.numberOfBags || 0}</strong></div>
+                        </div>
+                        <table className="w-full text-xs border-collapse border border-slate-900">
+                            <tbody>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Gross Weight</td><td className="border border-slate-900 p-2 text-right">{printableJavak.grossWt || 0} kg</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Tare Weight</td><td className="border border-slate-900 p-2 text-right">{printableJavak.tareWt || 0} kg</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-black">Net Weight</td><td className="border border-slate-900 p-2 text-right font-black">{printableJavak.netWt || 0} kg</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Bardana</td><td className="border border-slate-900 p-2 text-right">{printableJavak.bardana || 0}</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Sutli</td><td className="border border-slate-900 p-2 text-right">{printableJavak.sutli || 0}</td></tr>
+                            </tbody>
+                        </table>
+                        <div className="grid grid-cols-2 gap-10 mt-10 text-xs font-bold uppercase">
+                            <div className="border-t border-slate-900 pt-2">Driver Signature</div>
+                            <div className="border-t border-slate-900 pt-2 text-right">Authorized Signature</div>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400 font-extrabold text-xl">
@@ -356,7 +460,9 @@ function Javak({ currentUser }) {
                             numberOfBags: '__________',
                             grossWt: '_____',
                             tareWt: '_____',
-                            netWt: '_____'
+                            netWt: '_____',
+                            bardana: '_____',
+                            sutli: '_____'
                         })} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                             <Printer className="w-4 h-4" /> Blank Print
                         </button>
@@ -405,8 +511,15 @@ function Javak({ currentUser }) {
                                             <option value="KAPAS">KAPAS RAW</option>
                                             <option value="OIL TANKER">COTTON SEED OIL</option>
                                             <option value="COCONUT HUSK">OTHER BY-PROD</option>
+                                            <option value="OTHER_PRODUCTS">Other Products</option>
                                         </select>
                                     </div>
+                                    {commodity === 'OTHER_PRODUCTS' && (
+                                        <div>
+                                            <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Custom Commodity *</label>
+                                            <input type="text" className="input-field uppercase font-bold dark:bg-slate-800 dark:border-slate-700" value={customCommodity} onChange={(e) => setCustomCommodity(e.target.value)} required placeholder="Enter product name" />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -433,14 +546,25 @@ function Javak({ currentUser }) {
                                     </div>
                                 </div>
 
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Bardana</label>
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={bardana} onChange={(e) => setBardana(e.target.value)} placeholder="Bardana" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Sutli</label>
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={sutli} onChange={(e) => setSutli(e.target.value)} placeholder="Sutli" />
+                                    </div>
+                                </div>
+
                                 <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-5 border border-slate-100 dark:border-slate-800">
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Gross Weight (kg) *</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required placeholder="Empty weight" />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required placeholder="Gross Wt" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Tare Weight (kg) *</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => setTareWt(e.target.value)} required placeholder="Filled weight" />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => setTareWt(e.target.value)} required placeholder="Tare Wt" />
                                     </div>
                                     <div className="flex flex-col justify-center items-center p-3 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-lg">
                                         <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-1">Calculated Net Weight</span>
@@ -539,6 +663,7 @@ function Javak({ currentUser }) {
                                                 <td className="px-5 py-4">
                                                     <div className="font-bold text-slate-900 dark:text-white">{e.commodity}</div>
                                                     <div className="text-[10px] text-slate-400 font-mono font-bold">Qty: {e.numberOfBags} Bales</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">Bardana: {e.bardana || 0} | Sutli: {e.sutli || 0}</div>
                                                 </td>
                                                 <td className="px-5 py-4 font-mono font-semibold">
                                                     <div>Net: <span className="font-bold text-slate-900 dark:text-white">{e.netWt} kg</span></div>
@@ -556,7 +681,7 @@ function Javak({ currentUser }) {
                                                 <td className="px-5 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => window.print()} 
+                                                            onClick={() => { setPrintEntry(e); setTimeout(() => window.print(), 0); }} 
                                                             className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg text-slate-500 dark:text-slate-400"
                                                             title="Print"
                                                         >

@@ -15,6 +15,7 @@ function Aavak({ currentUser }) {
     const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
     const [tokenNo, setTokenNo] = useState('');
     const [itemName, setItemName] = useState('KAPAS');
+    const [customItemName, setCustomItemName] = useState('');
     const [Name, setName] = useState('');    
     const [farmerPhone, setFarmerPhone] = useState('');
     const [Village, setVillage] = useState('');    
@@ -48,6 +49,9 @@ function Aavak({ currentUser }) {
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [paymentLogValue, setPaymentLogValue] = useState('');
     const [paymentHistoryEntry, setPaymentHistoryEntry] = useState(null);
+    const [printEntry, setPrintEntry] = useState(null);
+
+    const commodityOptions = ['KAPAS', 'SOYABEAN', 'CHANA', 'TUAAR', 'WHEAT'];
 
     const formatVehicleNoInput = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -101,7 +105,14 @@ function Aavak({ currentUser }) {
         setFarmerPhone(entry.farmerPhone || '');
         setVillage(entry.Village || '');
         setVehicleNo(entry.vehicleNo || '');
-        setItemName(entry.itemName || 'KAPAS');
+        const selectedItem = entry.itemName || 'KAPAS';
+        if (commodityOptions.includes(selectedItem)) {
+            setItemName(selectedItem);
+            setCustomItemName('');
+        } else {
+            setItemName('OTHER_PRODUCTS');
+            setCustomItemName(selectedItem);
+        }
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
@@ -419,10 +430,12 @@ function Aavak({ currentUser }) {
 
         setStatusMessage({ text: 'Saving...', type: 'info' });
 
+        const resolvedItemName = itemName === 'OTHER_PRODUCTS' ? customItemName.trim().toUpperCase() : itemName;
+
         const dataPayload = {
             billingDate: billingDate || null,
             tokenNo: tokenNo ? tokenNo.toUpperCase() : null,
-            itemName: itemName || 'KAPAS',
+            itemName: resolvedItemName || 'KAPAS',
             Name: Name ? Name.toUpperCase() : null,
             farmerPhone: farmerPhone || '',
             Village: Village ? Village.toUpperCase() : null,
@@ -513,6 +526,7 @@ function Aavak({ currentUser }) {
         setVillage('');
         setVehicleNo('');
         setItemName('KAPAS');
+        setCustomItemName('');
         setGrossWt('');
         setTareWt('');
         setNetWt('');
@@ -531,8 +545,97 @@ function Aavak({ currentUser }) {
         setIsNewEntry(false);
     };
 
+    useEffect(() => {
+        const clearPrintEntry = () => setPrintEntry(null);
+        window.addEventListener('afterprint', clearPrintEntry);
+        return () => window.removeEventListener('afterprint', clearPrintEntry);
+    }, []);
+
+    const printableAavak = printEntry || (currentEntryId ? {
+        tokenNo,
+        billingDate,
+        Name,
+        Village,
+        vehicleNo,
+        itemName: itemName === 'OTHER_PRODUCTS' ? customItemName : itemName,
+        grossWt,
+        tareWt,
+        netWt,
+        netWtAfterDeduction,
+        rate,
+        grossAmount,
+        hamaliDeduction,
+        weighmentDeduction,
+        netAmount,
+        amountPaid,
+        balanceAmount,
+        paymentMode,
+        accountantName
+    } : null);
+
     return (
         <div className="space-y-6">
+            <style>{`
+                @media screen {
+                    .vcc-print-sheet { display: none !important; }
+                }
+                @media print {
+                    @page { size: A4; margin: 10mm; }
+                    body { background: #ffffff !important; }
+                    body * { visibility: hidden !important; }
+                    .vcc-screen-only, aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
+                    .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
+                    .vcc-print-sheet {
+                        display: block !important;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #ffffff !important;
+                        color: #0f172a !important;
+                        box-shadow: none !important;
+                    }
+                }
+            `}</style>
+            {printableAavak && (
+                <div className="vcc-print-sheet font-sans">
+                    <div className="border-2 border-slate-900 p-5 bg-white text-slate-900">
+                        <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
+                            <h1 className="text-2xl font-black uppercase">VENKATESH COTTON COMPANY</h1>
+                            <p className="text-xs font-bold">NH752, Pomnala, Maharashtra 431801</p>
+                        </div>
+                        <div className="flex justify-between text-xs font-black uppercase border-b border-slate-900 pb-2 mb-4">
+                            <span>Farmer Purchase Bill</span>
+                            <span>Token: {printableAavak.tokenNo || '-'}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 text-xs mb-4">
+                            <div><span className="block text-slate-500 font-bold uppercase">Date</span><strong>{printableAavak.billingDate || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Farmer</span><strong>{printableAavak.Name || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Village</span><strong>{printableAavak.Village || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Vehicle</span><strong>{printableAavak.vehicleNo || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Commodity</span><strong>{printableAavak.itemName || '-'}</strong></div>
+                            <div><span className="block text-slate-500 font-bold uppercase">Payment</span><strong>{printableAavak.paymentMode || '-'}</strong></div>
+                        </div>
+                        <table className="w-full text-xs border-collapse border border-slate-900">
+                            <tbody>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Gross / Tare Weight</td><td className="border border-slate-900 p-2 text-right">{printableAavak.grossWt || 0} / {printableAavak.tareWt || 0} kg</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Net Weight</td><td className="border border-slate-900 p-2 text-right">{printableAavak.netWt || 0} kg</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Net Weight After Deduction</td><td className="border border-slate-900 p-2 text-right">{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Rate / Gross Amount</td><td className="border border-slate-900 p-2 text-right">Rs. {printableAavak.rate || 0} / Rs. {printableAavak.grossAmount || 0}</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Deductions</td><td className="border border-slate-900 p-2 text-right">Rs. {(parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2)}</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-black">Net Payable</td><td className="border border-slate-900 p-2 text-right font-black">Rs. {printableAavak.netAmount || 0}</td></tr>
+                                <tr><td className="border border-slate-900 p-2 font-bold">Paid / Balance</td><td className="border border-slate-900 p-2 text-right">Rs. {printableAavak.amountPaid || 0} / Rs. {printableAavak.balanceAmount || 0}</td></tr>
+                            </tbody>
+                        </table>
+                        <div className="grid grid-cols-2 gap-10 mt-10 text-xs font-bold uppercase">
+                            <div className="border-t border-slate-900 pt-2">Farmer Signature</div>
+                            <div className="border-t border-slate-900 pt-2 text-right">Accountant: {printableAavak.accountantName || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-xl">
@@ -606,8 +709,15 @@ function Aavak({ currentUser }) {
                                             <option value="CHANA">CHANA</option>
                                             <option value="TUAAR">TUAAR</option>
                                             <option value="WHEAT">WHEAT (GEHU)</option>
+                                            <option value="OTHER_PRODUCTS">Other Products</option>
                                         </select>
                                     </div>
+                                    {itemName === 'OTHER_PRODUCTS' && (
+                                        <div>
+                                            <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Custom Commodity *</label>
+                                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={customItemName} onChange={(e) => setCustomItemName(e.target.value)} placeholder="Enter product name" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -804,7 +914,7 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => window.print()}
+                                                            onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 0); }}
                                                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
                                                             title="Print"
                                                         >
@@ -874,7 +984,7 @@ function Aavak({ currentUser }) {
                                             <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.tokenNo}</h4>
                                         </div>
                                         <div className="flex gap-1">
-                                            <button onClick={() => window.print()} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+                                            <button onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 0); }} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
                                                 <FileText className="w-5 h-5" />
                                             </button>
                                             <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">
