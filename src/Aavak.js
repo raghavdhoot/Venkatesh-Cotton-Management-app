@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, where } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToAavak } from './components/Dashboard';
 
-function Aavak({ currentUser }) {
+function Aavak({ currentUser, onClose, setOpen }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
     const [searchToken, setSearchToken] = useState('');
     const [globalSearch, setGlobalSearch] = useState('');
@@ -15,7 +18,6 @@ function Aavak({ currentUser }) {
     const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
     const [tokenNo, setTokenNo] = useState('');
     const [itemName, setItemName] = useState('KAPAS');
-    const [customItemName, setCustomItemName] = useState('');
     const [Name, setName] = useState('');    
     const [farmerPhone, setFarmerPhone] = useState('');
     const [Village, setVillage] = useState('');    
@@ -36,9 +38,14 @@ function Aavak({ currentUser }) {
     const [balanceAmount, setBalanceAmount] = useState('');
     const [accountantName, setAccountantName] = useState('');
     
+    // New states for dynamic fields
+    const [paymentDueDate, setPaymentDueDate] = useState('');
+    const [installmentMode, setInstallmentMode] = useState('CASH');
+
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [billingSettings, setBillingSettings] = useState({
@@ -49,9 +56,6 @@ function Aavak({ currentUser }) {
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [paymentLogValue, setPaymentLogValue] = useState('');
     const [paymentHistoryEntry, setPaymentHistoryEntry] = useState(null);
-    const [printEntry, setPrintEntry] = useState(null);
-
-    const commodityOptions = ['KAPAS', 'SOYABEAN', 'CHANA', 'TUAAR', 'WHEAT'];
 
     const formatVehicleNoInput = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -61,9 +65,27 @@ function Aavak({ currentUser }) {
         return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
     };
 
+    const runCleanupAfterSevenDays = async () => {
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        const dateStr = sevenDaysAgo.toISOString().split('T')[0];
+        try {
+            const q = query(collection(db, 'cottonEntries'), where('billingDate', '<', dateStr));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(async (docRef) => {
+                await deleteDoc(doc(db, 'cottonEntries', docRef.id));
+            });
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     useEffect(() => {
+        runCleanupAfterSevenDays();
+        
         const unsubscribe = subscribeToAavak((data) => {
             setEntries(data);
+            setFilteredEntries(data);
         });
 
         const settingsDocRef = doc(db, 'settings', 'billing');
@@ -92,8 +114,12 @@ function Aavak({ currentUser }) {
             );
         }
 
+        if (dateRange.start && dateRange.end) {
+            result = result.filter(e => e.billingDate >= dateRange.start && e.billingDate <= dateRange.end);
+        }
+
         setFilteredEntries(result);
-    }, [globalSearch, entries]);
+    }, [globalSearch, dateRange, entries]);
 
     const handleSelectEntry = (entry) => {
         setCurrentEntryId(entry.id);
@@ -103,14 +129,7 @@ function Aavak({ currentUser }) {
         setFarmerPhone(entry.farmerPhone || '');
         setVillage(entry.Village || '');
         setVehicleNo(entry.vehicleNo || '');
-        const selectedItem = entry.itemName || 'KAPAS';
-        if (commodityOptions.includes(selectedItem)) {
-            setItemName(selectedItem);
-            setCustomItemName('');
-        } else {
-            setItemName('OTHER_PRODUCTS');
-            setCustomItemName(selectedItem);
-        }
+        setItemName(entry.itemName || 'KAPAS');
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
@@ -126,6 +145,11 @@ function Aavak({ currentUser }) {
         setAmountPaid(entry.amountPaid || '');
         setBalanceAmount(entry.balanceAmount || '');
         setAccountantName(entry.accountantName || entry.makerName || '');
+        
+        // Populating edit fields
+        setPaymentDueDate(entry.paymentDueDate || '');
+        setInstallmentMode(entry.installmentMode || 'CASH');
+
         setIsNewEntry(false);
     };
 
@@ -175,36 +199,189 @@ function Aavak({ currentUser }) {
         }
     };
 
+    const handleShareWhatsApp = (tx) => {
+        const messageText = `*Venkatesh Cotton Company Patti*\n\nToken No: ${tx.tokenNo || tx.id}\nDate: ${tx.billingDate || ''}\nFarmer Name: ${tx.Name || ''}\nVillage: ${tx.Village || ''}\nItem Name: ${tx.itemName || ''}\nNet Weight: ${tx.netWtAfterDeduction || tx.netWt || ''} kg\nNet Payable: Rs. ${tx.netAmount || ''}\nBalance: Rs. ${tx.balanceAmount || ''}\n\nThank you for doing business with us!`;
+        const phone = tx.farmerPhone ? tx.farmerPhone.replace(/[^0-9]/g, '') : '';
+        const url = phone ? `https://api.whatsapp.com/send?phone=91${phone}&text=${encodeURIComponent(messageText)}` : `https://api.whatsapp.com/send?text=${encodeURIComponent(messageText)}`;
+        window.open(url, '_blank');
+    };
+
     const generatePdf = async (entryToPrint, isBlank = false) => {
-        if (isBlank) {
-            setPrintEntry({
-                tokenNo: '__________',
-                Village: '__________',
-                billingDate: '__________',
-                vehicleNo: '__________',
-                Name: '____________________',
-                itemName: '__________',
-                grossWt: '_____',
-                tareWt: '_____',
-                netWt: '_____',
-                moisture: '_____',
-                netWtAfterDeduction: '_____',
-                rate: '_____',
-                hamaliDeduction: 0,
-                weighmentDeduction: 0,
-                grossAmount: '_____',
-                paymentMode: '__________',
-                accountantName: '__________',
-                netAmount: '_____',
-                amountPaid: '_____',
-                balanceAmount: '_____'
+        const pdfContentElement = document.createElement('div');
+        pdfContentElement.className = "p-8 bg-white w-[210mm]";
+        
+        const data = isBlank ? {
+            tokenNo: '__________',
+            Village: '__________',
+            billingDate: '__________',
+            vehicleNo: '__________',
+            Name: '____________________',
+            itemName: '__________',
+            grossWt: '_____',
+            tareWt: '_____',
+            netWt: '_____',
+            moisture: '_____',
+            netWtAfterDeduction: '_____',
+            rate: '_____',
+            hamaliDeduction: 0,
+            weighmentDeduction: 0,
+            grossAmount: '_____',
+            paymentMode: '__________',
+            accountantName: '__________',
+            netAmount: '_____',
+            amountPaid: '_____',
+            balanceAmount: '_____'
+        } : entryToPrint;
+
+        const createSlipHtml = (copyType, copyColor, sigLabel) => `
+            <div class="border-2 border-slate-900 mb-4 overflow-hidden font-sans text-slate-900 bg-white">
+                <div class="text-center py-3 border-b-2 border-slate-900">
+                    <h1 class="text-2xl font-black uppercase tracking-tighter">VENKATESH COTTON COMPANY</h1>
+                    <p class="text-[10px] font-bold mt-0.5">NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</p>
+                </div>
+                
+                <div class="flex justify-between px-4 py-1.5 border-b-2 border-slate-900 bg-slate-50">
+                    <span class="font-black uppercase text-[10px] tracking-widest">FARMER PURCHASE BILL</span>
+                    <span class="font-black uppercase text-[10px] tracking-widest" style="color: ${copyColor}">${copyType}</span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-x-6 px-4 py-2 text-[10px] border-b-2 border-slate-900">
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">TOKEN NO.</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.tokenNo}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">VILLAGE</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.Village}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">DATE</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.billingDate}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">VEHICLE NO.</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.vehicleNo}</div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">FARMER NAME</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.Name}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">ITEM NAME</span>
+                            <div class="flex-1 font-black px-1 text-xs">${data.itemName}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="w-full border-collapse text-[10px]">
+                    <thead>
+                        <tr class="border-b-2 border-slate-900 bg-slate-50">
+                            <th class="border-r-2 border-slate-900 p-1.5 text-left w-[50%] uppercase font-black">Description</th>
+                            <th class="border-r-2 border-slate-900 p-1.5 text-right w-[25%] uppercase font-black">Weight/Rate</th>
+                            <th class="p-1.5 text-right w-[25%] uppercase font-black">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="font-bold">
+                        <tr class="border-b border-slate-200">
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Gross Weight / Tare Weight</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.grossWt} / ${data.tareWt} kg</td>
+                            <td class="p-1.5 py-2"></td>
+                        </tr>
+                        <tr class="border-b border-slate-200">
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Weight</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWt} kg</td>
+                            <td class="p-1.5 py-2"></td>
+                        </tr>
+                        <tr class="border-b border-slate-200">
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.generalDeductionPercentage !== undefined && data.generalDeductionPercentage !== null ? data.generalDeductionPercentage : (data.generalDeductionPercent !== undefined && data.generalDeductionPercent !== null ? data.generalDeductionPercent : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent : 1.4))}% Ded.)</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
+                            <td class="p-1.5 py-2"></td>
+                        </tr>
+                        <tr class="border-b-2 border-slate-900">
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Rate / Hamali & Weighment</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">Rs.${data.rate} / Rs.${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="p-1.5 py-2 text-right font-black">Rs.${data.grossAmount} / -Rs.${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="grid grid-cols-12 text-[10px]">
+                    <div class="col-span-7 p-3 space-y-2 border-r-2 border-slate-900">
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">PAYMENT MODE</span>
+                            <div class="flex-1 font-black px-1">${data.paymentMode || 'CASH'}</div>
+                        </div>
+                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
+                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">ACCOUNTANT</span>
+                            <div class="flex-1 font-black px-1">${data.accountantName || data.makerName || ''}</div>
+                        </div>
+                    </div>
+                    <div class="col-span-5 p-3 space-y-1 bg-slate-50">
+                        <div class="flex justify-between font-bold">
+                            <span class="uppercase text-[8px] text-slate-500">Net Payable</span>
+                            <span class="text-xs">Rs. ${data.netAmount}</span>
+                        </div>
+                        <div class="flex justify-between font-bold">
+                            <span class="uppercase text-[8px] text-slate-500">Amount Paid</span>
+                            <span class="text-xs">Rs. ${data.amountPaid}</span>
+                        </div>
+                        <div class="flex justify-between border-t-2 border-slate-900 pt-1 mt-1">
+                            <span class="uppercase font-black text-[10px]">Balance</span>
+                            <span class="text-sm font-black">Rs. ${data.balanceAmount}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        pdfContentElement.innerHTML = `
+            ${createSlipHtml('OFFICE COPY', '#1e293b', 'Receiver Signature')}
+            <div class="text-center my-4 text-[8px] text-slate-400 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-4">
+                <div class="h-px bg-slate-200 flex-1"></div>
+                ✂ CUT ALONG THIS LINE ✂
+                <div class="h-px bg-slate-200 flex-1"></div>
+            </div>
+            ${createSlipHtml('FARMER COPY', '#ef4444', 'Farmer Signature')}
+        `;
+
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @media print {
+                body > *:not(#print-section) {
+                    display: none !important;
+                }
+                #print-section {
+                    display: block !important;
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    background: white !important;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        pdfContentElement.id = 'print-section';
+        document.body.appendChild(pdfContentElement);
+
+        const images = pdfContentElement.getElementsByTagName('img');
+        const imagePromises = Array.from(images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
             });
-        } else {
-            setPrintEntry(entryToPrint);
-        }
-        setTimeout(() => {
-            window.print();
-        }, 150);
+        });
+        await Promise.all(imagePromises);
+
+        window.print();
+        document.body.removeChild(pdfContentElement);
+        document.head.removeChild(style);
     };
 
     const hasTareWtBeenEntered = tareWt !== '' && tareWt !== null && parseFloat(tareWt) > 0;
@@ -282,12 +459,10 @@ function Aavak({ currentUser }) {
 
         setStatusMessage({ text: 'Saving...', type: 'info' });
 
-        const resolvedItemName = itemName === 'OTHER_PRODUCTS' ? customItemName.trim().toUpperCase() : itemName;
-
         const dataPayload = {
             billingDate: billingDate || null,
-            tokenNo: tokenNo ? tokenNo.toUpperCase() : null,
-            itemName: resolvedItemName || 'KAPAS',
+            tokenNo: tokenNo ? tokenNo.trim().toUpperCase() : null,
+            itemName: itemName || 'KAPAS',
             Name: Name ? Name.toUpperCase() : null,
             farmerPhone: farmerPhone || '',
             Village: Village ? Village.toUpperCase() : null,
@@ -304,15 +479,18 @@ function Aavak({ currentUser }) {
             weighmentDeduction: parseFloat(weighmentDeduction),
             netAmount: netAmount !== '' ? parseFloat(netAmount) : null,
             paymentMode: paymentMode,
+            paymentDueDate: paymentMode === 'CREDIT' ? paymentDueDate : null,
+            installmentMode: paymentMode === 'INSTALLMENT' ? installmentMode : null,
             amountPaid: amountPaid !== '' ? parseFloat(amountPaid) : null,
             balanceAmount: balanceAmount !== '' ? parseFloat(balanceAmount) : null,
             accountantName: (accountantName || currentUser?.name || 'Authorized Client').toUpperCase(),
             updatedAt: serverTimestamp()
         };
 
+        const docId = tokenNo.trim().toUpperCase();
+
         try {
             if (isNewEntry) {
-                const docId = `aavak_${Date.now()}`;
                 await setDoc(doc(db, 'cottonEntries', docId), {
                     ...dataPayload,
                     makerId: currentUser?.employeeId || 'ADMIN',
@@ -321,13 +499,20 @@ function Aavak({ currentUser }) {
                     installmentLogs: []
                 });
                 setStatusMessage({ text: 'Created successfully!', type: 'success' });
-                resetState();
             } else {
-                await updateDoc(doc(db, 'cottonEntries', currentEntryId), dataPayload);
+                await setDoc(doc(db, 'cottonEntries', docId), dataPayload, { merge: true });
+                if (currentEntryId && currentEntryId !== docId) {
+                    await deleteDoc(doc(db, 'cottonEntries', currentEntryId));
+                }
                 setStatusMessage({ text: 'Updated successfully!', type: 'success' });
             }
+            // Enforce closing modal / windows
+            resetState();
+            setIsPrintModalOpen(false);
+            if (onClose) onClose();
+            if (setOpen) setOpen(false);
         } catch (error) {
-            console.error(error);
+            console.error("Error creating/updating in cottonEntries collection: ", error);
             setStatusMessage({ text: 'Internal database error.', type: 'error' });
         }
     };
@@ -339,7 +524,7 @@ function Aavak({ currentUser }) {
             setDeleteConfirmId(null);
             resetState();
         } catch (error) {
-            console.error(error);
+            console.error("Error deleting document from cottonEntries collection:", error);
             setStatusMessage({ text: 'Error deleting.', type: 'error' });
         }
     };
@@ -360,6 +545,8 @@ function Aavak({ currentUser }) {
             "Amount Paid": entry.amountPaid || '',
             "Balance": entry.balanceAmount || '',
             "Payment Mode": entry.paymentMode || '',
+            "Payment Due Date": entry.paymentDueDate || '',
+            "Installment Mode": entry.installmentMode || '',
             "Operator": entry.accountantName || entry.makerName || ''
         }));
         
@@ -378,7 +565,6 @@ function Aavak({ currentUser }) {
         setVillage('');
         setVehicleNo('');
         setItemName('KAPAS');
-        setCustomItemName('');
         setGrossWt('');
         setTareWt('');
         setNetWt('');
@@ -394,244 +580,13 @@ function Aavak({ currentUser }) {
         setAmountPaid('');
         setBalanceAmount('');
         setAccountantName('');
+        setPaymentDueDate('');
+        setInstallmentMode('CASH');
         setIsNewEntry(false);
     };
 
-    useEffect(() => {
-        const clearPrintEntry = () => setPrintEntry(null);
-        window.addEventListener('afterprint', clearPrintEntry);
-        return () => window.removeEventListener('afterprint', clearPrintEntry);
-    }, []);
-
-    const printableAavak = printEntry;
-
     return (
         <div className="space-y-6">
-            <style>{`
-                @media screen {
-                    .vcc-print-sheet { display: none !important; }
-                }
-                @media print {
-                    @page { size: A4; margin: 0; }
-                    html, body {
-                        background: #ffffff !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        height: 297mm !important;
-                        max-height: 297mm !important;
-                        overflow: hidden !important;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                    }
-                    body * { visibility: hidden !important; }
-                    .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
-                    .vcc-print-sheet {
-                        display: flex !important;
-                        flex-direction: column !important;
-                        position: absolute !important;
-                        left: 0 !important;
-                        top: 0 !important;
-                        width: 210mm !important;
-                        height: 297mm !important;
-                        max-height: 297mm !important;
-                        box-sizing: border-box !important;
-                        overflow: hidden !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        background: #ffffff !important;
-                        color: #000000 !important;
-                        font-family: 'Helvetica Neue', Arial, sans-serif !important;
-                        font-size: 11px !important;
-                    }
-                    .slip {
-                        flex: 1 !important;
-                        padding: 10px 15px !important;
-                        display: flex !important;
-                        flex-direction: column !important;
-                        position: relative !important;
-                        box-sizing: border-box !important;
-                    }
-                    .cut-line {
-                        height: 1px !important;
-                        border-top: 1px dashed #000 !important;
-                        width: 100% !important;
-                        text-align: center !important;
-                        position: relative !important;
-                        margin: 2px 0 !important;
-                        box-sizing: border-box !important;
-                    }
-                    .cut-line span {
-                        position: absolute !important;
-                        top: -10px !important;
-                        left: 50% !important;
-                        transform: translateX(-50%) !important;
-                        background: #fff !important;
-                        padding: 0 10px !important;
-                        font-size: 10px !important;
-                        font-weight: 700 !important;
-                    }
-                    .header-table {
-                        width: 100% !important;
-                        margin-bottom: 8px !important;
-                    }
-                    .metadata-grid {
-                        display: grid !important;
-                        grid-template-columns: repeat(3, 1fr) !important;
-                        gap: 4px !important;
-                        margin-bottom: 8px !important;
-                        padding: 6px !important;
-                        border: 1px solid #000 !important;
-                    }
-                    .main-table {
-                        width: 100% !important;
-                        border-collapse: collapse !important;
-                        margin-bottom: 8px !important;
-                    }
-                    .main-table th, .main-table td {
-                        border: 1px solid #000 !important;
-                        padding: 3px 6px !important;
-                        text-align: left !important;
-                    }
-                    .main-table th {
-                        background-color: #f8fafc !important;
-                        font-weight: 700 !important;
-                    }
-                    .summary-block {
-                        display: flex !important;
-                        justify-content: flex-end !important;
-                        margin-bottom: 10px !important;
-                    }
-                    .summary-inner {
-                        width: 220px !important;
-                        border: 1px solid #000 !important;
-                        border-top: none !important;
-                    }
-                    .summary-row {
-                        display: flex !important;
-                        justify-content: space-between !important;
-                        padding: 3px 6px !important;
-                        border-top: 1px solid #000 !important;
-                    }
-                    .summary-row strong {
-                        font-size: 12px !important;
-                    }
-                    .footer-block {
-                        margin-top: auto !important;
-                        display: flex !important;
-                        justify-content: space-between !important;
-                        align-items: flex-end !important;
-                        padding-top: 10px !important;
-                    }
-                    .footer-line {
-                        width: 160px !important;
-                        border-top: 1px solid #000 !important;
-                        text-align: center !important;
-                        padding-top: 2px !important;
-                        font-size: 10px !important;
-                        text-transform: uppercase !important;
-                    }
-                    .label-tag {
-                        position: absolute !important;
-                        top: 10px !important;
-                        right: 15px !important;
-                        border: 1px solid #000 !important;
-                        padding: 2px 8px !important;
-                        font-weight: 700 !important;
-                        font-size: 10px !important;
-                        background: #f1f5f9 !important;
-                    }
-                }
-            `}</style>
-            {printableAavak && (
-                <div className="vcc-print-sheet text-black">
-                    {['OFFICE COPY', 'FARMER COPY'].map((copyLabel, copyIndex) => {
-                        const hamaliVal = (parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2);
-                        const dedPercent = printableAavak.generalDeductionPercentage !== undefined ? printableAavak.generalDeductionPercentage : (printableAavak.generalDeductionPercent !== undefined ? printableAavak.generalDeductionPercent : 1.4);
-                        return (
-                            <React.Fragment key={copyLabel}>
-                                <div className="slip">
-                                    <div className="label-tag">{copyLabel}</div>
-                                    <table className="header-table">
-                                        <tbody>
-                                            <tr>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <div style={{ fontSize: '18px', fontWeight: 900, letterSpacing: '1px' }}>VENKATESH COTTON COMPANY</div>
-                                                    <div style={{ fontSize: '10px', marginTop: '2px' }}>NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</div>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                    <div className="metadata-grid">
-                                        <div><strong>Token No:</strong> {printableAavak.tokenNo || ''}</div>
-                                        <div><strong>Date:</strong> {printableAavak.billingDate || ''}</div>
-                                        <div><strong>Farmer:</strong> {printableAavak.Name || ''}</div>
-                                        <div><strong>Vehicle No:</strong> {printableAavak.vehicleNo || ''}</div>
-                                        <div><strong>Village:</strong> {printableAavak.Village || ''}</div>
-                                        <div><strong>Item Name:</strong> {printableAavak.itemName || ''}</div>
-                                    </div>
-                                    <table className="main-table">
-                                        <thead>
-                                            <tr>
-                                                <th style={{ width: '50%' }}>Description</th>
-                                                <th style={{ width: '25%' }}>Weight / Rate</th>
-                                                <th style={{ width: '25%' }}>Amount</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td>Gross Weight / Tare Weight</td>
-                                                <td>{printableAavak.grossWt || 0} kg / {printableAavak.tareWt || 0} kg</td>
-                                                <td>--</td>
-                                            </tr>
-                                            <tr>
-                                                <td>Net Weight</td>
-                                                <td>{printableAavak.netWt || 0} kg</td>
-                                                <td>--</td>
-                                            </tr>
-                                            <tr>
-                                                <td>Net Wt (After {dedPercent}% Ded.)</td>
-                                                <td>{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td>
-                                                <td>--</td>
-                                            </tr>
-                                            <tr>
-                                                <td>Rate / Hamali & Weighment</td>
-                                                <td>{printableAavak.rate || 0} / {hamaliVal}</td>
-                                                <td>-{hamaliVal}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                    <div className="summary-block">
-                                        <div className="summary-inner">
-                                            <div className="summary-row">
-                                                <span>NET PAYABLE</span>
-                                                <strong>{printableAavak.netAmount || 0}</strong>
-                                            </div>
-                                            <div className="summary-row">
-                                                <span>AMOUNT PAID</span>
-                                                <strong>{printableAavak.amountPaid || 0}</strong>
-                                            </div>
-                                            <div className="summary-row">
-                                                <span>BALANCE</span>
-                                                <strong>{printableAavak.balanceAmount || 0}</strong>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="footer-block">
-                                        <div><strong>Payment Mode:</strong> {printableAavak.paymentMode || ''}</div>
-                                        <div className="footer-line">Farmer Signature</div>
-                                        <div className="footer-line">Accountant</div>
-                                    </div>
-                                </div>
-                                {copyIndex === 0 && (
-                                    <div className="cut-line">
-                                        <span>✂️------------------- CUT ALONG THIS LINE -------------------✂️</span>
-                                    </div>
-                                )}
-                            </React.Fragment>
-                        );
-                    })}
-                </div>
-            )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-xl">
@@ -646,15 +601,15 @@ function Aavak({ currentUser }) {
                 <div className="flex flex-wrap items-center gap-2">
                     <button 
                         onClick={() => { resetState(); setIsNewEntry(true); }} 
-                        className="btn-primary flex items-center gap-2 cursor-pointer"
+                        className="btn-primary flex items-center gap-2"
                     >
                         <Plus className="w-4 h-4" /> New Inward Bill
                     </button>
-                    <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2 cursor-pointer">
+                    <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2">
                         <Download className="w-4 h-4" /> Export
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                        <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2 cursor-pointer">
+                        <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
                             <Printer className="w-4 h-4" /> Blank Print
                         </button>
                     )}
@@ -684,7 +639,7 @@ function Aavak({ currentUser }) {
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                                     {isNewEntry ? 'Create Inward purchase bill' : 'Update Record Inward bill'}
                                 </h3>
-                                <button onClick={resetState} className="p-1 px-3 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg dark:text-white cursor-pointer">✕ Close Form</button>
+                                <button onClick={resetState} className="p-1 px-3 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg dark:text-white">✕ Close Form</button>
                             </div>
 
                             <form onSubmit={handleFormSubmit} className="space-y-6">
@@ -705,15 +660,8 @@ function Aavak({ currentUser }) {
                                             <option value="CHANA">CHANA</option>
                                             <option value="TUAAR">TUAAR</option>
                                             <option value="WHEAT">WHEAT (GEHU)</option>
-                                            <option value="OTHER_PRODUCTS">Other Products</option>
                                         </select>
                                     </div>
-                                    {itemName === 'OTHER_PRODUCTS' && (
-                                        <div>
-                                            <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Custom Commodity *</label>
-                                            <input type="text" className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={customItemName} onChange={(e) => setCustomItemName(e.target.value)} placeholder="Enter product name" required disabled={hasTareWtBeenEntered && !isNewEntry} />
-                                        </div>
-                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -772,7 +720,7 @@ function Aavak({ currentUser }) {
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Purchase Rate * (per Qtl)</label>
-                                                <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Rate " required />
+                                                <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Rate Rs." required />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Moisture %</label>
@@ -781,13 +729,13 @@ function Aavak({ currentUser }) {
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Hamali (Quintal)</label>
                                                 <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center font-bold text-slate-700 dark:text-slate-300">
-                                                     {hamaliDeduction}
+                                                    Rs. {hamaliDeduction}
                                                 </div>
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Weighment Charges</label>
                                                 <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center font-bold text-slate-700 dark:text-slate-300">
-                                                     {weighmentDeduction}
+                                                    Rs. {weighmentDeduction}
                                                 </div>
                                             </div>
                                         </div>
@@ -795,15 +743,15 @@ function Aavak({ currentUser }) {
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5 p-5 bg-emerald-50/40 dark:bg-slate-800 rounded-2xl border border-emerald-100 dark:border-slate-700">
                                             <div>
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Gross Amount</span>
-                                                <span className="text-sm font-black text-slate-800 dark:text-white"> {grossAmount || '0.00'}</span>
+                                                <span className="text-sm font-black text-slate-800 dark:text-white">Rs. {grossAmount || '0.00'}</span>
                                             </div>
                                             <div>
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Total Deductions</span>
-                                                <span className="text-sm font-black text-red-600"> {(parseFloat(hamaliDeduction) + parseFloat(weighmentDeduction)).toFixed(2)}</span>
+                                                <span className="text-sm font-black text-red-600">Rs. {(parseFloat(hamaliDeduction) + parseFloat(weighmentDeduction)).toFixed(2)}</span>
                                             </div>
                                             <div className="md:col-span-2 border-l border-slate-200 dark:border-slate-700 pl-5">
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Final Net Payable</span>
-                                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400"> {netAmount || '0.00'}</span>
+                                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">Rs. {netAmount || '0.00'}</span>
                                             </div>
                                         </div>
 
@@ -815,7 +763,35 @@ function Aavak({ currentUser }) {
                                                     <option value="RTGS">RTGS/UPI (ONLINE)</option>
                                                     <option value="CHEQUE">CHEQUE</option>
                                                     <option value="CREDIT">CREDIT (DUE)</option>
+                                                    <option value="INSTALLMENT">INSTALLMENT</option>
                                                 </select>
+
+                                                {paymentMode === 'CREDIT' && (
+                                                    <div className="mt-2 p-3 bg-amber-50/50 dark:bg-slate-800/50 rounded-lg">
+                                                        <label className="block text-[9px] uppercase font-black text-amber-500 mb-1 tracking-widest">Payment Due Date</label>
+                                                        <input 
+                                                            type="date" 
+                                                            className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white text-xs font-semibold"
+                                                            value={paymentDueDate}
+                                                            onChange={(e) => setPaymentDueDate(e.target.value)}
+                                                            required
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {paymentMode === 'INSTALLMENT' && (
+                                                    <div className="mt-2 p-3 bg-indigo-50/50 dark:bg-slate-800/50 rounded-lg">
+                                                        <label className="block text-[9px] uppercase font-black text-indigo-500 mb-1 tracking-widest">Installment Mode</label>
+                                                        <select 
+                                                            className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white text-xs font-semibold"
+                                                            value={installmentMode}
+                                                            onChange={(e) => setInstallmentMode(e.target.value)}
+                                                        >
+                                                            <option value="CASH">CASH</option>
+                                                            <option value="RTGS">RTGS/UPI (ONLINE)</option>
+                                                        </select>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Amount Paid Today * </label>
@@ -824,7 +800,7 @@ function Aavak({ currentUser }) {
                                             <div>
                                                 <div className="p-3 bg-red-50/50 dark:bg-red-950/10 rounded-lg text-center">
                                                     <span className="block text-[8px] text-red-400 uppercase font-bold mb-1">Balance Unpaid</span>
-                                                    <span className="text-base font-black text-red-600"> {balanceAmount || '0.00'}</span>
+                                                    <span className="text-base font-black text-red-600">Rs. {balanceAmount || '0.00'}</span>
                                                 </div>
                                             </div>
                                             <div>
@@ -836,10 +812,10 @@ function Aavak({ currentUser }) {
                                 )}
 
                                 <div className="flex items-center gap-3 pt-4 border-t border-slate-150 dark:border-slate-800">
-                                    <button type="submit" className="p-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-indigo-100 dark:shadow-none flex items-center justify-center gap-2 cursor-pointer">
+                                    <button type="submit" className="p-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-indigo-100 dark:shadow-none flex items-center justify-center gap-2">
                                         <Save className="w-4 h-4" /> Save Purchase Record
                                     </button>
-                                    <button type="button" onClick={resetState} className="p-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer">
+                                    <button type="button" onClick={resetState} className="p-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black">
                                         Cancel change
                                     </button>
                                 </div>
@@ -849,16 +825,15 @@ function Aavak({ currentUser }) {
 
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-4">
-                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Historical Transactions</h3>
-                            <div className="relative w-full sm:w-80">
-                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                                <input
-                                    type="text"
-                                    className="input-field pl-9 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                    placeholder="Search farmer, village, vehicle or token..."
-                                    value={globalSearch}
-                                    onChange={(e) => setGlobalSearch(e.target.value)}
-                                />
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Historical Transactions (7 days)</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400">Filter Range</span>
+                                <input type="date" className="input-field text-xs px-2 py-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={dateRange.start} onChange={(e) => setDateRange({...dateRange, start: e.target.value})} />
+                                <span className="text-xs text-slate-400">to</span>
+                                <input type="date" className="input-field text-xs px-2 py-1 dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={dateRange.end} onChange={(e) => setDateRange({...dateRange, end: e.target.value})} />
+                                {(dateRange.start || dateRange.end) && (
+                                    <button onClick={() => setDateRange({start: '', end: ''})} className="text-xs text-red-500 hover:underline">Clear</button>
+                                )}
                             </div>
                         </div>
 
@@ -892,17 +867,17 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">{entry.vehicleNo}</td>
                                                 <td className="px-6 py-4 font-medium text-xs">
                                                     <span className="font-extrabold text-slate-900 dark:text-white">{entry.netWtAfterDeduction || entry.netWt} kg</span>
-                                                    <div className="text-[10px] text-slate-400">{entry.itemName} @ {entry.rate}/qtl</div>
+                                                    <div className="text-[10px] text-slate-400">{entry.itemName} @ Rs.${entry.rate}/qtl</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-xs font-bold font-mono text-slate-900 dark:text-white">
-                                                         {entry.amountPaid} <span className="text-[10px] text-slate-400">/   {entry.netAmount}</span>
+                                                        Rs. {entry.amountPaid} <span className="text-[10px] text-slate-400">/ Rs. {entry.netAmount}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
                                                             parseFloat(entry.balanceAmount || 0) <= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-red-50 text-red-600 dark:bg-red-950/20'
                                                         }`}>
-                                                            {parseFloat(entry.balanceAmount || 0) <= 0 ? 'PAID' : `DUE:  ${entry.balanceAmount}`}
+                                                            {parseFloat(entry.balanceAmount || 0) <= 0 ? 'PAID' : `DUE: Rs.${entry.balanceAmount}`}
                                                         </span>
                                                         <span className="text-[9px] text-slate-400 uppercase tracking-widest">{entry.paymentMode}</span>
                                                     </div>
@@ -910,17 +885,25 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 50); }}
-                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                                                            title="Print"
+                                                            onClick={() => generatePdf(entry)}
+                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                            title="Download PDF"
                                                         >
                                                             <FileText className="w-5 h-5" />
+                                                        </button>
+
+                                                        <button 
+                                                            onClick={() => handleShareWhatsApp(entry)}
+                                                            className="p-2 text-slate-400 hover:text-green-600 transition-colors"
+                                                            title="Share on WhatsApp"
+                                                        >
+                                                            <Share2 className="w-5 h-5" />
                                                         </button>
                                                         
                                                         {parseFloat(entry.balanceAmount || 0) > 0 && (
                                                             <button 
                                                                 onClick={() => setPaymentHistoryEntry(entry)}
-                                                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-xl mr-1 cursor-pointer"
+                                                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-xl mr-1"
                                                             >
                                                                 Installments
                                                             </button>
@@ -928,7 +911,7 @@ function Aavak({ currentUser }) {
 
                                                         <button 
                                                             onClick={() => handleSelectEntry(entry)}
-                                                            className="p-2 text-slate-400 hover:text-emerald-600 transition-colors text-xs font-bold uppercase cursor-pointer"
+                                                            className="p-2 text-slate-400 hover:text-emerald-600 transition-colors text-xs font-bold uppercase"
                                                         >
                                                             Edit
                                                         </button>
@@ -936,7 +919,7 @@ function Aavak({ currentUser }) {
                                                         {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                                                             <button 
                                                                 onClick={() => setDeleteConfirmId(entry.id)}
-                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
                                                             >
                                                                 ✕
                                                             </button>
@@ -967,7 +950,7 @@ function Aavak({ currentUser }) {
                                 onChange={(e) => setSearchToken(e.target.value)}
                             />
                             {searchToken && (
-                                <button onClick={() => setSearchToken('')} className="text-xs text-red-500 font-bold uppercase cursor-pointer">Clear</button>
+                                <button onClick={() => setSearchToken('')} className="text-xs text-red-500 font-bold uppercase">Clear</button>
                             )}
                         </div>
 
@@ -980,10 +963,13 @@ function Aavak({ currentUser }) {
                                             <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.tokenNo}</h4>
                                         </div>
                                         <div className="flex gap-1">
-                                            <button onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 50); }} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer">
+                                            <button onClick={() => generatePdf(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
                                                 <FileText className="w-5 h-5" />
                                             </button>
-                                            <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 cursor-pointer">
+                                            <button onClick={() => handleShareWhatsApp(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-green-600">
+                                                <Share2 className="w-5 h-5" />
+                                            </button>
+                                            <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">
                                                 ✕
                                             </button>
                                         </div>
@@ -1002,8 +988,8 @@ function Aavak({ currentUser }) {
                             <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-base">Confirm Deletion</h4>
                             <p className="text-xs text-slate-500">Are you sure you want to permanently delete this Aavak Purchase Ledger?</p>
                             <div className="flex items-center justify-center gap-3 pt-2">
-                                <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="p-2.5 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-md shadow-red-200 dark:shadow-none cursor-pointer">Delete</button>
-                                <button onClick={() => setDeleteConfirmId(null)} className="p-2.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white font-bold text-xs rounded-xl uppercase tracking-wider cursor-pointer">Cancel</button>
+                                <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="p-2.5 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-md shadow-red-200 dark:shadow-none">Delete</button>
+                                <button onClick={() => setDeleteConfirmId(null)} className="p-2.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white font-bold text-xs rounded-xl uppercase tracking-wider">Cancel</button>
                             </div>
                         </motion.div>
                     </div>
@@ -1017,21 +1003,21 @@ function Aavak({ currentUser }) {
                                     <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Installment & Credit logs</h4>
                                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Token: {paymentHistoryEntry.tokenNo} | Farmer: {paymentHistoryEntry.Name}</p>
                                 </div>
-                                <button onClick={() => setPaymentHistoryEntry(null)} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
+                                <button onClick={() => setPaymentHistoryEntry(null)} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white">✕</button>
                             </div>
 
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Bill Amount</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white"> {paymentHistoryEntry.netAmount}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">Rs.{paymentHistoryEntry.netAmount}</p>
                                 </div>
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Paid till Date</p>
-                                    <p className="text-sm font-black text-emerald-600"> {paymentHistoryEntry.amountPaid}</p>
+                                    <p className="text-sm font-black text-emerald-600">Rs.{paymentHistoryEntry.amountPaid}</p>
                                 </div>
                                 <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-red-400 uppercase tracking-widest mb-1">Outstanding Liability</p>
-                                    <p className="text-sm font-black text-red-600"> {paymentHistoryEntry.balanceAmount}</p>
+                                    <p className="text-sm font-black text-red-600">Rs.{paymentHistoryEntry.balanceAmount}</p>
                                 </div>
                             </div>
 
@@ -1040,12 +1026,12 @@ function Aavak({ currentUser }) {
                                 <div className="max-h-40 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                                     <div className="p-3 bg-slate-50 dark:bg-slate-800/10 flex justify-between items-center text-xs font-semibold">
                                         <span className="text-slate-400">Advance/Initial Bill Payment</span>
-                                        <span className="text-slate-900 dark:text-white font-mono font-bold"> {paymentHistoryEntry.netAmount - paymentHistoryEntry.balanceAmount - (paymentHistoryEntry.installmentLogs || []).reduce((acc, pay) => acc + (pay.amount || 0), 0)}</span>
+                                        <span className="text-slate-900 dark:text-white font-mono font-bold">Rs.{paymentHistoryEntry.netAmount - paymentHistoryEntry.balanceAmount - (paymentHistoryEntry.installmentLogs || []).reduce((acc, pay) => acc + (pay.amount || 0), 0)}</span>
                                     </div>
                                     {(paymentHistoryEntry.installmentLogs || []).map((install, idx) => (
                                         <div key={idx} className="p-3 flex justify-between items-center text-xs">
                                             <div className="space-y-0.5">
-                                                <p className="font-bold text-slate-900 dark:text-white font-mono"> {install.amount}</p>
+                                                <p className="font-bold text-slate-900 dark:text-white font-mono">Rs.{install.amount}</p>
                                                 <p className="text-[9px] text-slate-400 font-medium">Logged by {install.operator} | {install.date} {install.time}</p>
                                             </div>
                                             <span className="text-[9px] font-black uppercase tracking-widest text-[#ef4444]">Installment</span>
@@ -1059,7 +1045,7 @@ function Aavak({ currentUser }) {
                                     <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Log New Installment</h5>
                                     <div className="flex gap-2">
                                         <div className="relative flex-1">
-                                            <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs"> </span>
+                                            <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rs.</span>
                                             <input 
                                                 type="number" 
                                                 step="0.01"
@@ -1071,7 +1057,7 @@ function Aavak({ currentUser }) {
                                         </div>
                                         <button 
                                             onClick={handleSavePaymentLog} 
-                                            className="px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 dark:shadow-none cursor-pointer"
+                                            className="px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 dark:shadow-none"
                                         >
                                             Submit Payment
                                         </button>
