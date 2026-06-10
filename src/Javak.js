@@ -287,34 +287,27 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         return () => window.removeEventListener('afterprint', clearPrintEntry);
     }, []);
 
-    const printableJavak = printEntry;
+    const finalPrintData = printEntry || {};
 
     return (
         <div className="space-y-6">
             <style>{`
                 @media screen {
-                    .vcc-print-sheet { display: none !important; }
+                    .print-view-container { display: none !important; }
                 }
                 @media print {
                     @page { size: A4; margin: 4mm 8mm; }
-                    html, body {
-                        background: #ffffff !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        height: 100% !important;
-                    }
-                    body > *:not(.vcc-print-sheet) { display: none !important; }
-                    .vcc-print-sheet {
+                    body * { visibility: hidden; }
+                    .print-view-container, .print-view-container * { visibility: visible; }
+                    .print-view-container {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100% !important;
                         display: block !important;
-                        max-height: 285mm !important;
-                        overflow: hidden !important;
-                        page-break-inside: avoid !important;
-                        height: 100% !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
+                        opacity: 1 !important;
                         background: #ffffff !important;
                         color: #000000 !important;
-                        box-sizing: border-box !important;
                     }
                     .vcc-individual-slip {
                         height: 32% !important;
@@ -324,135 +317,154 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     }
                 }
             `}</style>
-            {printableJavak && (
-                <div 
-                    className="vcc-print-sheet font-sans text-black"
-                    style={{
-                        maxHeight: '285mm',
-                        overflow: 'hidden',
-                        pageBreakInside: 'avoid',
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxSizing: 'border-box'
-                    }}
-                >
-                    {[0, 1, 2].map((copyIndex) => {
-                        const gpNo = printableJavak.gatePassNo || "___________";
-                        const vehNo = printableJavak.vehicleNumber || "___________";
-                        const dest = printableJavak.destination || "___________";
-                        const comm = printableJavak.commodity || "___________";
-                        
-                        const grossVal = printableJavak.grossWt !== undefined && printableJavak.grossWt !== "" && printableJavak.grossWt !== null ? `${printableJavak.grossWt} kg` : "_____ kg";
-                        const tareVal = printableJavak.tareWt !== undefined && printableJavak.tareWt !== "" && printableJavak.tareWt !== null ? `${printableJavak.tareWt} kg` : "_____ kg";
-                        const netVal = printableJavak.netWt !== undefined && printableJavak.netWt !== "" && printableJavak.netWt !== null ? `${printableJavak.netWt} kg` : "_____ kg";
-                        const bagsVal = printableJavak.numberOfBags !== undefined && printableJavak.numberOfBags !== "" && printableJavak.numberOfBags !== null ? printableJavak.numberOfBags : "_____";
-                        
-                        const dtVal = printableJavak.date || "___________";
-                        const driverVal = printableJavak.driverName || "______________________";
-                        const imgSrc = printableJavak.driverPhoto || null;
+            
+            <div 
+                className="print-view-container font-sans text-black"
+                style={{
+                    maxHeight: '282mm',
+                    overflow: 'hidden',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxSizing: 'border-box'
+                }}
+            >
+                {[0, 1, 2].map((copyIndex) => {
+                    const getVal = (val) => {
+                        if (val === undefined || val === null || val === "" || String(val).trim() === "") {
+                            return null;
+                        }
+                        if (typeof val === 'string' && /^[_ ]+$/.test(val)) {
+                            return null;
+                        }
+                        return val;
+                    };
 
-                        return (
-                            <section 
-                                key={copyIndex} 
-                                className="vcc-individual-slip"
-                                style={{
-                                    height: '32%',
-                                    maxHeight: '32%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'space-between',
-                                    border: '1.5px solid #000000',
-                                    padding: '6px 10px',
-                                    boxSizing: 'border-box',
-                                    overflow: 'hidden',
-                                    background: '#ffffff',
-                                    color: '#000000',
-                                    pageBreakInside: 'avoid',
-                                    marginBottom: '1%'
-                                }}
-                            >
-                                <div style={{ textAlign: 'center', borderBottom: '2.5px solid #000000', paddingBottom: '3px', marginBottom: '4px' }}>
-                                    <h1 style={{ fontSize: '11pt', fontWeight: 900, textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.1', letterSpacing: '0.5px' }}>
-                                        VENKATESH COTTON CO. | NH752, POMNALA, MAHARASHTRA 431801
-                                    </h1>
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 84px', gap: '8px', flexGrow: 1, alignItems: 'stretch' }}>
-                                    <div style={{ display: 'grid', gridTemplateRows: 'repeat(5, 1fr)', gap: '2px' }}>
-                                        {/* Row 1: GATE PASS NO. | VEHICLE NO. */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>GATE PASS NO.</span>
-                                                <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{gpNo}</span>
-                                            </div>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>VEHICLE NO.</span>
-                                                <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{vehNo}</span>
-                                            </div>
+                    const data = {
+                        GATE_PASS_NO: getVal(finalPrintData?.gatePassNo),
+                        VEHICLE_NO: getVal(finalPrintData?.vehicleNumber),
+                        DESTINATION: getVal(finalPrintData?.destination),
+                        COMMODITY: getVal(finalPrintData?.commodity),
+                        GROSS: getVal(finalPrintData?.grossWt),
+                        TARE: getVal(finalPrintData?.tareWt),
+                        NET: getVal(finalPrintData?.netWt),
+                        BAGS: getVal(finalPrintData?.numberOfBags),
+                        DATE: getVal(finalPrintData?.date),
+                        DRIVER_NAME: getVal(finalPrintData?.driverName)
+                    };
+
+                    const imgSrc = finalPrintData?.driverPhoto || null;
+
+                    return (
+                        <section 
+                            key={copyIndex} 
+                            className="vcc-individual-slip"
+                            style={{
+                                height: '32%',
+                                border: '1px solid #000000',
+                                padding: '6px',
+                                boxSizing: 'border-box',
+                                marginBottom: '2px',
+                                pageBreakInside: 'avoid',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                background: '#ffffff',
+                                color: '#000000',
+                                overflow: 'hidden'
+                            }}
+                        >
+                            {/* Header */}
+                            <div style={{ textAlign: 'center', borderBottom: '2.5px solid #000000', paddingBottom: '3px', marginBottom: '4px' }}>
+                                <h1 style={{ fontSize: '11pt', fontWeight: 'bold', textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.1', letterSpacing: '0.5px' }}>
+                                    VENKATESH COTTON CO. | NH752, POMNALA, MAHARASHTRA 431801
+                                </h1>
+                            </div>
+
+                            {/* Content Grid */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexGrow: 1 }}>
+                                
+                                {/* 2-column tabular layout */}
+                                <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, gap: '2px' }}>
+                                    
+                                    {/* Row 1: GATE PASS NO. | VEHICLE NO. */}
+                                    <div style={{ display: 'flex', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>GATE PASS NO: </span>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{data.GATE_PASS_NO || "___________"}</span>
                                         </div>
-
-                                        {/* Row 2: DESTINATION | COMMODITY */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>DESTINATION</span>
-                                                <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{dest}</span>
-                                            </div>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>COMMODITY</span>
-                                                <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{comm}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Row 3: GROSS (KG) | TARE (KG) */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>GROSS (KG)</span>
-                                                <span style={{ fontWeight: 800 }}>{grossVal}</span>
-                                            </div>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>TARE (KG)</span>
-                                                <span style={{ fontWeight: 800 }}>{tareVal}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Row 4: NET (KG) | BAGS */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>NET (KG)</span>
-                                                <span style={{ fontWeight: 800 }}>{netVal}</span>
-                                            </div>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>BAGS</span>
-                                                <span style={{ fontWeight: 800 }}>{bagsVal}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Row 5: DATE | DRIVER NAME */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', paddingBottom: '1px' }}>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>DATE</span>
-                                                <span style={{ fontWeight: 800 }}>{dtVal}</span>
-                                            </div>
-                                            <div style={{ fontSize: '8.5pt' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>DRIVER NAME</span>
-                                                <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{driverVal}</span>
-                                            </div>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>VEHICLE NO: </span>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{data.VEHICLE_NO || "___________"}</span>
                                         </div>
                                     </div>
-                                    <div style={{ border: '1px solid #000000', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '7pt', fontWeight: 'bold', padding: '3px', textTransform: 'uppercase', color: '#000000', background: '#ffffff', width: '80px', height: '80px', boxSizing: 'border-box', alignSelf: 'center', justifySelf: 'end', overflow: 'hidden' }}>
-                                        {imgSrc ? (
-                                            <img src={imgSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Driver" />
-                                        ) : (
-                                            "NO PHOTO AVAILABLE"
-                                        )}
+
+                                    {/* Row 2: DESTINATION | COMMODITY */}
+                                    <div style={{ display: 'flex', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>DESTINATION: </span>
+                                            <span style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>{data.DESTINATION || "_________________"}</span>
+                                        </div>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>COMMODITY: </span>
+                                            <span style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>{data.COMMODITY || "_________________"}</span>
+                                        </div>
                                     </div>
+
+                                    {/* Row 3: GROSS (KG) | TARE (KG) */}
+                                    <div style={{ display: 'flex', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>GROSS: </span>
+                                            <span style={{ fontWeight: 'bold' }}>{data.GROSS || "________"} kg</span>
+                                        </div>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>TARE: </span>
+                                            <span style={{ fontWeight: 'bold' }}>{data.TARE || "________"} kg</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 4: NET (KG) | BAGS */}
+                                    <div style={{ display: 'flex', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>NET: </span>
+                                            <span style={{ fontWeight: 'bold' }}>{data.NET || "________"} kg</span>
+                                        </div>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>BAGS: </span>
+                                            <span style={{ fontWeight: 'bold' }}>{data.BAGS || "____"}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 5: DATE | DRIVER NAME */}
+                                    <div style={{ display: 'flex', paddingBottom: '1px' }}>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>DATE: </span>
+                                            <span style={{ fontWeight: 'bold' }}>{data.DATE || "__________"}</span>
+                                        </div>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>DRIVER NAME: </span>
+                                            <span style={{ textTransform: 'uppercase', fontWeight: 'bold' }}>{data.DRIVER_NAME || "______________________"}</span>
+                                        </div>
+                                    </div>
+
                                 </div>
-                            </section>
-                        );
-                    })}
-                </div>
-            )}
+
+                                {/* Right Side Frame - No active Rupee symbols strictly */}
+                                <div style={{ border: '1px solid #000000', width: '85px', height: '85px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '8pt', flexShrink: 0, overflow: 'hidden' }}>
+                                    {imgSrc ? (
+                                        <img src={imgSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Driver" />
+                                    ) : (
+                                        "NO PHOTO AVAILABLE"
+                                    )}
+                                </div>
+
+                            </div>
+                        </section>
+                    );
+                })}
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400 font-extrabold text-xl">
@@ -735,48 +747,48 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                             ✕
                                                         </button>
                                                     )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-xs space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <Search className="w-4 h-4 text-slate-400" />
+                            <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Verify Outlet Gate Pass</h4>
+                        </div>
+                        <input 
+                            type="text" 
+                            className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
+                            placeholder="SEARCH/VERIFY RECORD..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                     </div>
                 </div>
             </div>
 
-            <div className="lg:col-span-4">
-                <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-xs space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <Search className="w-4 h-4 text-slate-400" />
-                        <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Verify Outlet Gate Pass</h4>
+            {deleteConfirmId && (
+                <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-3">
+                    <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl text-center space-y-4 shadow-xl border border-slate-150 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+                        <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-sm tracking-wide">Are you absolute sure?</h4>
+                        <p className="text-xs text-slate-500">This action permanently purges this gatepass outwards record database logs.</p>
+                        <div className="flex items-center justify-center gap-3">
+                            <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="btn-primary bg-red-600 hover:bg-red-700 font-bold text-xs p-2 px-6 uppercase tracking-wider shadow shadow-red-200">Yes Delete</button>
+                            <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary text-xs uppercase font-bold p-2 px-6">Cancel</button>
+                        </div>
                     </div>
-                    <input 
-                        type="text" 
-                        className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
-                        placeholder="SEARCH FARMER / VILLAGE / VEHICLE / TOKEN..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
                 </div>
-            </div>
+            )}
         </div>
-
-        {deleteConfirmId && (
-            <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-3">
-                <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl text-center space-y-4 shadow-xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
-                    <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-sm tracking-wide">Are you absolute sure?</h4>
-                    <p className="text-xs text-slate-500">This action permanently purges this gatepass outwards record database logs.</p>
-                    <div className="flex items-center justify-center gap-3">
-                        <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="btn-primary bg-red-600 hover:bg-red-700 font-bold text-xs p-2 px-6 uppercase tracking-wider shadow shadow-red-200">Yes Delete</button>
-                        <button onClick={() => setDeleteConfirmId(null)} className="btn-secondary text-xs uppercase font-bold p-2 px-6">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        )}
-    </div>
-);
+    );
 }
 
 export default Javak;
