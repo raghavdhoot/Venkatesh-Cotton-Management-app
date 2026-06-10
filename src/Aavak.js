@@ -275,8 +275,8 @@ function Aavak({ currentUser }) {
                         </tr>
                         <tr class="border-b-2 border-slate-900">
                             <td class="border-r-2 border-slate-900 p-1.5 py-2">Rate / Hamali & Weighment</td>
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">₹${data.rate} / ₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
-                            <td class="p-1.5 py-2 text-right font-black">₹${data.grossAmount} / -₹${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.rate} / ${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
+                            <td class="p-1.5 py-2 text-right font-black">${data.grossAmount} / -${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -295,15 +295,15 @@ function Aavak({ currentUser }) {
                     <div class="col-span-5 p-3 space-y-1 bg-slate-50">
                         <div class="flex justify-between font-bold">
                             <span class="uppercase text-[8px] text-slate-500">Net Payable</span>
-                            <span class="text-xs">₹ ${data.netAmount}</span>
+                            <span class="text-xs"> ${data.netAmount}</span>
                         </div>
                         <div class="flex justify-between font-bold">
                             <span class="uppercase text-[8px] text-slate-500">Amount Paid</span>
-                            <span class="text-xs">₹ ${data.amountPaid}</span>
+                            <span class="text-xs"> ${data.amountPaid}</span>
                         </div>
                         <div class="flex justify-between border-t-2 border-slate-900 pt-1 mt-1">
                             <span class="uppercase font-black text-[10px]">Balance</span>
-                            <span class="text-sm font-black">₹ ${data.balanceAmount}</span>
+                            <span class="text-sm font-black"> ${data.balanceAmount}</span>
                         </div>
                     </div>
                 </div>
@@ -792,7 +792,7 @@ function Aavak({ currentUser }) {
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Purchase Rate * (per Qtl)</label>
-                                                <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Rate ₹" required />
+                                                <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Rate " required />
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Moisture %</label>
@@ -801,13 +801,13 @@ function Aavak({ currentUser }) {
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Hamali (Quintal)</label>
                                                 <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center font-bold text-slate-700 dark:text-slate-300">
-                                                    ₹ {hamaliDeduction}
+                                                     {hamaliDeduction}
                                                 </div>
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Weighment Charges</label>
                                                 <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center font-bold text-slate-700 dark:text-slate-300">
-                                                    ₹ {weighmentDeduction}
+                                                     {weighmentDeduction}
                                                 </div>
                                             </div>
                                         </div>
@@ -815,15 +815,15 @@ function Aavak({ currentUser }) {
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5 p-5 bg-emerald-50/40 dark:bg-slate-800 rounded-2xl border border-emerald-100 dark:border-slate-700">
                                             <div>
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Gross Amount</span>
-                                                <span className="text-sm font-black text-slate-800 dark:text-white">₹ {grossAmount || '0.00'}</span>
+                                                <span className="text-sm font-black text-slate-800 dark:text-white"> {grossAmount || '0.00'}</span>
                                             </div>
                                             <div>
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Total Deductions</span>
-                                                <span className="text-sm font-black text-red-600">₹ {(parseFloat(hamaliDeduction) + parseFloat(weighmentDeduction)).toFixed(2)}</span>
+                                                <span className="text-sm font-black text-red-600"> {(parseFloat(hamaliDeduction) + parseFloat(weighmentDeduction)).toFixed(2)}</span>
                                             </div>
                                             <div className="md:col-span-2 border-l border-slate-200 dark:border-slate-700 pl-5">
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Final Net Payable</span>
-                                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">₹ {netAmount || '0.00'}</span>
+                                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400"> {netAmount || '0.00'}</span>
                                             </div>
                                         </div>
 
@@ -844,7 +844,7 @@ function Aavak({ currentUser }) {
                                             <div>
                                                 <div className="p-3 bg-red-50/50 dark:bg-red-950/10 rounded-lg text-center">
                                                     <span className="block text-[8px] text-red-400 uppercase font-bold mb-1">Balance Unpaid</span>
-                                                    <span className="text-base font-black text-red-600">₹ {balanceAmount || '0.00'}</span>
+                                                    <span className="text-base font-black text-red-600"> {balanceAmount || '0.00'}</span>
                                                 </div>
                                             </div>
                                             <div>
@@ -912,17 +912,17 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">{entry.vehicleNo}</td>
                                                 <td className="px-6 py-4 font-medium text-xs">
                                                     <span className="font-extrabold text-slate-900 dark:text-white">{entry.netWtAfterDeduction || entry.netWt} kg</span>
-                                                    <div className="text-[10px] text-slate-400">{entry.itemName} @ ₹{entry.rate}/qtl</div>
+                                                    <div className="text-[10px] text-slate-400">{entry.itemName} @ {entry.rate}/qtl</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-xs font-bold font-mono text-slate-900 dark:text-white">
-                                                        ₹ {entry.amountPaid} <span className="text-[10px] text-slate-400">/ ₹ {entry.netAmount}</span>
+                                                         {entry.amountPaid} <span className="text-[10px] text-slate-400">/   {entry.netAmount}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
                                                             parseFloat(entry.balanceAmount || 0) <= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-red-50 text-red-600 dark:bg-red-950/20'
                                                         }`}>
-                                                            {parseFloat(entry.balanceAmount || 0) <= 0 ? 'PAID' : `DUE: ₹${entry.balanceAmount}`}
+                                                            {parseFloat(entry.balanceAmount || 0) <= 0 ? 'PAID' : `DUE:  ${entry.balanceAmount}`}
                                                         </span>
                                                         <span className="text-[9px] text-slate-400 uppercase tracking-widest">{entry.paymentMode}</span>
                                                     </div>
@@ -1043,15 +1043,15 @@ function Aavak({ currentUser }) {
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Bill Amount</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white">₹{paymentHistoryEntry.netAmount}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white"> {paymentHistoryEntry.netAmount}</p>
                                 </div>
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Paid till Date</p>
-                                    <p className="text-sm font-black text-emerald-600">₹{paymentHistoryEntry.amountPaid}</p>
+                                    <p className="text-sm font-black text-emerald-600"> {paymentHistoryEntry.amountPaid}</p>
                                 </div>
                                 <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-red-400 uppercase tracking-widest mb-1">Outstanding Liability</p>
-                                    <p className="text-sm font-black text-red-600">₹{paymentHistoryEntry.balanceAmount}</p>
+                                    <p className="text-sm font-black text-red-600"> {paymentHistoryEntry.balanceAmount}</p>
                                 </div>
                             </div>
 
@@ -1060,12 +1060,12 @@ function Aavak({ currentUser }) {
                                 <div className="max-h-40 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                                     <div className="p-3 bg-slate-50 dark:bg-slate-800/10 flex justify-between items-center text-xs font-semibold">
                                         <span className="text-slate-400">Advance/Initial Bill Payment</span>
-                                        <span className="text-slate-900 dark:text-white font-mono font-bold">₹{paymentHistoryEntry.netAmount - paymentHistoryEntry.balanceAmount - (paymentHistoryEntry.installmentLogs || []).reduce((acc, pay) => acc + (pay.amount || 0), 0)}</span>
+                                        <span className="text-slate-900 dark:text-white font-mono font-bold"> {paymentHistoryEntry.netAmount - paymentHistoryEntry.balanceAmount - (paymentHistoryEntry.installmentLogs || []).reduce((acc, pay) => acc + (pay.amount || 0), 0)}</span>
                                     </div>
                                     {(paymentHistoryEntry.installmentLogs || []).map((install, idx) => (
                                         <div key={idx} className="p-3 flex justify-between items-center text-xs">
                                             <div className="space-y-0.5">
-                                                <p className="font-bold text-slate-900 dark:text-white font-mono">₹{install.amount}</p>
+                                                <p className="font-bold text-slate-900 dark:text-white font-mono"> {install.amount}</p>
                                                 <p className="text-[9px] text-slate-400 font-medium">Logged by {install.operator} | {install.date} {install.time}</p>
                                             </div>
                                             <span className="text-[9px] font-black uppercase tracking-widest text-[#ef4444]">Installment</span>
@@ -1079,7 +1079,7 @@ function Aavak({ currentUser }) {
                                     <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Log New Installment</h5>
                                     <div className="flex gap-2">
                                         <div className="relative flex-1">
-                                            <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">₹</span>
+                                            <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs"> </span>
                                             <input 
                                                 type="number" 
                                                 step="0.01"
