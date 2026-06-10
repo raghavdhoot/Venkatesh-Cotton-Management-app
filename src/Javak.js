@@ -219,120 +219,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         window.open('https://api.whatsapp.com/send?phone=91' + tx.driverPhone + '&text=' + encodeURIComponent(messageText), '_blank');
     };
 
-    const generateJavakPdf = async (entryToPrint) => {
-        const pdfContentElement = document.createElement('div');
-        pdfContentElement.className = "bg-white w-[210mm]";
-        
-        // Formatted and fallback checked properties to prevent elements collapsing
-        const gpNo = entryToPrint.gatePassNo || "____________________";
-        const vehNo = entryToPrint.vehicleNumber || "____________________";
-        const dest = entryToPrint.destination || "____________________";
-        const comm = entryToPrint.commodity || "____________________";
-        
-        const grossVal = entryToPrint.grossWt !== undefined && entryToPrint.grossWt !== "" && entryToPrint.grossWt !== null ? `${entryToPrint.grossWt} kg` : "_______________ kg";
-        const tareVal = entryToPrint.tareWt !== undefined && entryToPrint.tareWt !== "" && entryToPrint.tareWt !== null ? `${entryToPrint.tareWt} kg` : "_______________ kg";
-        const netVal = entryToPrint.netWt !== undefined && entryToPrint.netWt !== "" && entryToPrint.netWt !== null ? `${entryToPrint.netWt} kg` : "_______________ kg";
-        const bagsVal = entryToPrint.numberOfBags !== undefined && entryToPrint.numberOfBags !== "" && entryToPrint.numberOfBags !== null ? entryToPrint.numberOfBags : "_______________";
-        
-        const dtVal = entryToPrint.date || "____________________";
-        const driverVal = entryToPrint.driverName || "____________________";
-
-        const exactSlipHtml = `
-            <div style="border: 1.5px solid #000000; padding: 2px 5px; box-sizing: border-box; height: 87mm; max-height: 87mm; overflow: hidden; background: #ffffff; color: #000000; font-family: sans-serif; display: flex; flex-direction: column; justify-content: space-between; page-break-inside: avoid;">
-                <div style="text-align: center; border-bottom: 1.5px solid #000000; padding-bottom: 2px; margin-bottom: 2px;">
-                    <div style="font-size: 10.5pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1;">VENKATESH COTTON CO.</div>
-                    <div style="font-size: 7.5pt; font-weight: 700; text-transform: uppercase; line-height: 1;">NH752, POMNALA, MAHARASHTRA 431801</div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 32mm; gap: 4px; flex-grow: 1; align-items: stretch; margin-top: 2px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 3px;">
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">GATE PASS NO.</span>
-                            <span style="font-weight: 800; font-family: monospace; line-height: 1.2;">${gpNo}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">VEHICLE NO.</span>
-                            <span style="font-weight: 800; font-family: monospace; line-height: 1.2;">${vehNo}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">DESTINATION</span>
-                            <span style="font-weight: 800; text-transform: uppercase; line-height: 1.2;">${dest}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">COMMODITY</span>
-                            <span style="font-weight: 800; text-transform: uppercase; line-height: 1.2;">${comm}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">GROSS (KG)</span>
-                            <span style="font-weight: 800; line-height: 1.2;">${grossVal}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">TARE (KG)</span>
-                            <span style="font-weight: 800; line-height: 1.2;">${tareVal}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">NET (KG)</span>
-                            <span style="font-weight: 800; line-height: 1.2;">${netVal}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">BAGS</span>
-                            <span style="font-weight: 800; line-height: 1.2;">${bagsVal}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">DATE</span>
-                            <span style="font-weight: 800; line-height: 1.2;">${dtVal}</span>
-                        </div>
-                        <div style="border-bottom: 1px solid #000000; padding: 1px 2px; font-size: 8.5pt;">
-                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7pt; text-transform: uppercase; line-height: 1;">DRIVER NAME</span>
-                            <span style="font-weight: 800; text-transform: uppercase; line-height: 1.2;">${driverVal}</span>
-                        </div>
-                    </div>
-                    <div style="border: 1px solid #000000; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 7pt; font-weight: bold; padding: 3px; text-transform: uppercase; color: #475569; background: #ffffff; width: 30mm; height: 100%; box-sizing: border-box; align-self: center;">
-                        NO PHOTO AVAILABLE
-                    </div>
-                </div>
-            </div>
-        `;
-
-        pdfContentElement.innerHTML = `
-            <div style="display: flex; flex-direction: column; justify-content: space-between; height: 285mm; max-height: 285mm; overflow: hidden; box-sizing: border-box; block-size: 100%; page-break-inside: avoid; padding: 0; margin: 0;">
-                ${exactSlipHtml}
-                ${exactSlipHtml}
-                ${exactSlipHtml}
-            </div>
-        `;
-
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @media print {
-                @page { size: A4; margin: 4mm 8mm; }
-                body > *:not(#print-section) {
-                    display: none !important;
-                }
-                #print-section {
-                    display: flex !important;
-                    flex-direction: column !important;
-                    justify-content: space-between !important;
-                    position: absolute !important;
-                    left: 0 !important;
-                    top: 0 !important;
-                    width: 100% !important;
-                    height: 285mm !important;
-                    max-height: 285mm !important;
-                    box-sizing: border-box !important;
-                    overflow: hidden !important;
-                    background: white !important;
-                    page-break-inside: avoid !important;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-        pdfContentElement.id = 'print-section';
-        document.body.appendChild(pdfContentElement);
-
-        window.print();
-        document.body.removeChild(pdfContentElement);
-        document.head.removeChild(style);
+    const generateJavakPdf = (entryToPrint) => {
+        setPrintEntry(entryToPrint);
+        setTimeout(() => {
+            window.print();
+        }, 150);
     };
 
     const formatVehicleNumber = (val) => {
@@ -406,118 +297,155 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                 }
                 @media print {
                     @page { size: A4; margin: 4mm 8mm; }
-                    html, body { background: #ffffff !important; }
-                    body * { visibility: hidden !important; }
-                    aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
-                    .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
+                    html, body {
+                        background: #ffffff !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        height: 100% !important;
+                    }
+                    body > *:not(.vcc-print-sheet) { display: none !important; }
                     .vcc-print-sheet {
-                        display: flex !important;
-                        flex-direction: column !important;
-                        justify-content: space-between !important;
-                        position: absolute !important;
-                        left: 0 !important;
-                        top: 0 !important;
-                        width: 100% !important;
-                        height: 285mm !important;
+                        display: block !important;
                         max-height: 285mm !important;
-                        box-sizing: border-box !important;
                         overflow: hidden !important;
+                        page-break-inside: avoid !important;
+                        height: 100% !important;
                         padding: 0 !important;
                         margin: 0 !important;
                         background: #ffffff !important;
                         color: #000000 !important;
+                        box-sizing: border-box !important;
+                    }
+                    .vcc-individual-slip {
+                        height: 32% !important;
+                        max-height: 32% !important;
                         page-break-inside: avoid !important;
-                        block-size: 100%;
+                        box-sizing: border-box !important;
                     }
                 }
             `}</style>
             {printableJavak && (
-                <div className="vcc-print-sheet font-sans text-black">
+                <div 
+                    className="vcc-print-sheet font-sans text-black"
+                    style={{
+                        maxHeight: '285mm',
+                        overflow: 'hidden',
+                        pageBreakInside: 'avoid',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxSizing: 'border-box'
+                    }}
+                >
                     {[0, 1, 2].map((copyIndex) => {
-                        const gpNo = printableJavak.gatePassNo || "____________________";
-                        const vehNo = printableJavak.vehicleNumber || "____________________";
-                        const dest = printableJavak.destination || "____________________";
-                        const comm = printableJavak.commodity || "____________________";
+                        const gpNo = printableJavak.gatePassNo || "___________";
+                        const vehNo = printableJavak.vehicleNumber || "___________";
+                        const dest = printableJavak.destination || "___________";
+                        const comm = printableJavak.commodity || "___________";
                         
-                        const grossVal = printableJavak.grossWt !== undefined && printableJavak.grossWt !== "" && printableJavak.grossWt !== null ? `${printableJavak.grossWt} kg` : "_______________ kg";
-                        const tareVal = printableJavak.tareWt !== undefined && printableJavak.tareWt !== "" && printableJavak.tareWt !== null ? `${printableJavak.tareWt} kg` : "_______________ kg";
-                        const netVal = printableJavak.netWt !== undefined && printableJavak.netWt !== "" && printableJavak.netWt !== null ? `${printableJavak.netWt} kg` : "_______________ kg";
-                        const bagsVal = printableJavak.numberOfBags !== undefined && printableJavak.numberOfBags !== "" && printableJavak.numberOfBags !== null ? printableJavak.numberOfBags : "_______________";
+                        const grossVal = printableJavak.grossWt !== undefined && printableJavak.grossWt !== "" && printableJavak.grossWt !== null ? `${printableJavak.grossWt} kg` : "_____ kg";
+                        const tareVal = printableJavak.tareWt !== undefined && printableJavak.tareWt !== "" && printableJavak.tareWt !== null ? `${printableJavak.tareWt} kg` : "_____ kg";
+                        const netVal = printableJavak.netWt !== undefined && printableJavak.netWt !== "" && printableJavak.netWt !== null ? `${printableJavak.netWt} kg` : "_____ kg";
+                        const bagsVal = printableJavak.numberOfBags !== undefined && printableJavak.numberOfBags !== "" && printableJavak.numberOfBags !== null ? printableJavak.numberOfBags : "_____";
                         
-                        const dtVal = printableJavak.date || "____________________";
-                        const driverVal = printableJavak.driverName || "____________________";
+                        const dtVal = printableJavak.date || "___________";
+                        const driverVal = printableJavak.driverName || "______________________";
+                        const imgSrc = printableJavak.driverPhoto || null;
 
                         return (
                             <section 
                                 key={copyIndex} 
+                                className="vcc-individual-slip"
                                 style={{
-                                    height: '87mm',
-                                    maxHeight: '87mm',
+                                    height: '32%',
+                                    maxHeight: '32%',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'space-between',
                                     border: '1.5px solid #000000',
-                                    padding: '2px 5px',
+                                    padding: '6px 10px',
                                     boxSizing: 'border-box',
                                     overflow: 'hidden',
                                     background: '#ffffff',
                                     color: '#000000',
-                                    pageBreakInside: 'avoid'
+                                    pageBreakInside: 'avoid',
+                                    marginBottom: '1%'
                                 }}
                             >
-                                <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '2px', marginBottom: '2px' }}>
-                                    <h1 style={{ fontSize: '10.5pt', fontWeight: 900, textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.1', letterSpacing: '0.5px' }}>VENKATESH COTTON CO.</h1>
-                                    <p style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', margin: '2px 0 0 0', padding: 0, lineHeight: '1' }}>NH752, POMNALA, MAHARASHTRA 431801</p>
+                                <div style={{ textAlign: 'center', borderBottom: '2.5px solid #000000', paddingBottom: '3px', marginBottom: '4px' }}>
+                                    <h1 style={{ fontSize: '11pt', fontWeight: 900, textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.1', letterSpacing: '0.5px' }}>
+                                        VENKATESH COTTON CO. | NH752, POMNALA, MAHARASHTRA 431801
+                                    </h1>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 32mm', gap: '4px', flexGrow: 1, alignItems: 'stretch', marginTop: '2px' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' }}>
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>GATE PASS NO.</span>
-                                            <span style={{ fontWeight: 800, fontFamily: 'monospace', lineHeight: '1.2' }}>{gpNo}</span>
-                                        </div>
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>VEHICLE NO.</span>
-                                            <span style={{ fontWeight: 800, fontFamily: 'monospace', lineHeight: '1.2' }}>{vehNo}</span>
-                                        </div>
-
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>DESTINATION</span>
-                                            <span style={{ fontWeight: 800, textTransform: 'uppercase', lineHeight: '1.2' }}>{dest}</span>
-                                        </div>
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>COMMODITY</span>
-                                            <span style={{ fontWeight: 800, textTransform: 'uppercase', lineHeight: '1.2' }}>{comm}</span>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 84px', gap: '8px', flexGrow: 1, alignItems: 'stretch' }}>
+                                    <div style={{ display: 'grid', gridTemplateRows: 'repeat(5, 1fr)', gap: '2px' }}>
+                                        {/* Row 1: GATE PASS NO. | VEHICLE NO. */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>GATE PASS NO.</span>
+                                                <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{gpNo}</span>
+                                            </div>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>VEHICLE NO.</span>
+                                                <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{vehNo}</span>
+                                            </div>
                                         </div>
 
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>GROSS (KG)</span>
-                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{grossVal}</span>
-                                        </div>
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>TARE (KG)</span>
-                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{tareVal}</span>
-                                        </div>
-
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>NET (KG)</span>
-                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{netVal}</span>
-                                        </div>
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>BAGS</span>
-                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{bagsVal}</span>
+                                        {/* Row 2: DESTINATION | COMMODITY */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>DESTINATION</span>
+                                                <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{dest}</span>
+                                            </div>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>COMMODITY</span>
+                                                <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{comm}</span>
+                                            </div>
                                         </div>
 
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>DATE</span>
-                                            <span style={{ fontWeight: 800, lineHeight: '1.2' }}>{dtVal}</span>
+                                        {/* Row 3: GROSS (KG) | TARE (KG) */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>GROSS (KG)</span>
+                                                <span style={{ fontWeight: 800 }}>{grossVal}</span>
+                                            </div>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>TARE (KG)</span>
+                                                <span style={{ fontWeight: 800 }}>{tareVal}</span>
+                                            </div>
                                         </div>
-                                        <div style={{ borderBottom: '1px solid #000000', padding: '1px 2px', fontSize: '8.5pt' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7pt', textTransform: 'uppercase', lineHeight: '1' }}>DRIVER NAME</span>
-                                            <span style={{ fontWeight: 800, textTransform: 'uppercase', lineHeight: '1.2' }}>{driverVal}</span>
+
+                                        {/* Row 4: NET (KG) | BAGS */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>NET (KG)</span>
+                                                <span style={{ fontWeight: 800 }}>{netVal}</span>
+                                            </div>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>BAGS</span>
+                                                <span style={{ fontWeight: 800 }}>{bagsVal}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Row 5: DATE | DRIVER NAME */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', paddingBottom: '1px' }}>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>DATE</span>
+                                                <span style={{ fontWeight: 800 }}>{dtVal}</span>
+                                            </div>
+                                            <div style={{ fontSize: '8.5pt' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '6.5pt', textTransform: 'uppercase', lineHeight: '1' }}>DRIVER NAME</span>
+                                                <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{driverVal}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div style={{ border: '1px solid #000000', display: 'flex', alignItems: 'center', justifycontent: 'center', textAlign: 'center', fontSize: '7pt', fontWeight: 'bold', padding: '3px', textTransform: 'uppercase', color: '#475569', background: '#ffffff', width: '30mm', height: '100%', boxSizing: 'border-box', alignSelf: 'center' }}>
-                                        NO PHOTO AVAILABLE
+                                    <div style={{ border: '1px solid #000000', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '7pt', fontWeight: 'bold', padding: '3px', textTransform: 'uppercase', color: '#000000', background: '#ffffff', width: '80px', height: '80px', boxSizing: 'border-box', alignSelf: 'center', justifySelf: 'end', overflow: 'hidden' }}>
+                                        {imgSrc ? (
+                                            <img src={imgSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Driver" />
+                                        ) : (
+                                            "NO PHOTO AVAILABLE"
+                                        )}
                                     </div>
                                 </div>
                             </section>
@@ -545,13 +473,13 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generateJavakPdf({
-                            gatePassNo: '__________',
-                            date: '__________',
-                            vehicleNumber: '__________',
-                            destination: '__________',
-                            driverName: '__________',
-                            commodity: '__________',
-                            numberOfBags: '__________',
+                            gatePassNo: '___________',
+                            date: '___________',
+                            vehicleNumber: '___________',
+                            destination: '___________',
+                            driverName: '______________________',
+                            commodity: '___________',
+                            numberOfBags: '_____',
                             grossWt: '_____',
                             tareWt: '_____',
                             netWt: '_____',
@@ -775,7 +703,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                 <td className="px-5 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => { setPrintEntry(e); setTimeout(() => window.print(), 0); }} 
+                                                            onClick={() => generateJavakPdf(e)} 
                                                             className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg text-slate-500 dark:text-slate-400"
                                                             title="Print"
                                                         >
@@ -836,7 +764,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         </div>
 
         {deleteConfirmId && (
-            <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-3">
+            <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-3">
                 <div className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl text-center space-y-4 shadow-xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
                     <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-sm tracking-wide">Are you absolute sure?</h4>
                     <p className="text-xs text-slate-500">This action permanently purges this gatepass outwards record database logs.</p>
