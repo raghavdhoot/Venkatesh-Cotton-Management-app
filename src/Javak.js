@@ -5,7 +5,7 @@ import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, 
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
 
-function Javak({ currentUser }) {
+function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
     const [isNewEntry, setIsNewEntry] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -102,6 +102,50 @@ function Javak({ currentUser }) {
         setIsCameraActive(false);
     };
 
+    const syncBardanaStockOut = async (entryId, payload) => {
+        const stockRows = [
+            { id: 'bardana', itemName: 'BARDANA', quantity: payload.bardana },
+            { id: 'sutli', itemName: 'SUTLI', quantity: payload.sutli }
+        ];
+
+        await Promise.all(stockRows.map(async (row) => {
+            const stockDocRef = doc(db, 'bardana', `javak_${entryId}_${row.id}`);
+            const quantity = parseFloat(row.quantity || 0);
+
+            if (quantity > 0) {
+                await setDoc(stockDocRef, {
+                    itemName: row.itemName,
+                    quantity,
+                    type: 'OUT',
+                    personName: payload.driverName || payload.destination || 'JAVAK DISPATCH',
+                    employeeName: currentUser?.name || 'Staff',
+                    source: 'JAVAK',
+                    sourceEntryId: entryId,
+                    date: payload.date || new Date().toLocaleDateString('en-CA'),
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            } else {
+                await deleteDoc(stockDocRef).catch(() => {});
+            }
+        }));
+
+        const stockPayload = {
+            source: 'JAVAK',
+            sourceEntryId: entryId,
+            bardana: parseFloat(payload.bardana || 0),
+            sutli: parseFloat(payload.sutli || 0),
+            type: 'OUT'
+        };
+
+        if (typeof onBardanaStockUpdate === 'function') {
+            onBardanaStockUpdate(stockPayload);
+        }
+
+        if (typeof onInventoryUpdate === 'function') {
+            onInventoryUpdate(stockPayload);
+        }
+    };
+
     const capturePhoto = () => {
         const videoElement = document.getElementById('camera-preview');
         const canvasElement = document.createElement('canvas');
@@ -145,10 +189,12 @@ function Javak({ currentUser }) {
             if (isNewEntry) {
                 const docId = `javak_${Date.now()}`;
                 await setDoc(doc(db, 'javakEntries', docId), payload);
+                await syncBardanaStockOut(docId, payload);
                 setStatusMessage({ text: 'Gatepass generated successfully!', type: 'success' });
                 resetState();
             } else {
                 await updateDoc(doc(db, 'javakEntries', currentEntryId), payload);
+                await syncBardanaStockOut(currentEntryId, payload);
                 setStatusMessage({ text: 'Gatepass details updated successfully!', type: 'success' });
             }
         } catch (error) {
@@ -353,22 +399,7 @@ function Javak({ currentUser }) {
         return () => window.removeEventListener('afterprint', clearPrintEntry);
     }, []);
 
-    const printableJavak = printEntry || (currentEntryId ? {
-        gatePassNo,
-        date,
-        vehicleNumber,
-        destination,
-        driverName,
-        driverPhone,
-        commodity: commodity === 'OTHER_PRODUCTS' ? customCommodity : commodity,
-        numberOfBags,
-        bardana,
-        sutli,
-        grossWt,
-        tareWt,
-        netWt,
-        driverPhoto
-    } : null);
+    const printableJavak = printEntry;
 
     return (
         <div className="space-y-6">
@@ -377,13 +408,15 @@ function Javak({ currentUser }) {
                     .vcc-print-sheet { display: none !important; }
                 }
                 @media print {
-                    @page { size: A4; margin: 10mm; }
-                    body { background: #ffffff !important; }
+                    @page { size: A4; margin: 8mm; }
+                    html, body { background: #ffffff !important; }
                     body * { visibility: hidden !important; }
-                    .vcc-screen-only, aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
+                    aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
                     .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
                     .vcc-print-sheet {
-                        display: block !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        gap: 6mm !important;
                         position: absolute !important;
                         left: 0 !important;
                         top: 0 !important;
@@ -397,38 +430,32 @@ function Javak({ currentUser }) {
                 }
             `}</style>
             {printableJavak && (
-                <div className="vcc-print-sheet font-sans">
-                    <div className="border-2 border-slate-900 p-5 bg-white text-slate-900">
-                        <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
-                            <h1 className="text-2xl font-black uppercase">VENKATESH COTTON COMPANY</h1>
-                            <p className="text-xs font-bold">Outgoing Gate Pass</p>
-                        </div>
-                        <div className="flex justify-between text-xs font-black uppercase border-b border-slate-900 pb-2 mb-4">
-                            <span>Gate Pass: {printableJavak.gatePassNo || '-'}</span>
-                            <span>Date: {printableJavak.date || '-'}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 text-xs mb-4">
-                            <div><span className="block text-slate-500 font-bold uppercase">Vehicle</span><strong>{printableJavak.vehicleNumber || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Destination</span><strong>{printableJavak.destination || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Driver</span><strong>{printableJavak.driverName || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Phone</span><strong>{printableJavak.driverPhone || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Commodity</span><strong>{printableJavak.commodity || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Bales/Bags</span><strong>{printableJavak.numberOfBags || 0}</strong></div>
-                        </div>
-                        <table className="w-full text-xs border-collapse border border-slate-900">
-                            <tbody>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Gross Weight</td><td className="border border-slate-900 p-2 text-right">{printableJavak.grossWt || 0} kg</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Tare Weight</td><td className="border border-slate-900 p-2 text-right">{printableJavak.tareWt || 0} kg</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-black">Net Weight</td><td className="border border-slate-900 p-2 text-right font-black">{printableJavak.netWt || 0} kg</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Bardana</td><td className="border border-slate-900 p-2 text-right">{printableJavak.bardana || 0}</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Sutli</td><td className="border border-slate-900 p-2 text-right">{printableJavak.sutli || 0}</td></tr>
-                            </tbody>
-                        </table>
-                        <div className="grid grid-cols-2 gap-10 mt-10 text-xs font-bold uppercase">
-                            <div className="border-t border-slate-900 pt-2">Driver Signature</div>
-                            <div className="border-t border-slate-900 pt-2 text-right">Authorized Signature</div>
-                        </div>
-                    </div>
+                <div className="vcc-print-sheet font-sans text-slate-900">
+                    {[0, 1, 2].map((copyIndex) => (
+                        <section key={copyIndex} className="border-2 border-slate-900 bg-white p-3 min-h-[86mm]">
+                            <div className="text-center border-b-2 border-slate-900 pb-2 mb-3">
+                                <h1 className="text-lg font-black uppercase tracking-wide">VENKATESH COTTON CO.</h1>
+                                <p className="text-[10px] font-bold uppercase">NH752, Pomnala, Maharashtra 431801</p>
+                            </div>
+                            <div className="grid grid-cols-[1fr_36mm] gap-3">
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] uppercase">
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">GATE PASS NO.</span><strong>{printableJavak.gatePassNo || '-'}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">VEHICLE NO.</span><strong>{printableJavak.vehicleNumber || '-'}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">DESTINATION</span><strong>{printableJavak.destination || '-'}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">COMMODITY</span><strong>{printableJavak.commodity || '-'}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">GROSS (kg)</span><strong>{printableJavak.grossWt || 0}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">TARE (kg)</span><strong>{printableJavak.tareWt || 0}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">NET (kg)</span><strong>{printableJavak.netWt || 0}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">BAGS</span><strong>{printableJavak.numberOfBags || 0}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">DATE</span><strong>{printableJavak.date || '-'}</strong></div>
+                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">DRIVER NAME</span><strong>{printableJavak.driverName || '-'}</strong></div>
+                                </div>
+                                <div className="border-2 border-slate-900 flex items-center justify-center text-center text-[10px] font-black uppercase p-2 min-h-[45mm]">
+                                    NO PHOTO AVAILABLE
+                                </div>
+                            </div>
+                        </section>
+                    ))}
                 </div>
             )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">

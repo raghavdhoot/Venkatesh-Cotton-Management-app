@@ -551,27 +551,7 @@ function Aavak({ currentUser }) {
         return () => window.removeEventListener('afterprint', clearPrintEntry);
     }, []);
 
-    const printableAavak = printEntry || (currentEntryId ? {
-        tokenNo,
-        billingDate,
-        Name,
-        Village,
-        vehicleNo,
-        itemName: itemName === 'OTHER_PRODUCTS' ? customItemName : itemName,
-        grossWt,
-        tareWt,
-        netWt,
-        netWtAfterDeduction,
-        rate,
-        grossAmount,
-        hamaliDeduction,
-        weighmentDeduction,
-        netAmount,
-        amountPaid,
-        balanceAmount,
-        paymentMode,
-        accountantName
-    } : null);
+    const printableAavak = printEntry;
 
     return (
         <div className="space-y-6">
@@ -580,10 +560,10 @@ function Aavak({ currentUser }) {
                     .vcc-print-sheet { display: none !important; }
                 }
                 @media print {
-                    @page { size: A4; margin: 10mm; }
-                    body { background: #ffffff !important; }
+                    @page { size: A4; margin: 8mm; }
+                    html, body { background: #ffffff !important; }
                     body * { visibility: hidden !important; }
-                    .vcc-screen-only, aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
+                    aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
                     .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
                     .vcc-print-sheet {
                         display: block !important;
@@ -600,40 +580,76 @@ function Aavak({ currentUser }) {
                 }
             `}</style>
             {printableAavak && (
-                <div className="vcc-print-sheet font-sans">
-                    <div className="border-2 border-slate-900 p-5 bg-white text-slate-900">
-                        <div className="text-center border-b-2 border-slate-900 pb-3 mb-4">
-                            <h1 className="text-2xl font-black uppercase">VENKATESH COTTON COMPANY</h1>
-                            <p className="text-xs font-bold">NH752, Pomnala, Maharashtra 431801</p>
-                        </div>
-                        <div className="flex justify-between text-xs font-black uppercase border-b border-slate-900 pb-2 mb-4">
-                            <span>Farmer Purchase Bill</span>
-                            <span>Token: {printableAavak.tokenNo || '-'}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 text-xs mb-4">
-                            <div><span className="block text-slate-500 font-bold uppercase">Date</span><strong>{printableAavak.billingDate || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Farmer</span><strong>{printableAavak.Name || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Village</span><strong>{printableAavak.Village || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Vehicle</span><strong>{printableAavak.vehicleNo || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Commodity</span><strong>{printableAavak.itemName || '-'}</strong></div>
-                            <div><span className="block text-slate-500 font-bold uppercase">Payment</span><strong>{printableAavak.paymentMode || '-'}</strong></div>
-                        </div>
-                        <table className="w-full text-xs border-collapse border border-slate-900">
-                            <tbody>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Gross / Tare Weight</td><td className="border border-slate-900 p-2 text-right">{printableAavak.grossWt || 0} / {printableAavak.tareWt || 0} kg</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Net Weight</td><td className="border border-slate-900 p-2 text-right">{printableAavak.netWt || 0} kg</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Net Weight After Deduction</td><td className="border border-slate-900 p-2 text-right">{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Rate / Gross Amount</td><td className="border border-slate-900 p-2 text-right">Rs. {printableAavak.rate || 0} / Rs. {printableAavak.grossAmount || 0}</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Deductions</td><td className="border border-slate-900 p-2 text-right">Rs. {(parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2)}</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-black">Net Payable</td><td className="border border-slate-900 p-2 text-right font-black">Rs. {printableAavak.netAmount || 0}</td></tr>
-                                <tr><td className="border border-slate-900 p-2 font-bold">Paid / Balance</td><td className="border border-slate-900 p-2 text-right">Rs. {printableAavak.amountPaid || 0} / Rs. {printableAavak.balanceAmount || 0}</td></tr>
-                            </tbody>
-                        </table>
-                        <div className="grid grid-cols-2 gap-10 mt-10 text-xs font-bold uppercase">
-                            <div className="border-t border-slate-900 pt-2">Farmer Signature</div>
-                            <div className="border-t border-slate-900 pt-2 text-right">Accountant: {printableAavak.accountantName || '-'}</div>
-                        </div>
-                    </div>
+                <div className="vcc-print-sheet font-sans text-slate-900">
+                    {['OFFICE COPY', 'FARMER COPY'].map((copyLabel, copyIndex) => (
+                        <React.Fragment key={copyLabel}>
+                            <section className="border-2 border-slate-900 bg-white p-4 min-h-[132mm] flex flex-col justify-between">
+                                <div>
+                                    <div className="text-center border-b-2 border-slate-900 pb-2 mb-3">
+                                        <h1 className="text-2xl font-black uppercase tracking-wide">VENKATESH COTTON COMPANY</h1>
+                                        <p className="text-xs font-bold uppercase">NH752, Pomnala, Maharashtra 431801</p>
+                                    </div>
+                                    <div className="flex items-center justify-between border-b border-slate-900 pb-2 mb-3 text-xs font-black uppercase tracking-widest">
+                                        <span>FARMER PURCHASE BILL</span>
+                                        <span>{copyLabel}</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-[11px] mb-3 uppercase">
+                                        <div><span className="block text-slate-500 font-black">TOKEN NO.</span><strong>{printableAavak.tokenNo || '-'}</strong></div>
+                                        <div><span className="block text-slate-500 font-black">DATE</span><strong>{printableAavak.billingDate || '-'}</strong></div>
+                                        <div><span className="block text-slate-500 font-black">VEHICLE NO.</span><strong>{printableAavak.vehicleNo || '-'}</strong></div>
+                                        <div><span className="block text-slate-500 font-black">FARMER NAME</span><strong>{printableAavak.Name || '-'}</strong></div>
+                                        <div><span className="block text-slate-500 font-black">VILLAGE</span><strong>{printableAavak.Village || '-'}</strong></div>
+                                        <div><span className="block text-slate-500 font-black">ITEM NAME</span><strong>{printableAavak.itemName || '-'}</strong></div>
+                                    </div>
+                                    <table className="w-full text-[11px] border-collapse border-2 border-slate-900">
+                                        <thead>
+                                            <tr className="uppercase font-black">
+                                                <th className="border border-slate-900 p-2 text-left w-[45%]">Description</th>
+                                                <th className="border border-slate-900 p-2 text-right w-[30%]">Weight/Rate</th>
+                                                <th className="border border-slate-900 p-2 text-right w-[25%]">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td className="border border-slate-900 p-2 font-bold">Gross Weight / Tare Weight</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">{printableAavak.grossWt || 0} kg / {printableAavak.tareWt || 0} kg</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">--</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-slate-900 p-2 font-bold">Net Weight</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">{printableAavak.netWt || 0} kg</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">--</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-slate-900 p-2 font-bold">Net Wt (After 1.4% Ded.)</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">--</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-slate-900 p-2 font-bold">Rate / Hamali & Weighment</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">?{printableAavak.rate || 0} / ?{(parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2)}</td>
+                                                <td className="border border-slate-900 p-2 text-right font-bold">-?{(parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="grid grid-cols-5 border-2 border-slate-900 border-t-0 text-[10px] uppercase font-bold">
+                                    <div className="border-r border-slate-900 p-2"><span className="block text-slate-500 font-black">PAYMENT MODE</span>{printableAavak.paymentMode || '-'}</div>
+                                    <div className="border-r border-slate-900 p-2"><span className="block text-slate-500 font-black">ACCOUNTANT</span>{printableAavak.accountantName || '-'}</div>
+                                    <div className="border-r border-slate-900 p-2 text-right"><span className="block text-slate-500 font-black">NET PAYABLE</span>?{printableAavak.netAmount || 0}</div>
+                                    <div className="border-r border-slate-900 p-2 text-right"><span className="block text-slate-500 font-black">AMOUNT PAID</span>?{printableAavak.amountPaid || 0}</div>
+                                    <div className="p-2 text-right"><span className="block text-slate-500 font-black">BALANCE</span>?{printableAavak.balanceAmount || 0}</div>
+                                </div>
+                            </section>
+                            {copyIndex === 0 && (
+                                <div className="flex items-center gap-3 py-3 text-center text-xs font-black uppercase tracking-widest text-slate-700">
+                                    <div className="flex-1 border-t border-dashed border-slate-900"></div>
+                                    <span>??--- CUT ALONG THIS LINE ---??</span>
+                                    <div className="flex-1 border-t border-dashed border-slate-900"></div>
+                                </div>
+                            )}
+                        </React.Fragment>
+                    ))}
                 </div>
             )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
