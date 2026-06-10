@@ -36,7 +36,6 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
     const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS', 'OIL TANKER', 'COCONUT HUSK'];
 
-
     useEffect(() => {
         const unsubscribe = subscribeToJavak((list) => {
             setEntries(list);
@@ -224,88 +223,76 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         const pdfContentElement = document.createElement('div');
         pdfContentElement.className = "p-2 bg-white w-[210mm]";
         
-        const slipHtml = `
-            <div class="border-2 border-slate-900 p-3 mb-2 relative overflow-hidden flex gap-4">
-                <div class="flex-1">
-                    <div class="text-center mb-3">
-                        <h1 class="text-xl font-bold text-blue-700 uppercase">Venkatesh Cotton Co.</h1>
-                        <p class="text-[9px] text-slate-600">NH752, Pomnala, Maharashtra 431801</p>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-1.5">
-                        <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Vehicle no.</p>
-                            <p class="text-xs font-semibold">${entryToPrint.vehicleNumber}</p>
-                        </div>
-                        <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Date</p>
-                            <p class="text-xs font-semibold">${entryToPrint.date}</p>
-                        </div>
-                        <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Destination</p>
-                            <p class="text-xs font-semibold">${entryToPrint.destination}</p>
-                        </div>
-                        <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Driver Name</p>
-                            <p class="text-xs font-semibold">${entryToPrint.driverName || 'N/A'}</p>
-                        </div>
-                        <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Commodity</p>
-                            <p class="text-xs font-semibold">${entryToPrint.commodity}</p>
-                        </div>
-                        <div class="border border-slate-300 p-1.5 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase font-bold">Bags</p>
-                            <p class="text-xs font-bold">${entryToPrint.numberOfBags}</p>
-                        </div>
-                        <div class="border border-slate-300 p-1.5 rounded col-span-2">
-                            <div class="grid grid-cols-3 gap-1">
-                                <div>
-                                    <p class="text-[8px] text-slate-500 uppercase font-bold">Gross</p>
-                                    <p class="text-[10px] font-semibold">${entryToPrint.grossWt} kg</p>
-                                </div>
-                                <div>
-                                    <p class="text-[8px] text-slate-500 uppercase font-bold">Tare</p>
-                                    <p class="text-[10px] font-semibold">${entryToPrint.tareWt} kg</p>
-                                </div>
-                                <div>
-                                    <p class="text-[8px] text-slate-500 uppercase font-bold">Net</p>
-                                    <p class="text-[10px] font-bold text-indigo-700">${entryToPrint.netWt} kg</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        // Exact triplicate "Kaata Pavti" design specification for generateJavakPdf (Blank Print compatible)
+        const exactSlipHtml = `
+            <div style="border: 1.5px solid #000000; padding: 3px 6px; box-sizing: border-box; height: 90mm; max-height: 90mm; overflow: hidden; background: #ffffff; color: #000000; font-family: sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="text-align: center; border-bottom: 1.5px solid #000000; padding-bottom: 3px; margin-bottom: 4px;">
+                    <div style="font-size: 11pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">VENKATESH COTTON CO.</div>
+                    <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">NH752, POMNALA, MAHARASHTRA 431801</div>
                 </div>
-
-                <div class="w-32 flex flex-col items-center">
-                    <div class="border border-slate-900 p-1 mb-2 w-full text-center">
-                        <p class="text-[7px] text-slate-500 uppercase font-bold">Gate Pass No.</p>
-                        <p class="text-sm font-bold text-blue-700">${entryToPrint.gatePassNo || entryToPrint.id}</p>
+                
+                <div style="display: grid; grid-template-columns: 1fr 34mm; gap: 6px; flex-grow: 1; align-items: stretch;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">GATE PASS NO.</span>
+                            <span style="font-weight: 800; font-family: monospace;">${entryToPrint.gatePassNo || entryToPrint.id || "____________________"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">VEHICLE NO.</span>
+                            <span style="font-weight: 800; font-family: monospace;">${entryToPrint.vehicleNumber || "____________________"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">DESTINATION</span>
+                            <span style="font-weight: 800; text-transform: uppercase;">${entryToPrint.destination || "____________________"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">COMMODITY</span>
+                            <span style="font-weight: 800; text-transform: uppercase;">${entryToPrint.commodity || "____________________"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">GROSS (KG)</span>
+                            <span style="font-weight: 800;">${entryToPrint.grossWt !== undefined && entryToPrint.grossWt !== "" && entryToPrint.grossWt !== null ? `${entryToPrint.grossWt} kg` : "_______________ kg"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">TARE (KG)</span>
+                            <span style="font-weight: 800;">${entryToPrint.tareWt !== undefined && entryToPrint.tareWt !== "" && entryToPrint.tareWt !== null ? `${entryToPrint.tareWt} kg` : "_______________ kg"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">NET (KG)</span>
+                            <span style="font-weight: 800;">${entryToPrint.netWt !== undefined && entryToPrint.netWt !== "" && entryToPrint.netWt !== null ? `${entryToPrint.netWt} kg` : "_______________ kg"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">BAGS</span>
+                            <span style="font-weight: 800;">${entryToPrint.numberOfBags !== undefined && entryToPrint.numberOfBags !== "" && entryToPrint.numberOfBags !== null ? entryToPrint.numberOfBags : "_______________"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">DATE</span>
+                            <span style="font-weight: 800;">${entryToPrint.date || "____________________"}</span>
+                        </div>
+                        <div style="border-bottom: 1px solid #000000; padding: 1px 3px; font-size: 8.5pt;">
+                            <span style="font-weight: bold; color: #475569; display: block; font-size: 7.5pt; text-transform: uppercase;">DRIVER NAME</span>
+                            <span style="font-weight: 800; text-transform: uppercase;">${entryToPrint.driverName || "____________________"}</span>
+                        </div>
                     </div>
-                    ${entryToPrint.driverPhoto ? `
-                    <div class="border border-slate-900 p-0.5 bg-slate-50">
-                        <img src="${entryToPrint.driverPhoto}" class="w-[30mm] h-[40mm] object-cover" />
-                        <p class="text-[7px] text-center font-bold mt-0.5 uppercase">Driver Photo</p>
+                    <div style="border: 1.5px solid #000000; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 7.5pt; font-weight: bold; padding: 3px; text-transform: uppercase; color: #000000; background: #ffffff; min-height: 40mm; width: 32mm; box-sizing: border-box;">
+                        NO PHOTO AVAILABLE
                     </div>
-                    ` : `
-                    <div class="w-[30mm] h-[40mm] border-2 border-dashed border-slate-300 flex items-center justify-center">
-                        <p class="text-[8px] text-slate-300 uppercase font-bold text-center">No Photo<br>Available</p>
-                    </div>
-                    `}
                 </div>
             </div>
         `;
-        
+
         pdfContentElement.innerHTML = `
-            ${slipHtml}
-            <div class="border-b border-dashed border-slate-300 my-2"></div>
-            ${slipHtml}
-            <div class="border-b border-dashed border-slate-300 my-2"></div>
-            ${slipHtml}
+            <div style="display: flex; flex-direction: column; gap: 6mm; height: 285mm; max-height: 285mm; overflow: hidden; box-sizing: border-box;">
+                ${exactSlipHtml}
+                ${exactSlipHtml}
+                ${exactSlipHtml}
+            </div>
         `;
 
         const style = document.createElement('style');
         style.innerHTML = `
             @media print {
+                @page { size: A4; margin: 4mm 8mm; }
                 body > *:not(#print-section) {
                     display: none !important;
                 }
@@ -322,16 +309,6 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         document.head.appendChild(style);
         pdfContentElement.id = 'print-section';
         document.body.appendChild(pdfContentElement);
-
-        const images = pdfContentElement.getElementsByTagName('img');
-        const imagePromises = Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => {
-                img.onload = resolve;
-                img.onerror = resolve;
-            });
-        });
-        await Promise.all(imagePromises);
 
         window.print();
         document.body.removeChild(pdfContentElement);
@@ -408,7 +385,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     .vcc-print-sheet { display: none !important; }
                 }
                 @media print {
-                    @page { size: A4; margin: 8mm; }
+                    @page { size: A4; margin: 4mm 8mm; }
                     html, body { background: #ffffff !important; }
                     body * { visibility: hidden !important; }
                     aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
@@ -416,41 +393,95 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     .vcc-print-sheet {
                         display: flex !important;
                         flex-direction: column !important;
-                        gap: 6mm !important;
+                        justify-content: space-between !important;
                         position: absolute !important;
                         left: 0 !important;
                         top: 0 !important;
                         width: 100% !important;
-                        margin: 0 !important;
+                        height: 285mm !important;
+                        max-height: 285mm !important;
+                        box-sizing: border-box !important;
+                        overflow: hidden !important;
                         padding: 0 !important;
+                        margin: 0 !important;
                         background: #ffffff !important;
-                        color: #0f172a !important;
-                        box-shadow: none !important;
+                        color: #000000 !important;
+                        page-break-inside: avoid !important;
                     }
                 }
             `}</style>
             {printableJavak && (
-                <div className="vcc-print-sheet font-sans text-slate-900">
+                <div className="vcc-print-sheet font-sans text-black">
                     {[0, 1, 2].map((copyIndex) => (
-                        <section key={copyIndex} className="border-2 border-slate-900 bg-white p-3 min-h-[86mm]">
-                            <div className="text-center border-b-2 border-slate-900 pb-2 mb-3">
-                                <h1 className="text-lg font-black uppercase tracking-wide">VENKATESH COTTON CO.</h1>
-                                <p className="text-[10px] font-bold uppercase">NH752, Pomnala, Maharashtra 431801</p>
+                        <section 
+                            key={copyIndex} 
+                            style={{
+                                flex: 1,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                border: '1.5px solid #000000',
+                                padding: '3px 6px',
+                                boxSizing: 'border-box',
+                                height: '90mm',
+                                maxHeight: '90mm',
+                                overflow: 'hidden',
+                                background: '#ffffff',
+                                color: '#000000'
+                            }}
+                        >
+                            <div style={{ textAlign: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '3px', marginBottom: '4px' }}>
+                                <h1 style={{ fontSize: '11pt', fontWeight: 900, textTransform: 'uppercase', margin: 0, padding: 0, lineHeight: '1.2', letterSpacing: '0.5px' }}>VENKATESH COTTON CO.</h1>
+                                <p style={{ fontSize: '8pt', fontWeight: 700, textTransform: 'uppercase', margin: '2px 0 0 0', padding: 0 }}>NH752, POMNALA, MAHARASHTRA 431801</p>
                             </div>
-                            <div className="grid grid-cols-[1fr_36mm] gap-3">
-                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] uppercase">
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">GATE PASS NO.</span><strong>{printableJavak.gatePassNo || '-'}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">VEHICLE NO.</span><strong>{printableJavak.vehicleNumber || '-'}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">DESTINATION</span><strong>{printableJavak.destination || '-'}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">COMMODITY</span><strong>{printableJavak.commodity || '-'}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">GROSS (kg)</span><strong>{printableJavak.grossWt || 0}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">TARE (kg)</span><strong>{printableJavak.tareWt || 0}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">NET (kg)</span><strong>{printableJavak.netWt || 0}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">BAGS</span><strong>{printableJavak.numberOfBags || 0}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">DATE</span><strong>{printableJavak.date || '-'}</strong></div>
-                                    <div className="border-b border-dotted border-slate-500 py-1"><span className="block text-slate-500 font-black">DRIVER NAME</span><strong>{printableJavak.driverName || '-'}</strong></div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 34mm', gap: '6px', flexGrow: 1, alignItems: 'stretch' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>GATE PASS NO.</span>
+                                        <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{printableJavak.gatePassNo || "____________________"}</span>
+                                    </div>
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>VEHICLE NO.</span>
+                                        <span style={{ fontWeight: 800, fontFamily: 'monospace' }}>{printableJavak.vehicleNumber || "____________________"}</span>
+                                    </div>
+
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>DESTINATION</span>
+                                        <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{printableJavak.destination || "____________________"}</span>
+                                    </div>
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>COMMODITY</span>
+                                        <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{printableJavak.commodity || "____________________"}</span>
+                                    </div>
+
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>GROSS (KG)</span>
+                                        <span style={{ fontWeight: 800 }}>{printableJavak.grossWt !== undefined && printableJavak.grossWt !== "" && printableJavak.grossWt !== null ? `${printableJavak.grossWt} kg` : "_______________ kg"}</span>
+                                    </div>
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>TARE (KG)</span>
+                                        <span style={{ fontWeight: 800 }}>{printableJavak.tareWt !== undefined && printableJavak.tareWt !== "" && printableJavak.tareWt !== null ? `${printableJavak.tareWt} kg` : "_______________ kg"}</span>
+                                    </div>
+
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>NET (KG)</span>
+                                        <span style={{ fontWeight: 800 }}>{printableJavak.netWt !== undefined && printableJavak.netWt !== "" && printableJavak.netWt !== null ? `${printableJavak.netWt} kg` : "_______________ kg"}</span>
+                                    </div>
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>BAGS</span>
+                                        <span style={{ fontWeight: 800 }}>{printableJavak.numberOfBags !== undefined && printableJavak.numberOfBags !== "" && printableJavak.numberOfBags !== null ? printableJavak.numberOfBags : "_______________"}</span>
+                                    </div>
+
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>DATE</span>
+                                        <span style={{ fontWeight: 800 }}>{printableJavak.date || "____________________"}</span>
+                                    </div>
+                                    <div style={{ borderBottom: '1px solid #000000', padding: '1px 3px', fontSize: '8.5pt' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#475569', display: 'block', fontSize: '7.5pt', textTransform: 'uppercase' }}>DRIVER NAME</span>
+                                        <span style={{ fontWeight: 800, textTransform: 'uppercase' }}>{printableJavak.driverName || "____________________"}</span>
+                                    </div>
                                 </div>
-                                <div className="border-2 border-slate-900 flex items-center justify-center text-center text-[10px] font-black uppercase p-2 min-h-[45mm]">
+                                <div style={{ border: '1.5px solid #000000', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontSize: '7.5pt', fontWeight: 'bold', padding: '3px', textTransform: 'uppercase', color: '#000000', background: '#ffffff', minHeight: '40mm', width: '32mm', boxSizing: 'border-box' }}>
                                     NO PHOTO AVAILABLE
                                 </div>
                             </div>
