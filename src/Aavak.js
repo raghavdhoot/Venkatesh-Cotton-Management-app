@@ -61,7 +61,6 @@ function Aavak({ currentUser }) {
         return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
     };
 
-
     useEffect(() => {
         const unsubscribe = subscribeToAavak((data) => {
             setEntries(data);
@@ -92,7 +91,6 @@ function Aavak({ currentUser }) {
                 (e.itemName && e.itemName.toLowerCase().includes(queryLower))
             );
         }
-
 
         setFilteredEntries(result);
     }, [globalSearch, entries]);
@@ -178,181 +176,35 @@ function Aavak({ currentUser }) {
     };
 
     const generatePdf = async (entryToPrint, isBlank = false) => {
-        const pdfContentElement = document.createElement('div');
-        pdfContentElement.className = "p-8 bg-white w-[210mm]";
-        
-        const data = isBlank ? {
-            tokenNo: '__________',
-            Village: '__________',
-            billingDate: '__________',
-            vehicleNo: '__________',
-            Name: '____________________',
-            itemName: '__________',
-            grossWt: '_____',
-            tareWt: '_____',
-            netWt: '_____',
-            moisture: '_____',
-            netWtAfterDeduction: '_____',
-            rate: '_____',
-            hamaliDeduction: 0,
-            weighmentDeduction: 0,
-            grossAmount: '_____',
-            paymentMode: '__________',
-            accountantName: '__________',
-            netAmount: '_____',
-            amountPaid: '_____',
-            balanceAmount: '_____'
-        } : entryToPrint;
-
-        const createSlipHtml = (copyType, copyColor, sigLabel) => `
-            <div class="border-2 border-slate-900 mb-4 overflow-hidden font-sans text-slate-900 bg-white">
-                <div class="text-center py-3 border-b-2 border-slate-900">
-                    <h1 class="text-2xl font-black uppercase tracking-tighter">VENKATESH COTTON COMPANY</h1>
-                    <p class="text-[10px] font-bold mt-0.5">NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</p>
-                </div>
-                
-                <div class="flex justify-between px-4 py-1.5 border-b-2 border-slate-900 bg-slate-50">
-                    <span class="font-black uppercase text-[10px] tracking-widest">FARMER PURCHASE BILL</span>
-                    <span class="font-black uppercase text-[10px] tracking-widest" style="color: ${copyColor}">${copyType}</span>
-                </div>
-
-                <div class="grid grid-cols-3 gap-x-6 px-4 py-2 text-[10px] border-b-2 border-slate-900">
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">TOKEN NO.</span>
-                            <div class="flex-1 font-black px-1 text-xs">${data.tokenNo}</div>
-                        </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">VILLAGE</span>
-                            <div class="flex-1 font-black px-1 text-xs">${data.Village}</div>
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">DATE</span>
-                            <div class="flex-1 font-black px-1 text-xs">${data.billingDate}</div>
-                        </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">VEHICLE NO.</span>
-                            <div class="flex-1 font-black px-1 text-xs">${data.vehicleNo}</div>
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">FARMER NAME</span>
-                            <div class="flex-1 font-black px-1 text-xs">${data.Name}</div>
-                        </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">ITEM NAME</span>
-                            <div class="flex-1 font-black px-1 text-xs">${data.itemName}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <table class="w-full border-collapse text-[10px]">
-                    <thead>
-                        <tr class="border-b-2 border-slate-900 bg-slate-50">
-                            <th class="border-r-2 border-slate-900 p-1.5 text-left w-[50%] uppercase font-black">Description</th>
-                            <th class="border-r-2 border-slate-900 p-1.5 text-right w-[25%] uppercase font-black">Weight/Rate</th>
-                            <th class="p-1.5 text-right w-[25%] uppercase font-black">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody class="font-bold">
-                        <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Gross Weight / Tare Weight</td>
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.grossWt} / ${data.tareWt} kg</td>
-                            <td class="p-1.5 py-2"></td>
-                        </tr>
-                        <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Weight</td>
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWt} kg</td>
-                            <td class="p-1.5 py-2"></td>
-                        </tr>
-                        <tr class="border-b border-slate-200">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Net Wt (After ${data.generalDeductionPercentage !== undefined && data.generalDeductionPercentage !== null ? data.generalDeductionPercentage : (data.generalDeductionPercent !== undefined && data.generalDeductionPercent !== null ? data.generalDeductionPercent : (billingSettings.generalDeductionPercent !== undefined ? billingSettings.generalDeductionPercent : 1.4))}% Ded.)</td>
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.netWtAfterDeduction} kg</td>
-                            <td class="p-1.5 py-2"></td>
-                        </tr>
-                        <tr class="border-b-2 border-slate-900">
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2">Rate / Hamali & Weighment</td>
-                            <td class="border-r-2 border-slate-900 p-1.5 py-2 text-right">${data.rate} / ${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
-                            <td class="p-1.5 py-2 text-right font-black">${data.grossAmount} / -${(data.hamaliDeduction + (data.weighmentDeduction || 0)).toFixed(2)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="grid grid-cols-12 text-[10px]">
-                    <div class="col-span-7 p-3 space-y-2 border-r-2 border-slate-900">
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">PAYMENT MODE</span>
-                            <div class="flex-1 font-black px-1">${data.paymentMode || 'CASH'}</div>
-                        </div>
-                        <div class="flex items-end gap-2 border-b border-dotted border-slate-400 pb-0.5">
-                            <span class="font-bold uppercase whitespace-nowrap text-[8px] text-slate-500">ACCOUNTANT</span>
-                            <div class="flex-1 font-black px-1">${data.accountantName || data.makerName || ''}</div>
-                        </div>
-                    </div>
-                    <div class="col-span-5 p-3 space-y-1 bg-slate-50">
-                        <div class="flex justify-between font-bold">
-                            <span class="uppercase text-[8px] text-slate-500">Net Payable</span>
-                            <span class="text-xs"> ${data.netAmount}</span>
-                        </div>
-                        <div class="flex justify-between font-bold">
-                            <span class="uppercase text-[8px] text-slate-500">Amount Paid</span>
-                            <span class="text-xs"> ${data.amountPaid}</span>
-                        </div>
-                        <div class="flex justify-between border-t-2 border-slate-900 pt-1 mt-1">
-                            <span class="uppercase font-black text-[10px]">Balance</span>
-                            <span class="text-sm font-black"> ${data.balanceAmount}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        pdfContentElement.innerHTML = `
-            ${createSlipHtml('OFFICE COPY', '#1e293b', 'Receiver Signature')}
-            <div class="text-center my-4 text-[8px] text-slate-400 font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-4">
-                <div class="h-px bg-slate-200 flex-1"></div>
-                ✂ CUT ALONG THIS LINE ✂
-                <div class="h-px bg-slate-200 flex-1"></div>
-            </div>
-            ${createSlipHtml('FARMER COPY', '#ef4444', 'Farmer Signature')}
-        `;
-
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @media print {
-                body > *:not(#print-section) {
-                    display: none !important;
-                }
-                #print-section {
-                    display: block !important;
-                    position: absolute !important;
-                    left: 0 !important;
-                    top: 0 !important;
-                    width: 100% !important;
-                    background: white !important;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-        pdfContentElement.id = 'print-section';
-        document.body.appendChild(pdfContentElement);
-
-        const images = pdfContentElement.getElementsByTagName('img');
-        const imagePromises = Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => {
-                img.onload = resolve;
-                img.onerror = resolve;
+        if (isBlank) {
+            setPrintEntry({
+                tokenNo: '__________',
+                Village: '__________',
+                billingDate: '__________',
+                vehicleNo: '__________',
+                Name: '____________________',
+                itemName: '__________',
+                grossWt: '_____',
+                tareWt: '_____',
+                netWt: '_____',
+                moisture: '_____',
+                netWtAfterDeduction: '_____',
+                rate: '_____',
+                hamaliDeduction: 0,
+                weighmentDeduction: 0,
+                grossAmount: '_____',
+                paymentMode: '__________',
+                accountantName: '__________',
+                netAmount: '_____',
+                amountPaid: '_____',
+                balanceAmount: '_____'
             });
-        });
-        await Promise.all(imagePromises);
-
-        window.print();
-        document.body.removeChild(pdfContentElement);
-        document.head.removeChild(style);
+        } else {
+            setPrintEntry(entryToPrint);
+        }
+        setTimeout(() => {
+            window.print();
+        }, 150);
     };
 
     const hasTareWtBeenEntered = tareWt !== '' && tareWt !== null && parseFloat(tareWt) > 0;
@@ -475,7 +327,7 @@ function Aavak({ currentUser }) {
                 setStatusMessage({ text: 'Updated successfully!', type: 'success' });
             }
         } catch (error) {
-            console.error("Error creating/updating in cottonEntries collection: ", error);
+            console.error(error);
             setStatusMessage({ text: 'Internal database error.', type: 'error' });
         }
     };
@@ -487,7 +339,7 @@ function Aavak({ currentUser }) {
             setDeleteConfirmId(null);
             resetState();
         } catch (error) {
-            console.error("Error deleting document from cottonEntries collection:", error);
+            console.error(error);
             setStatusMessage({ text: 'Error deleting.', type: 'error' });
         }
     };
@@ -560,96 +412,224 @@ function Aavak({ currentUser }) {
                     .vcc-print-sheet { display: none !important; }
                 }
                 @media print {
-                    @page { size: A4; margin: 8mm; }
-                    html, body { background: #ffffff !important; }
+                    @page { size: A4; margin: 0; }
+                    html, body {
+                        background: #ffffff !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        height: 297mm !important;
+                        max-height: 297mm !important;
+                        overflow: hidden !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
                     body * { visibility: hidden !important; }
-                    aside, nav, header, footer, button, [role="navigation"], .sidebar, .topbar, .navbar { display: none !important; }
                     .vcc-print-sheet, .vcc-print-sheet * { visibility: visible !important; }
                     .vcc-print-sheet {
-                        display: block !important;
+                        display: flex !important;
+                        flex-direction: column !important;
                         position: absolute !important;
                         left: 0 !important;
                         top: 0 !important;
-                        width: 100% !important;
-                        margin: 0 !important;
+                        width: 210mm !important;
+                        height: 297mm !important;
+                        max-height: 297mm !important;
+                        box-sizing: border-box !important;
+                        overflow: hidden !important;
                         padding: 0 !important;
+                        margin: 0 !important;
                         background: #ffffff !important;
-                        color: #0f172a !important;
-                        box-shadow: none !important;
+                        color: #000000 !important;
+                        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+                        font-size: 11px !important;
+                    }
+                    .slip {
+                        flex: 1 !important;
+                        padding: 10px 15px !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        position: relative !important;
+                        box-sizing: border-box !important;
+                    }
+                    .cut-line {
+                        height: 1px !important;
+                        border-top: 1px dashed #000 !important;
+                        width: 100% !important;
+                        text-align: center !important;
+                        position: relative !important;
+                        margin: 2px 0 !important;
+                        box-sizing: border-box !important;
+                    }
+                    .cut-line span {
+                        position: absolute !important;
+                        top: -10px !important;
+                        left: 50% !important;
+                        transform: translateX(-50%) !important;
+                        background: #fff !important;
+                        padding: 0 10px !important;
+                        font-size: 10px !important;
+                        font-weight: 700 !important;
+                    }
+                    .header-table {
+                        width: 100% !important;
+                        margin-bottom: 8px !important;
+                    }
+                    .metadata-grid {
+                        display: grid !important;
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 4px !important;
+                        margin-bottom: 8px !important;
+                        padding: 6px !important;
+                        border: 1px solid #000 !important;
+                    }
+                    .main-table {
+                        width: 100% !important;
+                        border-collapse: collapse !important;
+                        margin-bottom: 8px !important;
+                    }
+                    .main-table th, .main-table td {
+                        border: 1px solid #000 !important;
+                        padding: 3px 6px !important;
+                        text-align: left !important;
+                    }
+                    .main-table th {
+                        background-color: #f8fafc !important;
+                        font-weight: 700 !important;
+                    }
+                    .summary-block {
+                        display: flex !important;
+                        justify-content: flex-end !important;
+                        margin-bottom: 10px !important;
+                    }
+                    .summary-inner {
+                        width: 220px !important;
+                        border: 1px solid #000 !important;
+                        border-top: none !important;
+                    }
+                    .summary-row {
+                        display: flex !important;
+                        justify-content: space-between !important;
+                        padding: 3px 6px !important;
+                        border-top: 1px solid #000 !important;
+                    }
+                    .summary-row strong {
+                        font-size: 12px !important;
+                    }
+                    .footer-block {
+                        margin-top: auto !important;
+                        display: flex !important;
+                        justify-content: space-between !important;
+                        align-items: flex-end !important;
+                        padding-top: 10px !important;
+                    }
+                    .footer-line {
+                        width: 160px !important;
+                        border-top: 1px solid #000 !important;
+                        text-align: center !important;
+                        padding-top: 2px !important;
+                        font-size: 10px !important;
+                        text-transform: uppercase !important;
+                    }
+                    .label-tag {
+                        position: absolute !important;
+                        top: 10px !important;
+                        right: 15px !important;
+                        border: 1px solid #000 !important;
+                        padding: 2px 8px !important;
+                        font-weight: 700 !important;
+                        font-size: 10px !important;
+                        background: #f1f5f9 !important;
                     }
                 }
             `}</style>
             {printableAavak && (
-                <div className="vcc-print-sheet font-sans text-slate-900">
-                    {['OFFICE COPY', 'FARMER COPY'].map((copyLabel, copyIndex) => (
-                        <React.Fragment key={copyLabel}>
-                            <section className="border-2 border-slate-900 bg-white p-4 min-h-[132mm] flex flex-col justify-between">
-                                <div>
-                                    <div className="text-center border-b-2 border-slate-900 pb-2 mb-3">
-                                        <h1 className="text-2xl font-black uppercase tracking-wide">VENKATESH COTTON COMPANY</h1>
-                                        <p className="text-xs font-bold uppercase">NH752, Pomnala, Maharashtra 431801</p>
+                <div className="vcc-print-sheet text-black">
+                    {['OFFICE COPY', 'FARMER COPY'].map((copyLabel, copyIndex) => {
+                        const hamaliVal = (parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2);
+                        const dedPercent = printableAavak.generalDeductionPercentage !== undefined ? printableAavak.generalDeductionPercentage : (printableAavak.generalDeductionPercent !== undefined ? printableAavak.generalDeductionPercent : 1.4);
+                        return (
+                            <React.Fragment key={copyLabel}>
+                                <div className="slip">
+                                    <div className="label-tag">{copyLabel}</div>
+                                    <table className="header-table">
+                                        <tbody>
+                                            <tr>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '18px', fontWeight: 900, letterSpacing: '1px' }}>VENKATESH COTTON COMPANY</div>
+                                                    <div style={{ fontSize: '10px', marginTop: '2px' }}>NH752, Pomnala, Maharashtra 431801 | Mob: +91 9876543210</div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div className="metadata-grid">
+                                        <div><strong>Token No:</strong> {printableAavak.tokenNo || ''}</div>
+                                        <div><strong>Date:</strong> {printableAavak.billingDate || ''}</div>
+                                        <div><strong>Farmer:</strong> {printableAavak.Name || ''}</div>
+                                        <div><strong>Vehicle No:</strong> {printableAavak.vehicleNo || ''}</div>
+                                        <div><strong>Village:</strong> {printableAavak.Village || ''}</div>
+                                        <div><strong>Item Name:</strong> {printableAavak.itemName || ''}</div>
                                     </div>
-                                    <div className="flex items-center justify-between border-b border-slate-900 pb-2 mb-3 text-xs font-black uppercase tracking-widest">
-                                        <span>FARMER PURCHASE BILL</span>
-                                        <span>{copyLabel}</span>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-[11px] mb-3 uppercase">
-                                        <div><span className="block text-slate-500 font-black">TOKEN NO.</span><strong>{printableAavak.tokenNo || '-'}</strong></div>
-                                        <div><span className="block text-slate-500 font-black">DATE</span><strong>{printableAavak.billingDate || '-'}</strong></div>
-                                        <div><span className="block text-slate-500 font-black">VEHICLE NO.</span><strong>{printableAavak.vehicleNo || '-'}</strong></div>
-                                        <div><span className="block text-slate-500 font-black">FARMER NAME</span><strong>{printableAavak.Name || '-'}</strong></div>
-                                        <div><span className="block text-slate-500 font-black">VILLAGE</span><strong>{printableAavak.Village || '-'}</strong></div>
-                                        <div><span className="block text-slate-500 font-black">ITEM NAME</span><strong>{printableAavak.itemName || '-'}</strong></div>
-                                    </div>
-                                    <table className="w-full text-[11px] border-collapse border-2 border-slate-900">
+                                    <table className="main-table">
                                         <thead>
-                                            <tr className="uppercase font-black">
-                                                <th className="border border-slate-900 p-2 text-left w-[45%]">Description</th>
-                                                <th className="border border-slate-900 p-2 text-right w-[30%]">Weight/Rate</th>
-                                                <th className="border border-slate-900 p-2 text-right w-[25%]">Amount</th>
+                                            <tr>
+                                                <th style={{ width: '50%' }}>Description</th>
+                                                <th style={{ width: '25%' }}>Weight / Rate</th>
+                                                <th style={{ width: '25%' }}>Amount</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td className="border border-slate-900 p-2 font-bold">Gross Weight / Tare Weight</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">{printableAavak.grossWt || 0} kg / {printableAavak.tareWt || 0} kg</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">--</td>
+                                                <td>Gross Weight / Tare Weight</td>
+                                                <td>{printableAavak.grossWt || 0} kg / {printableAavak.tareWt || 0} kg</td>
+                                                <td>--</td>
                                             </tr>
                                             <tr>
-                                                <td className="border border-slate-900 p-2 font-bold">Net Weight</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">{printableAavak.netWt || 0} kg</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">--</td>
+                                                <td>Net Weight</td>
+                                                <td>{printableAavak.netWt || 0} kg</td>
+                                                <td>--</td>
                                             </tr>
                                             <tr>
-                                                <td className="border border-slate-900 p-2 font-bold">Net Wt (After 1.4% Ded.)</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">--</td>
+                                                <td>Net Wt (After {dedPercent}% Ded.)</td>
+                                                <td>{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td>
+                                                <td>--</td>
                                             </tr>
                                             <tr>
-                                                <td className="border border-slate-900 p-2 font-bold">Rate / Hamali & Weighment</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">?{printableAavak.rate || 0} / ?{(parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2)}</td>
-                                                <td className="border border-slate-900 p-2 text-right font-bold">-?{(parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2)}</td>
+                                                <td>Rate / Hamali & Weighment</td>
+                                                <td>{printableAavak.rate || 0} / {hamaliVal}</td>
+                                                <td>-{hamaliVal}</td>
                                             </tr>
                                         </tbody>
                                     </table>
+                                    <div className="summary-block">
+                                        <div className="summary-inner">
+                                            <div className="summary-row">
+                                                <span>NET PAYABLE</span>
+                                                <strong>{printableAavak.netAmount || 0}</strong>
+                                            </div>
+                                            <div className="summary-row">
+                                                <span>AMOUNT PAID</span>
+                                                <strong>{printableAavak.amountPaid || 0}</strong>
+                                            </div>
+                                            <div className="summary-row">
+                                                <span>BALANCE</span>
+                                                <strong>{printableAavak.balanceAmount || 0}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="footer-block">
+                                        <div><strong>Payment Mode:</strong> {printableAavak.paymentMode || ''}</div>
+                                        <div className="footer-line">Farmer Signature</div>
+                                        <div className="footer-line">Accountant</div>
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-5 border-2 border-slate-900 border-t-0 text-[10px] uppercase font-bold">
-                                    <div className="border-r border-slate-900 p-2"><span className="block text-slate-500 font-black">PAYMENT MODE</span>{printableAavak.paymentMode || '-'}</div>
-                                    <div className="border-r border-slate-900 p-2"><span className="block text-slate-500 font-black">ACCOUNTANT</span>{printableAavak.accountantName || '-'}</div>
-                                    <div className="border-r border-slate-900 p-2 text-right"><span className="block text-slate-500 font-black">NET PAYABLE</span>?{printableAavak.netAmount || 0}</div>
-                                    <div className="border-r border-slate-900 p-2 text-right"><span className="block text-slate-500 font-black">AMOUNT PAID</span>?{printableAavak.amountPaid || 0}</div>
-                                    <div className="p-2 text-right"><span className="block text-slate-500 font-black">BALANCE</span>?{printableAavak.balanceAmount || 0}</div>
-                                </div>
-                            </section>
-                            {copyIndex === 0 && (
-                                <div className="flex items-center gap-3 py-3 text-center text-xs font-black uppercase tracking-widest text-slate-700">
-                                    <div className="flex-1 border-t border-dashed border-slate-900"></div>
-                                    <span>??--- CUT ALONG THIS LINE ---??</span>
-                                    <div className="flex-1 border-t border-dashed border-slate-900"></div>
-                                </div>
-                            )}
-                        </React.Fragment>
-                    ))}
+                                {copyIndex === 0 && (
+                                    <div className="cut-line">
+                                        <span>✂️------------------- CUT ALONG THIS LINE -------------------✂️</span>
+                                    </div>
+                                )}
+                            </React.Fragment>
+                        );
+                    })}
                 </div>
             )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -666,15 +646,15 @@ function Aavak({ currentUser }) {
                 <div className="flex flex-wrap items-center gap-2">
                     <button 
                         onClick={() => { resetState(); setIsNewEntry(true); }} 
-                        className="btn-primary flex items-center gap-2"
+                        className="btn-primary flex items-center gap-2 cursor-pointer"
                     >
                         <Plus className="w-4 h-4" /> New Inward Bill
                     </button>
-                    <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2">
+                    <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2 cursor-pointer">
                         <Download className="w-4 h-4" /> Export
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
-                        <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2">
+                        <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2 cursor-pointer">
                             <Printer className="w-4 h-4" /> Blank Print
                         </button>
                     )}
@@ -704,7 +684,7 @@ function Aavak({ currentUser }) {
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                                     {isNewEntry ? 'Create Inward purchase bill' : 'Update Record Inward bill'}
                                 </h3>
-                                <button onClick={resetState} className="p-1 px-3 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg dark:text-white">✕ Close Form</button>
+                                <button onClick={resetState} className="p-1 px-3 text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-lg dark:text-white cursor-pointer">✕ Close Form</button>
                             </div>
 
                             <form onSubmit={handleFormSubmit} className="space-y-6">
@@ -856,10 +836,10 @@ function Aavak({ currentUser }) {
                                 )}
 
                                 <div className="flex items-center gap-3 pt-4 border-t border-slate-150 dark:border-slate-800">
-                                    <button type="submit" className="p-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-indigo-100 dark:shadow-none flex items-center justify-center gap-2">
+                                    <button type="submit" className="p-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-indigo-100 dark:shadow-none flex items-center justify-center gap-2 cursor-pointer">
                                         <Save className="w-4 h-4" /> Save Purchase Record
                                     </button>
-                                    <button type="button" onClick={resetState} className="p-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black">
+                                    <button type="button" onClick={resetState} className="p-3 px-6 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer">
                                         Cancel change
                                     </button>
                                 </div>
@@ -930,8 +910,8 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 0); }}
-                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                                            onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 50); }}
+                                                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
                                                             title="Print"
                                                         >
                                                             <FileText className="w-5 h-5" />
@@ -940,7 +920,7 @@ function Aavak({ currentUser }) {
                                                         {parseFloat(entry.balanceAmount || 0) > 0 && (
                                                             <button 
                                                                 onClick={() => setPaymentHistoryEntry(entry)}
-                                                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-xl mr-1"
+                                                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-xl mr-1 cursor-pointer"
                                                             >
                                                                 Installments
                                                             </button>
@@ -948,7 +928,7 @@ function Aavak({ currentUser }) {
 
                                                         <button 
                                                             onClick={() => handleSelectEntry(entry)}
-                                                            className="p-2 text-slate-400 hover:text-emerald-600 transition-colors text-xs font-bold uppercase"
+                                                            className="p-2 text-slate-400 hover:text-emerald-600 transition-colors text-xs font-bold uppercase cursor-pointer"
                                                         >
                                                             Edit
                                                         </button>
@@ -956,7 +936,7 @@ function Aavak({ currentUser }) {
                                                         {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                                                             <button 
                                                                 onClick={() => setDeleteConfirmId(entry.id)}
-                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                                                                className="p-2 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
                                                             >
                                                                 ✕
                                                             </button>
@@ -987,7 +967,7 @@ function Aavak({ currentUser }) {
                                 onChange={(e) => setSearchToken(e.target.value)}
                             />
                             {searchToken && (
-                                <button onClick={() => setSearchToken('')} className="text-xs text-red-500 font-bold uppercase">Clear</button>
+                                <button onClick={() => setSearchToken('')} className="text-xs text-red-500 font-bold uppercase cursor-pointer">Clear</button>
                             )}
                         </div>
 
@@ -1000,10 +980,10 @@ function Aavak({ currentUser }) {
                                             <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.tokenNo}</h4>
                                         </div>
                                         <div className="flex gap-1">
-                                            <button onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 0); }} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+                                            <button onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 50); }} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer">
                                                 <FileText className="w-5 h-5" />
                                             </button>
-                                            <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400">
+                                            <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 cursor-pointer">
                                                 ✕
                                             </button>
                                         </div>
@@ -1022,8 +1002,8 @@ function Aavak({ currentUser }) {
                             <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-base">Confirm Deletion</h4>
                             <p className="text-xs text-slate-500">Are you sure you want to permanently delete this Aavak Purchase Ledger?</p>
                             <div className="flex items-center justify-center gap-3 pt-2">
-                                <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="p-2.5 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-md shadow-red-200 dark:shadow-none">Delete</button>
-                                <button onClick={() => setDeleteConfirmId(null)} className="p-2.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white font-bold text-xs rounded-xl uppercase tracking-wider">Cancel</button>
+                                <button onClick={() => handleDeleteEntry(deleteConfirmId)} className="p-2.5 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-md shadow-red-200 dark:shadow-none cursor-pointer">Delete</button>
+                                <button onClick={() => setDeleteConfirmId(null)} className="p-2.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white font-bold text-xs rounded-xl uppercase tracking-wider cursor-pointer">Cancel</button>
                             </div>
                         </motion.div>
                     </div>
@@ -1037,7 +1017,7 @@ function Aavak({ currentUser }) {
                                     <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Installment & Credit logs</h4>
                                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Token: {paymentHistoryEntry.tokenNo} | Farmer: {paymentHistoryEntry.Name}</p>
                                 </div>
-                                <button onClick={() => setPaymentHistoryEntry(null)} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white">✕</button>
+                                <button onClick={() => setPaymentHistoryEntry(null)} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
                             </div>
 
                             <div className="grid grid-cols-3 gap-3">
@@ -1091,7 +1071,7 @@ function Aavak({ currentUser }) {
                                         </div>
                                         <button 
                                             onClick={handleSavePaymentLog} 
-                                            className="px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 dark:shadow-none"
+                                            className="px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 dark:shadow-none cursor-pointer"
                                         >
                                             Submit Payment
                                         </button>
