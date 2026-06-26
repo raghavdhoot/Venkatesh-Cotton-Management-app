@@ -27,23 +27,19 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const formatDate = (date: Date): string => {
+const formatDate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
 
-const getTodayDateStr = (): string => {
+const getTodayDateStr = () => {
   return formatDate(new Date());
 };
 
-interface CashManagementProps {
-  currentUser: any;
-}
-
-export default function CashManagement({ currentUser }: CashManagementProps) {
-  const [transactions, setTransactions] = useState<any[]>([]);
+export default function CashManagement({ currentUser }) {
+  const [transactions, setTransactions] = useState([]);
   const [type, setType] = useState("OUT");
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -52,8 +48,8 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
   const [sourceSelect, setSourceSelect] = useState("SBI");
   const [customSource, setCustomSource] = useState("");
-  const [openingBalance, setOpeningBalance] = useState<number>(0);
-  const [todayClosure, setTodayClosure] = useState<any>(null);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [todayClosure, setTodayClosure] = useState(null);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -64,7 +60,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
     if (!isAuthorized) return;
     const q = query(collection(db, "cashTransactions"), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any)));
+      setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
   }, [isAuthorized]);
@@ -126,7 +122,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
     }
   }, [statusMessage]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount) return;
 
@@ -202,7 +198,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
     setCustomSource("");
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id) => {
     if (!window.confirm("Delete this transaction?")) return;
     try {
       await deleteDoc(doc(db, "cashTransactions", id));
@@ -243,7 +239,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
 
-  const expectedClosingBalance = (parseFloat(openingBalance as any) || 0) + todayIn - todayOut;
+  const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
 
   const handleCloseCounter = async () => {
     if (
@@ -257,11 +253,11 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
       const docId = `Closure-${todayStr}`;
       await setDoc(doc(db, "dailyClosures", docId), {
         date: todayStr,
-        openingBalance: parseFloat(openingBalance as any) || 0,
-        totalCashIn: parseFloat(todayIn as any) || 0,
-        totalCashOut: parseFloat(todayOut as any) || 0,
-        expectedClosingBalance: parseFloat(expectedClosingBalance as any) || 0,
-        closingBalance: parseFloat(expectedClosingBalance as any) || 0,
+        openingBalance: parseFloat(openingBalance) || 0,
+        totalCashIn: parseFloat(todayIn) || 0,
+        totalCashOut: parseFloat(todayOut) || 0,
+        expectedClosingBalance: parseFloat(expectedClosingBalance) || 0,
+        closingBalance: parseFloat(expectedClosingBalance) || 0,
         closedBy: currentUser?.name || "ADMIN",
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp()
@@ -298,7 +294,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
       // Setup Headers
       const headers = [["Timestamp", "Type", "Details", "Reason / Description", "Amount (INR)"]];
       
-      let tableRows: any[] = [];
+      let tableRows = [];
       if (transactions.length === 0) {
         // If empty, fill with standard underscores '_______' as requested
         tableRows = [
