@@ -6,8 +6,7 @@ import {
   where,
   onSnapshot,
   doc,
-  updateDoc,
-  serverTimestamp
+  updateDoc
 } from "firebase/firestore";
 import {
   ShieldAlert,
@@ -23,30 +22,17 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-enum OperationType {
-  CREATE = "create",
-  UPDATE = "update",
-  DELETE = "delete",
-  LIST = "list",
-  GET = "get",
-  WRITE = "write",
-}
-
-interface RTGSPanelProps {
-  currentUser: any;
-}
-
-interface RTGSTransaction {
-  id: string;
-  tokenNo: string;
-  farmerName: string;
-  amount: number;
-  makerDone: boolean;
-  chequePassed: boolean;
-}
+const OperationType = {
+  CREATE: "create",
+  UPDATE: "update",
+  DELETE: "delete",
+  LIST: "list",
+  GET: "get",
+  WRITE: "write",
+};
 
 // Custom firestore error handler conforming to standard guidelines
-function handleFirestoreError(error: any, operationType: OperationType, path: string, currentUser: any) {
+function handleFirestoreError(error, operationType, path, currentUser) {
   const errInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -61,13 +47,13 @@ function handleFirestoreError(error: any, operationType: OperationType, path: st
   throw new Error(JSON.stringify(errInfo));
 }
 
-export default function RTGSPanel({ currentUser }: RTGSPanelProps) {
-  const [transactions, setTransactions] = useState<RTGSTransaction[]>([]);
+export default function RTGSPanel({ currentUser }) {
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [error, setError] = useState<string | null>(null);
-  const [isUpdatingMap, setIsUpdatingMap] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState(null);
+  const [isUpdatingMap, setIsUpdatingMap] = useState({});
 
   // 1. ADMIN & CASHIER ACCESS GUARD Check (Visible to designated roles in App.tsx)
   const isAdmin = currentUser && (
@@ -140,7 +126,7 @@ export default function RTGSPanel({ currentUser }: RTGSPanelProps) {
   }, [isAdmin, currentUser]);
 
   // Status check helper
-  const getStatusInfo = (makerDone: boolean, chequePassed: boolean) => {
+  const getStatusInfo = (makerDone, chequePassed) => {
     if (!makerDone && !chequePassed) {
       return {
         label: "Maker Pending",
@@ -163,24 +149,23 @@ export default function RTGSPanel({ currentUser }: RTGSPanelProps) {
   };
 
   // 3. SECURE CHECKBOX CONTROLS WITH PREVENT OWNER MISTAKE GUARD
-  const handleCheckboxToggle = async (id: string, field: string, currentValue: boolean) => {
+  const handleCheckboxToggle = async (id, field, currentValue) => {
     setIsUpdatingMap(prev => ({ ...prev, [id]: true }));
     const collectionPath = "cottonEntries";
     try {
       const docRef = doc(db, collectionPath, id);
-      let updatePayload: Record<string, any> = {};
+      let updatePayload = {};
 
       if (field === "makerDone") {
         const newMakerValue = !currentValue;
-        updatePayload.makerDone = newMakerValue;
-        
-        // PREVENT OWNER MISTAKE GUARD:
-        // Reset Cheque Passed to false if Maker Done is toggled back to false.
-        if (!newMakerValue) {
-          updatePayload.chequePassed = false;
-        }
+        updatePayload = {
+          makerDone: newMakerValue,
+          ...(!newMakerValue ? { chequePassed: false } : {})
+        };
       } else if (field === "chequePassed") {
-        updatePayload.chequePassed = !currentValue;
+        updatePayload = {
+          chequePassed: !currentValue
+        };
       }
 
       await updateDoc(docRef, updatePayload);
@@ -249,7 +234,7 @@ export default function RTGSPanel({ currentUser }: RTGSPanelProps) {
       // Setup Headers: exactly mapped 4 columns
       const headers = [["Token No.", "Farmer Name", "Amount", "Status"]];
       
-      let tableRows: string[][] = [];
+      let tableRows = [];
       if (filteredTransactions.length === 0) {
         // If empty, fill with standard underscores '_______' as requested
         tableRows = [
