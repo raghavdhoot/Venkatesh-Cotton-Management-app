@@ -1,29 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { db } from '../firebaseConfig';
-import { collection, onSnapshot, query, orderBy, addDoc, serverTimestamp, where } from 'firebase/firestore';
-import { TrendingUp, TrendingDown, Package, IndianRupee, X, Calendar, User, MapPin, AlertTriangle, Clock, Share2, Calculator, CheckSquare, MessageSquare, Send, Bell, Phone } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import React, { useState, useEffect } from "react";
+import { db } from "../firebaseConfig";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  addDoc,
+  serverTimestamp,
+  where
+} from "firebase/firestore";
+import {
+  TrendingUp,
+  TrendingDown,
+  Package,
+  Coins,
+  X,
+  Calendar,
+  User,
+  MapPin,
+  AlertTriangle,
+  Clock,
+  Share2,
+  Calculator,
+  CheckSquare,
+  MessageSquare,
+  Send,
+  Bell,
+  Phone
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
-let globalAavakEntries = [];
-let globalJavakEntries = [];
-let globalListeners = [];
+export let globalAavakEntries: any[] = [];
+export let globalJavakEntries: any[] = [];
+let globalListeners: any[] = [];
 
 const setupGlobalListeners = () => {
-  onSnapshot(collection(db, 'cottonEntries'), (snapshot) => {
-    globalAavakEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    globalListeners.forEach(l => {
-      if (l.type === 'aavak') {
+  onSnapshot(collection(db, "cottonEntries"), (snapshot) => {
+    globalAavakEntries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    globalListeners.forEach((l) => {
+      if (l.type === "aavak") {
         l.callback(globalAavakEntries);
       }
     });
   });
 
-  onSnapshot(collection(db, 'javakEntries'), (snapshot) => {
-    globalJavakEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    globalListeners.forEach(l => {
-      if (l.type === 'javak') {
+  onSnapshot(collection(db, "javakEntries"), (snapshot) => {
+    globalJavakEntries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    globalListeners.forEach((l) => {
+      if (l.type === "javak") {
         l.callback(globalJavakEntries);
       }
     });
@@ -32,24 +58,31 @@ const setupGlobalListeners = () => {
 
 setupGlobalListeners();
 
-export const subscribeToAavak = (callback) => {
-  globalListeners.push({ type: 'aavak', callback });
+export const subscribeToAavak = (callback: (data: any[]) => void) => {
+  globalListeners.push({ type: "aavak", callback });
   callback(globalAavakEntries);
   return () => {
-    globalListeners = globalListeners.filter(l => l.callback !== callback);
+    globalListeners = globalListeners.filter((l) => l.callback !== callback);
   };
 };
 
-export const subscribeToJavak = (callback) => {
-  globalListeners.push({ type: 'javak', callback });
+export const subscribeToJavak = (callback: (data: any[]) => void) => {
+  globalListeners.push({ type: "javak", callback });
   callback(globalJavakEntries);
   return () => {
-    globalListeners = globalListeners.filter(l => l.callback !== callback);
+    globalListeners = globalListeners.filter((l) => l.callback !== callback);
   };
 };
 
-const StatCard = ({ title, value, icon: Icon, color }) => (
-  <div className="card flex items-center gap-4">
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: any;
+  color: string;
+}
+
+const StatCard = ({ title, value, icon: Icon, color }: StatCardProps) => (
+  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm flex items-center gap-4">
     <div className={`p-3 rounded-lg ${color}`}>
       <Icon className="w-6 h-6 text-white" />
     </div>
@@ -60,7 +93,11 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
   </div>
 );
 
-function Dashboard({ currentUser }) {
+interface DashboardProps {
+  currentUser: any;
+}
+
+export default function Dashboard({ currentUser }: DashboardProps) {
   const [stats, setStats] = useState({
     totalAavakNetWt: 0,
     totalAavakAmount: 0,
@@ -68,48 +105,40 @@ function Dashboard({ currentUser }) {
     totalJavakBags: 0,
     todayAavakWt: 0,
     todayJavakTrucks: 0,
-    todayAavakAmount: 0,
+    todayAavakAmount: 0
   });
   const [cashBalance, setCashBalance] = useState(0);
-  const [itemBreakdown, setItemBreakdown] = useState({});
-  const [rawData, setRawData] = useState({ aavak: [], javak: [] });
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [itemBreakdown, setItemBreakdown] = useState<any>({});
+  const [rawData, setRawData] = useState<{ aavak: any[]; javak: any[] }>({ aavak: [], javak: [] });
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [bardanaStock, setBardanaStock] = useState(0);
-  const [bardanaBreakdown, setBardanaBreakdown] = useState({});
+  const [bardanaBreakdown, setBardanaBreakdown] = useState<any>({});
   const [showAlert, setShowAlert] = useState(false);
-  const [adminNotes, setAdminNotes] = useState([]);
-  const [adminTasks, setAdminTasks] = useState([]);
-  const [rateChart, setRateChart] = useState([]);
-  const [myMessages, setMyMessages] = useState([]);
-  const [employeeMessage, setEmployeeMessage] = useState('');
+  const [adminNotes, setAdminNotes] = useState<any[]>([]);
+  const [adminTasks, setAdminTasks] = useState<any[]>([]);
+  const [rateChart, setRateChart] = useState<any[]>([]);
+  const [myMessages, setMyMessages] = useState<any[]>([]);
+  const [employeeMessage, setEmployeeMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [messageStatus, setMessageStatus] = useState({ text: '', type: '' });
-  
+  const [messageStatus, setMessageStatus] = useState({ text: "", type: "" });
+
   // Custom Period Summary State
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   // Out-turn Calculator State
-  const [calcKapas, setCalcKapas] = useState('');
-  const [outTurnResults, setOutTurnResults] = useState(null);
-  const [maturedEntries, setMaturedEntries] = useState([]);
-  const todayStr = new Date().toLocaleDateString('en-CA');
-  const [eodDate, setEodDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [calcKapas, setCalcKapas] = useState("");
+  const [outTurnResults, setOutTurnResults] = useState<any>(null);
+  const [eodDate, setEodDate] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
-    const getLocalDate = () => {
-      const now = new Date();
-      const offset = now.getTimezoneOffset();
-      const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-      return localDate.toISOString().split('T')[0];
-    };
-    const today = getLocalDate();
+    const today = new Date().toISOString().split("T")[0];
 
-    let aavakDataGlobal = [];
-    let javakDataGlobal = [];
+    let aavakDataGlobal: any[] = [];
+    let javakDataGlobal: any[] = [];
 
-    const handleDataUpdate = (aavakData, javakData) => {
+    const handleDataUpdate = (aavakData: any[], javakData: any[]) => {
       let totalAavakWt = 0;
       let totalAavakAmt = 0;
       let totalJavakWt = 0;
@@ -117,11 +146,11 @@ function Dashboard({ currentUser }) {
       let todayAavakWt = 0;
       let todayJavakTrucks = 0;
       let todayAavakAmt = 0;
-      const breakdown = {};
+      const breakdown: any = {};
 
-      aavakData.forEach(data => {
+      aavakData.forEach((data) => {
         const weight = parseFloat(data.netWt || 0);
-        const item = data.itemName || 'Uncategorized';
+        const item = data.itemName || "Uncategorized";
         const amt = parseFloat(data.amountPaid || 0);
         totalAavakWt += weight;
         totalAavakAmt += amt;
@@ -136,9 +165,9 @@ function Dashboard({ currentUser }) {
         }
       });
 
-      javakData.forEach(data => {
+      javakData.forEach((data) => {
         const weight = parseFloat(data.netWt || 0);
-        const item = data.commodity || 'Uncategorized';
+        const item = data.commodity || "Uncategorized";
         totalJavakWt += weight;
         totalJavakBags += parseInt(data.numberOfBags || 0, 10);
         if (data.date === today) {
@@ -163,72 +192,74 @@ function Dashboard({ currentUser }) {
       setItemBreakdown(breakdown);
       setRawData({ aavak: aavakData, javak: javakData });
     };
-    const maturityQuery = query(
-      collection(db, 'cottonEntries'),
-      where('paymentDueDate', '==', todayStr)
+
+    const unsubscribeNotes = onSnapshot(
+      query(collection(db, "adminNotes"), orderBy("timestamp", "desc")),
+      (snapshot) => {
+        setAdminNotes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any)));
+      }
     );
-    const unsubscribeMaturity = onSnapshot(maturityQuery, (snapshot) => {
-      const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMaturedEntries(entries);
-    }, (error) => {
-      console.error("Maturity forecast query error: ", error);
-    });
-    
-    const unsubscribeNotes = onSnapshot(query(collection(db, 'adminNotes'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setAdminNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
 
-    const unsubscribeTasks = onSnapshot(query(collection(db, 'adminTasks'), orderBy('timestamp', 'desc')), (snapshot) => {
-      const allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const myTasks = allTasks.filter(task => {
-        if (currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') return true;
-        return task.assignedTo === currentUser?.employeeId;
-      });
-      setAdminTasks(myTasks);
-    });
+    const unsubscribeTasks = onSnapshot(
+      query(collection(db, "adminTasks"), orderBy("timestamp", "desc")),
+      (snapshot) => {
+        const allTasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+        const myTasks = allTasks.filter((task) => {
+          if (currentUser?.role?.toUpperCase() === "ADMIN" || currentUser?.employeeId === "ADMIN") return true;
+          return task.assignedTo === currentUser?.employeeId;
+        });
+        setAdminTasks(myTasks);
+      }
+    );
 
-    const unsubscribeRates = onSnapshot(query(collection(db, 'rateCharts'), orderBy('timestamp', 'desc')), (snapshot) => {
-      setRateChart(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    const unsubscribeRates = onSnapshot(
+      query(collection(db, "rateCharts"), orderBy("timestamp", "desc")),
+      (snapshot) => {
+        setRateChart(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any)));
+      }
+    );
 
-    const unsubscribeMyMessages = onSnapshot(query(collection(db, 'employeeMessages'), orderBy('timestamp', 'desc')), (snapshot) => {
-      const allMsgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const filtered = allMsgs.filter(msg => msg.senderId === currentUser?.employeeId);
-      setMyMessages(filtered);
-    });
+    const unsubscribeMyMessages = onSnapshot(
+      query(collection(db, "employeeMessages"), orderBy("timestamp", "desc")),
+      (snapshot) => {
+        const allMsgs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+        const filtered = allMsgs.filter((msg) => msg.senderId === currentUser?.employeeId);
+        setMyMessages(filtered);
+      }
+    );
 
-    const unsubscribeCash = onSnapshot(collection(db, 'cashTransactions'), (snapshot) => {
+    const unsubscribeCash = onSnapshot(collection(db, "cashTransactions"), (snapshot) => {
       let totalIn = 0;
       let totalOut = 0;
-      snapshot.docs.forEach(doc => {
+      snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        if (data.type === 'IN') totalIn += data.amount;
-        else totalOut += data.amount;
+        if (data.type === "IN") totalIn += data.amount || 0;
+        else totalOut += data.amount || 0;
       });
       setCashBalance(totalIn - totalOut);
     });
 
-    const unsubscribeBardana = onSnapshot(collection(db, 'bardana'), (snapshot) => {
+    const unsubscribeBardana = onSnapshot(collection(db, "bardana"), (snapshot) => {
       let totalGunny = 0;
-      const breakdown = {};
-      snapshot.docs.forEach(doc => {
+      const breakdown: any = {};
+      snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        const item = data.itemName?.toUpperCase() || 'UNKNOWN';
+        const item = data.itemName?.toUpperCase() || "UNKNOWN";
         const qty = parseInt(data.quantity || 0, 10);
-        
-        if (data.type === 'IN') {
+
+        if (data.type === "IN") {
           breakdown[item] = (breakdown[item] || 0) + qty;
         } else {
           breakdown[item] = (breakdown[item] || 0) - qty;
         }
 
-        if (item === 'GUNNY BAGS' || item === 'GUNNY BAG' || item === 'BARDANA') {
-          totalGunny += qty * (data.type === 'IN' ? 1 : -1);
+        if (item === "GUNNY BAGS" || item === "GUNNY BAG" || item === "BARDANA") {
+          totalGunny += qty * (data.type === "IN" ? 1 : -1);
         }
       });
       setBardanaStock(totalGunny);
       setBardanaBreakdown(breakdown);
-      
+
       if (totalGunny < 100) {
         setShowAlert(true);
       } else {
@@ -255,81 +286,82 @@ function Dashboard({ currentUser }) {
       unsubscribeRates();
       unsubscribeMyMessages();
       unsubscribeCash();
-      unsubscribeMaturity();
     };
-  }, [currentUser?.employeeId, currentUser?.role, todayStr]);
+  }, [currentUser?.employeeId, currentUser?.role]);
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!employeeMessage.trim() || !currentUser) return;
-    
+
     setIsSending(true);
     try {
-      await addDoc(collection(db, 'employeeMessages'), {
+      await addDoc(collection(db, "employeeMessages"), {
         content: employeeMessage.toUpperCase(),
         senderName: currentUser.name,
         senderId: currentUser.employeeId,
         timestamp: serverTimestamp()
       });
-      setEmployeeMessage('');
-      setMessageStatus({ text: 'Message sent to Admin!', type: 'success' });
-      setTimeout(() => setMessageStatus({ text: '', type: '' }), 3000);
+      setEmployeeMessage("");
+      setMessageStatus({ text: "Message sent to Admin!", type: "success" });
+      setTimeout(() => setMessageStatus({ text: "", type: "" }), 3000);
     } catch (error) {
       console.error("Error sending message:", error);
-      setMessageStatus({ text: 'Failed to send message', type: 'error' });
+      setMessageStatus({ text: "Failed to send message", type: "error" });
     } finally {
       setIsSending(false);
     }
   };
 
   const handleShareSummary = () => {
-    const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
+    const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long" });
     const aavakQuintals = (stats.todayAavakWt / 100).toFixed(1);
-    const summaryText = `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
+    const summaryText =
+      `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
       `📥 *AAVAK:* ${aavakQuintals} QNTL\n` +
       `🚚 *DISPATCH:* ${stats.todayJavakTrucks} TRUCKS\n` +
-      `💰 *TODAY'S PAYOUT:* ₹${stats.todayAavakAmount.toLocaleString()}\n\n` +
+      `💰 *TODAY'S PAYOUT:* INR ${stats.todayAavakAmount.toLocaleString()}\n\n` +
       `_Generated via VCC Cotton App_`;
-    
+
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
-    window.open(whatsappUrl, '_blank');
+    window.open(whatsappUrl, "_blank");
   };
 
   const handleCopySummary = () => {
-    const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' });
+    const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long" });
     const aavakQuintals = (stats.todayAavakWt / 100).toFixed(1);
-    const summaryText = `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
+    const summaryText =
+      `*VCC COTTON SUMMARY - ${today.toUpperCase()}*\n\n` +
       `📥 *AAVAK:* ${aavakQuintals} QNTL\n` +
       `🚚 *DISPATCH:* ${stats.todayJavakTrucks} TRUCKS\n` +
-      `💰 *TODAY'S PAYOUT:* ₹${stats.todayAavakAmount.toLocaleString()}\n\n` +
+      `💰 *TODAY'S PAYOUT:* INR ${stats.todayAavakAmount.toLocaleString()}\n\n` +
       `_Generated via VCC Cotton App_`;
-    
+
     navigator.clipboard.writeText(summaryText).then(() => {
-        setMessageStatus({ text: 'Summary copied!', type: 'success' });
-        setTimeout(() => setMessageStatus({ text: '', type: '' }), 3000);
+      setMessageStatus({ text: "Summary copied!", type: "success" });
+      setTimeout(() => setMessageStatus({ text: "", type: "" }), 3000);
     });
   };
 
   const getCustomPeriodStats = () => {
     if (!startDate || !endDate) return null;
-    
+
     let totalAavakWt = 0;
     let totalAavakAmt = 0;
     let totalJavakTrucks = 0;
-    
-    rawData.aavak.forEach(data => {
+
+    rawData.aavak.forEach((data) => {
       if (data.billingDate >= startDate && data.billingDate <= endDate) {
         totalAavakWt += parseFloat(data.netWt || 0);
         totalAavakAmt += parseFloat(data.amountPaid || 0);
       }
     });
-    
-    rawData.javak.forEach(data => {
+
+    rawData.javak.forEach((data) => {
       if (data.date >= startDate && data.date <= endDate) {
         totalJavakTrucks += 1;
       }
     });
-    
+
     return {
       aavakWt: (totalAavakWt / 100).toFixed(1),
       aavakAmt: totalAavakAmt.toLocaleString(),
@@ -341,64 +373,63 @@ function Dashboard({ currentUser }) {
     const periodStats = getCustomPeriodStats();
     if (!periodStats) return;
 
-    const start = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    const end = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    
-    const summaryText = `*VCC COTTON SUMMARY*\n*PERIOD:* ${start.toUpperCase()} TO ${end.toUpperCase()}\n\n` +
+    const start = new Date(startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const end = new Date(endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+    const summaryText =
+      `*VCC COTTON SUMMARY*\n*PERIOD:* ${start.toUpperCase()} TO ${end.toUpperCase()}\n\n` +
       `📥 *AAVAK:* ${periodStats.aavakWt} QNTL\n` +
       `🚚 *DISPATCH:* ${periodStats.javakTrucks} TRUCKS\n` +
-      `💰 *TOTAL PAYOUT:* ₹${periodStats.aavakAmt}\n\n` +
+      `💰 *TOTAL PAYOUT:* INR ${periodStats.aavakAmt}\n\n` +
       `_Generated via VCC Cotton App_`;
-    
+
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(summaryText)}`;
-    window.open(whatsappUrl, '_blank');
+    window.open(whatsappUrl, "_blank");
   };
 
   const handleCopyPeriodSummary = () => {
     const periodStats = getCustomPeriodStats();
     if (!periodStats) return;
 
-    const start = new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    const end = new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-    
-    const summaryText = `*VCC COTTON SUMMARY*\n*PERIOD:* ${start.toUpperCase()} TO ${end.toUpperCase()}\n\n` +
+    const start = new Date(startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const end = new Date(endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+    const summaryText =
+      `*VCC COTTON SUMMARY*\n*PERIOD:* ${start.toUpperCase()} TO ${end.toUpperCase()}\n\n` +
       `📥 *AAVAK:* ${periodStats.aavakWt} QNTL\n` +
       `🚚 *DISPATCH:* ${periodStats.javakTrucks} TRUCKS\n` +
-      `💰 *TOTAL PAYOUT:* ₹${periodStats.aavakAmt}\n\n` +
+      `💰 *TOTAL PAYOUT:* INR ${periodStats.aavakAmt}\n\n` +
       `_Generated via VCC Cotton App_`;
-    
+
     navigator.clipboard.writeText(summaryText).then(() => {
-      alert('Period summary copied!');
+      alert("Period summary copied!");
     });
   };
 
   const copyOutTurnToClipboard = () => {
     if (!outTurnResults) return;
-    const text = `*VCC OUT-TURN ESTIMATE*\n` +
+    const text =
+      `*VCC OUT-TURN ESTIMATE*\n` +
       `Kapas: ${calcKapas} kg\n` +
       `Lint: ${outTurnResults.lint} kg\n` +
       `Seed: ${outTurnResults.seed} kg\n` +
       `Bales: ~${outTurnResults.bales}`;
-    
+
     navigator.clipboard.writeText(text).then(() => {
-      alert('Results copied to clipboard!');
+      alert("Results copied to clipboard!");
     });
   };
 
-  const calculateOutTurn = (val) => {
+  const calculateOutTurn = (val: string) => {
     const kapas = parseFloat(val);
     if (isNaN(kapas) || kapas <= 0) {
       setOutTurnResults(null);
       return;
     }
-    // Standard Out-turn Ratios (Approximate)
-    // Lint (Bales): ~34%
-    // Seed: ~63%
-    // Trash/Loss: ~3%
     const lint = kapas * 0.34;
     const seed = kapas * 0.63;
-    const bales = lint / 170; // 1 Bale = 170kg approx
-    
+    const bales = lint / 170;
+
     setOutTurnResults({
       lint: lint.toFixed(2),
       seed: seed.toFixed(2),
@@ -406,31 +437,31 @@ function Dashboard({ currentUser }) {
     });
   };
 
-  const getFilteredDetails = (itemName) => {
-    const aavakDetails = rawData.aavak.filter(d => (d.itemName || 'Uncategorized') === itemName);
-    const javakDetails = rawData.javak.filter(d => (d.commodity || 'Uncategorized') === itemName);
+  const getFilteredDetails = (itemName: string) => {
+    const aavakDetails = rawData.aavak.filter((d) => (d.itemName || "Uncategorized") === itemName);
+    const javakDetails = rawData.javak.filter((d) => (d.commodity || "Uncategorized") === itemName);
     return { aavakDetails, javakDetails };
   };
 
-  const generateEODReport = (rawEntries, selectedDate, operatorName = currentUser?.name || "Admin Counter") => {
-    const todayStrLocal = selectedDate || new Date().toLocaleDateString('en-CA');
+  const generateEODReport = (rawEntries: any[], selectedDate: string, operatorName = currentUser?.name || "Admin Counter") => {
+    const todayStrLocal = selectedDate || new Date().toISOString().split("T")[0];
     const baseEntries = rawEntries || rawData.aavak || [];
-    const todayEntries = baseEntries.filter(entry => entry.billingDate === todayStrLocal);
-    
+    const todayEntries = baseEntries.filter((entry) => entry.billingDate === todayStrLocal);
+
     const totalPattis = todayEntries.length;
     let totalAccumulatedWeight = 0;
     let grossOutflowCommitted = 0;
     let realizedOutflowPaid = 0;
-    
+
     const rows = todayEntries.map((entry) => {
-      const tokenNo = entry.tokenNo || entry.id || 'N/A';
-      const farmerName = entry.Name || entry.farmerName || 'N/A';
+      const tokenNoStr = entry.tokenNo || entry.id || "N/A";
+      const farmerName = entry.Name || entry.farmerName || "N/A";
       const netWeight = parseFloat(entry.netWt || entry.netWeight || 0);
       const netAmount = parseFloat(entry.netAmount || 0);
-      
+
       let paidAmount = 0;
       if (entry.paymentHistory && Array.isArray(entry.paymentHistory)) {
-        entry.paymentHistory.forEach(item => {
+        entry.paymentHistory.forEach((item) => {
           if (item.date === todayStrLocal) {
             paidAmount += parseFloat(item.amount || 0);
           }
@@ -438,74 +469,77 @@ function Dashboard({ currentUser }) {
       } else {
         paidAmount = parseFloat(entry.amountPaid || 0);
       }
-      
+
       const remainingBalance = netAmount - paidAmount;
-      
+
       totalAccumulatedWeight += netWeight;
       grossOutflowCommitted += netAmount;
       realizedOutflowPaid += paidAmount;
-      
+
       return [
-        tokenNo,
+        tokenNoStr,
         farmerName,
-        `${netWeight.toLocaleString('en-IN')} kg`,
-        `₹${netAmount.toLocaleString('en-IN')}`,
-        `₹${paidAmount.toLocaleString('en-IN')}`,
-        `₹${remainingBalance.toLocaleString('en-IN')}`
+        `${netWeight.toLocaleString("en-IN")} kg`,
+        `INR ${netAmount.toLocaleString("en-IN")}`,
+        `INR ${paidAmount.toLocaleString("en-IN")}`,
+        `INR ${remainingBalance.toLocaleString("en-IN")}`
       ];
     });
-    
+
     const remainingOutstandingLiability = grossOutflowCommitted - realizedOutflowPaid;
-    
-    const doc = new jsPDF();
-    
-    doc.setFillColor(15, 23, 42);
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text("VENKATESH COTTON COMPANY", 14, 15);
-    doc.setFontSize(11);
-    doc.setFont('Helvetica', 'normal');
-    doc.text("MANDI OPERATIONS - DAILY EOD REPORT", 14, 23);
-    
-    // Format document date display gracefully
-    const displayDate = new Date(todayStrLocal + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    doc.setFontSize(9);
-    doc.text(`REPORT DATE: ${displayDate}`, 14, 32);
-    doc.text(`OPERATOR: ${operatorName.toUpperCase()}`, 140, 32);
-    
-    let startY = 50;
-    doc.setFillColor(248, 250, 252);
-    doc.rect(14, startY, 182, 35, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(14, startY, 182, 35, 'S');
-    
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(10);
-    doc.setFont('Helvetica', 'bold');
-    doc.text("TODAY'S RUNNING METRICS SUMMARY", 20, startY + 8);
-    
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`Total Pattis Generated:  ${totalPattis}`, 20, startY + 16);
-    doc.text(`Acc. Weight Received:  ${totalAccumulatedWeight.toLocaleString('en-IN')} kg`, 20, startY + 22);
-    doc.text(`Gross Outflow:          ₹${grossOutflowCommitted.toLocaleString('en-IN')}`, 20, startY + 28);
-    
-    doc.text(`Realized Paid Today:   ₹${realizedOutflowPaid.toLocaleString('en-IN')}`, 110, startY + 16);
-    doc.setFont('Helvetica', 'bold');
-    doc.text(`Outstanding Credit:    ₹${remainingOutstandingLiability.toLocaleString('en-IN')}`, 110, startY + 22);
-    
-    autoTable(doc, {
+
+    const docRef = new jsPDF();
+
+    docRef.setFillColor(15, 23, 42);
+    docRef.rect(0, 0, 210, 40, "F");
+
+    docRef.setTextColor(255, 255, 255);
+    docRef.setFont("Helvetica", "bold");
+    docRef.setFontSize(16);
+    docRef.text("VENKATESH COTTON COMPANY", 14, 15);
+    docRef.setFontSize(11);
+    docRef.setFont("Helvetica", "normal");
+    docRef.text("MANDI OPERATIONS - DAILY EOD REPORT", 14, 23);
+
+    const displayDate = new Date(todayStrLocal + "T00:00:00").toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+    docRef.setFontSize(9);
+    docRef.text(`REPORT DATE: ${displayDate}`, 14, 32);
+    docRef.text(`OPERATOR: ${operatorName.toUpperCase()}`, 140, 32);
+
+    const startY = 50;
+    docRef.setFillColor(248, 250, 252);
+    docRef.rect(14, startY, 182, 35, "F");
+    docRef.setDrawColor(226, 232, 240);
+    docRef.rect(14, startY, 182, 35, "S");
+
+    docRef.setTextColor(15, 23, 42);
+    docRef.setFontSize(10);
+    docRef.setFont("Helvetica", "bold");
+    docRef.text("TODAY'S RUNNING METRICS SUMMARY", 20, startY + 8);
+
+    docRef.setFont("Helvetica", "normal");
+    docRef.setFontSize(9);
+    docRef.text(`Total Pattis Generated: ${totalPattis}`, 20, startY + 16);
+    docRef.text(`Acc. Weight Received: ${totalAccumulatedWeight.toLocaleString("en-IN")} kg`, 20, startY + 22);
+    docRef.text(`Gross Outflow:        INR ${grossOutflowCommitted.toLocaleString("en-IN")}`, 20, startY + 28);
+
+    docRef.text(`Realized Paid Today: INR ${realizedOutflowPaid.toLocaleString("en-IN")}`, 110, startY + 16);
+    docRef.setFont("Helvetica", "bold");
+    docRef.text(`Outstanding Credit:  INR ${remainingOutstandingLiability.toLocaleString("en-IN")}`, 110, startY + 22);
+
+    autoTable(docRef, {
       startY: startY + 45,
-      head: [['Token No', 'Farmer Name', 'Net Wt', 'Net Amount', 'Paid Today', 'Remaining']],
+      head: [["Token No", "Farmer Name", "Net Wt", "Net Amount", "Paid Today", "Remaining"]],
       body: rows,
-      theme: 'striped',
+      theme: "striped",
       headStyles: {
         fillColor: [30, 41, 59],
         textColor: [255, 255, 255],
-        fontStyle: 'bold',
+        fontStyle: "bold",
         fontSize: 9
       },
       bodyStyles: {
@@ -520,29 +554,29 @@ function Dashboard({ currentUser }) {
         lineWidth: 0.5
       }
     });
-    
-    const finalY = doc.lastAutoTable.finalY || (startY + 90);
-    const pageHeight = doc.internal.pageSize.height;
-    
+
+    const finalY = (docRef as any).lastAutoTable.finalY || startY + 90;
+    const pageHeight = docRef.internal.pageSize.height;
+
     let sigY = finalY + 25;
     if (sigY > pageHeight - 30) {
-      doc.addPage();
+      docRef.addPage();
       sigY = 40;
     }
-    
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105);
-    
-    doc.text("__________________________", 20, sigY);
-    doc.setFont('Helvetica', 'bold');
-    doc.text("Accountant Signature", 20, sigY + 5);
-    
-    doc.text("__________________________", 130, sigY);
-    doc.setFont('Helvetica', 'bold');
-    doc.text("Authorized Admin Sign", 130, sigY + 5);
-    
-    doc.save(`EOD_Report_${todayStrLocal}.pdf`);
+
+    docRef.setFont("Helvetica", "normal");
+    docRef.setFontSize(9);
+    docRef.setTextColor(71, 85, 105);
+
+    docRef.text("__________________________", 20, sigY);
+    docRef.setFont("Helvetica", "bold");
+    docRef.text("Accountant Signature", 20, sigY + 5);
+
+    docRef.text("__________________________", 130, sigY);
+    docRef.setFont("Helvetica", "bold");
+    docRef.text("Authorized Admin Sign", 130, sigY + 5);
+
+    docRef.save(`EOD_Report_${todayStrLocal}.pdf`);
   };
 
   return (
@@ -550,48 +584,47 @@ function Dashboard({ currentUser }) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
+          {(currentUser?.role?.toUpperCase() === "ADMIN" || currentUser?.employeeId === "ADMIN") && (
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1 shadow-sm">
-              <input 
+              <input
                 type="date"
                 value={eodDate}
                 onChange={(e) => setEodDate(e.target.value)}
                 className="bg-transparent text-xs font-bold font-mono px-2 py-1.5 focus:outline-none text-slate-700 dark:text-slate-300 border-none rounded-lg"
               />
-              <button 
+              <button
                 onClick={() => generateEODReport(rawData.aavak, eodDate)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 uppercase tracking-wide shadow-sm"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 uppercase tracking-wide shadow-sm cursor-pointer"
               >
-                <span>📊 Download EOD PDF Report</span>
+                <span>DAILY REPORT</span>
               </button>
             </div>
           )}
-          <button 
+          <button
             onClick={() => setIsPeriodModalOpen(true)}
-            className="btn-secondary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
+            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
           >
             <Calendar className="w-4 h-4" /> Period Summary
           </button>
-          <button 
+          <button
             onClick={handleCopySummary}
-            className="btn-secondary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
+            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
           >
             <Share2 className="w-4 h-4" /> Copy Today
           </button>
-          <button 
+          <button
             onClick={handleShareSummary}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap uppercase tracking-widest text-xs py-3"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
           >
-            <Share2 className="w-4 h-4" /> Share WhatsApp
+            <Share2 className="w-4 h-4" /> Share WA
           </button>
         </div>
       </div>
-      
-      {/* Period Summary Modal */}
+
       <AnimatePresence>
         {isPeriodModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -599,27 +632,30 @@ function Dashboard({ currentUser }) {
             >
               <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white uppercase">Custom Period Summary</h3>
-                <button onClick={() => setIsPeriodModalOpen(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full">
+                <button
+                  onClick={() => setIsPeriodModalOpen(false)}
+                  className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="p-8 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase">From Date</label>
-                    <input 
-                      type="date" 
-                      className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                    <label className="text-xs font-bold text-slate-400 utils uppercase">From Date</label>
+                    <input
+                      type="date"
+                      className="input-field w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase">To Date</label>
-                    <input 
-                      type="date" 
-                      className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                    <label className="text-xs font-bold text-slate-400 utils uppercase">To Date</label>
+                    <input
+                      type="date"
+                      className="input-field w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                     />
@@ -629,34 +665,34 @@ function Dashboard({ currentUser }) {
                 {startDate && endDate && (
                   <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-700 space-y-4">
                     <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
-                        <span className="text-slate-500 text-sm font-medium">📥 Total Aavak</span>
-                        <span className="font-bold text-indigo-600">{getCustomPeriodStats()?.aavakWt} QNTL</span>
+                      <span className="text-slate-500 text-sm font-medium">📥 Total Aavak</span>
+                      <span className="font-bold text-indigo-600">{getCustomPeriodStats()?.aavakWt} QNTL</span>
                     </div>
                     <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-2">
-                        <span className="text-slate-500 text-sm font-medium">🚚 Total Dispatch</span>
-                        <span className="font-bold text-orange-600">{getCustomPeriodStats()?.javakTrucks} TRUCKS</span>
+                      <span className="text-slate-500 text-sm font-medium">🚚 Total Dispatch</span>
+                      <span className="font-bold text-orange-600">{getCustomPeriodStats()?.javakTrucks} TRUCKS</span>
                     </div>
                     <div className="flex justify-between items-center">
-                        <span className="text-slate-500 text-sm font-medium">💰 Total Payout</span>
-                        <span className="font-bold text-emerald-600">₹{getCustomPeriodStats()?.aavakAmt}</span>
+                      <span className="text-slate-500 text-sm font-medium">💰 Total Payout</span>
+                      <span className="font-bold text-emerald-600">INR {getCustomPeriodStats()?.aavakAmt}</span>
                     </div>
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-3 pt-4">
-                  <button 
+                  <button
                     onClick={handleCopyPeriodSummary}
                     disabled={!startDate || !endDate}
-                    className="btn-secondary py-3 text-xs flex items-center justify-center gap-2"
+                    className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl py-3 text-xs font-bold uppercase transition-all disabled:opacity-50"
                   >
-                    <Share2 className="w-4 h-4" /> Copy Text
+                    Copy Text
                   </button>
-                  <button 
+                  <button
                     onClick={handleSharePeriodSummary}
                     disabled={!startDate || !endDate}
-                    className="btn-primary py-3 text-xs flex items-center justify-center gap-2"
+                    className="bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl py-3 text-xs font-bold uppercase transition-all disabled:opacity-50"
                   >
-                    <Share2 className="w-4 h-4" /> Share WA
+                    Share WA
                   </button>
                 </div>
               </div>
@@ -665,33 +701,37 @@ function Dashboard({ currentUser }) {
         )}
       </AnimatePresence>
 
-      {/* Today's Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Aavak</p>
-          <p className="text-3xl font-black">{(stats.todayAavakWt / 100).toFixed(1)} <span className="text-sm font-bold opacity-60">QNTL</span></p>
+          <p className="text-3xl font-black">
+            {(stats.todayAavakWt / 100).toFixed(1)} <span className="text-sm font-bold opacity-60">QNTL</span>
+          </p>
         </div>
         <div className="bg-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Payout</p>
-          <p className="text-3xl font-black">₹{stats.todayAavakAmount.toLocaleString()}</p>
+          <p className="text-3xl font-black font-mono">INR {stats.todayAavakAmount.toLocaleString()}</p>
         </div>
         <div className="bg-orange-600 rounded-2xl p-6 text-white shadow-lg shadow-orange-200 dark:shadow-none">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Today's Dispatch</p>
-          <p className="text-3xl font-black">{stats.todayJavakTrucks} <span className="text-sm font-bold opacity-60">TRUCKS</span></p>
+          <p className="text-3xl font-black">
+            {stats.todayJavakTrucks} <span className="text-sm font-bold opacity-60">TRUCKS</span>
+          </p>
         </div>
-        {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN' || currentUser?.role?.toUpperCase() === 'CASHIER') && (
+        {(currentUser?.role?.toUpperCase() === "ADMIN" ||
+          currentUser?.employeeId === "ADMIN" ||
+          currentUser?.role?.toUpperCase() === "CASHIER") && (
           <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-lg shadow-slate-200 dark:shadow-none">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Cash Balance</p>
-            <p className="text-3xl font-black">₹{cashBalance.toLocaleString()}</p>
+            <p className="text-3xl font-black font-mono">INR {cashBalance.toLocaleString()}</p>
           </div>
         )}
       </div>
-      
-      {/* Bardana Alert Modal */}
+
       <AnimatePresence>
         {showAlert && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.8, y: 50 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: 50 }}
@@ -702,17 +742,21 @@ function Dashboard({ currentUser }) {
                   <AlertTriangle className="w-12 h-12 text-red-600 dark:text-red-400" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Stock Warning!</h3>
-                  <p className="text-slate-600 dark:text-slate-400 font-medium">
-                    Bardana stock is dangerously low!
-                  </p>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    Stock Warning!
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-400 font-medium">Bardana stock is dangerously low!</p>
                 </div>
                 <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl border border-red-100 dark:border-red-800/50">
-                  <p className="text-sm text-red-600 dark:text-red-400 font-bold uppercase tracking-widest mb-1">Bardana Stock</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 font-bold uppercase tracking-widest mb-1">
+                    Bardana Stock
+                  </p>
                   <p className="text-5xl font-black text-red-700 dark:text-red-500">{bardanaStock}</p>
-                  <p className="text-xs text-red-400 dark:text-red-500/60 mt-2 font-semibold italic">Minimum required: 100 Bags</p>
+                  <p className="text-xs text-red-400 dark:text-red-500/60 mt-2 font-semibold italic">
+                    Minimum required: 100 Bags
+                  </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowAlert(false)}
                   className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-red-200 active:scale-95 text-lg uppercase tracking-widest"
                 >
@@ -723,46 +767,44 @@ function Dashboard({ currentUser }) {
           </div>
         )}
       </AnimatePresence>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Total Incoming (Net Wt)" 
-          value={`${stats.totalAavakNetWt.toLocaleString()} kg`} 
-          icon={TrendingUp} 
+        <StatCard
+          title="Total Incoming"
+          value={`${stats.totalAavakNetWt.toLocaleString()} kg`}
+          icon={TrendingUp}
           color="bg-emerald-500"
         />
-        <StatCard 
-          title="Amount Paid" 
-          value={`₹${stats.totalAavakAmount.toLocaleString()}`} 
-          icon={IndianRupee} 
+        <StatCard
+          title="Amount Paid"
+          value={`INR ${stats.totalAavakAmount.toLocaleString()}`}
+          icon={Coins}
           color="bg-indigo-500"
         />
-        <StatCard 
-          title="Total Outgoing (Net Wt)" 
-          value={`${stats.totalJavakNetWt.toLocaleString()} kg`} 
-          icon={TrendingDown} 
+        <StatCard
+          title="Total Outgoing"
+          value={`${stats.totalJavakNetWt.toLocaleString()} kg`}
+          icon={TrendingDown}
           color="bg-orange-500"
         />
-        <StatCard 
-          title="Total Outgoing Bags" 
-          value={stats.totalJavakBags.toLocaleString()} 
-          icon={Package} 
-          color="bg-blue-500"
-        />
+        <StatCard title="Total Outgoing Bags" value={stats.totalJavakBags.toLocaleString()} icon={Package} color="bg-blue-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Dashboard Notes Section */}
-        <div className="card !p-0 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
             <Bell className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Dashboard Notes</h3>
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">
+              Dashboard Notes
+            </h3>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
             {adminNotes.length > 0 ? (
-              adminNotes.map(note => (
+              adminNotes.map((note) => (
                 <div key={note.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">{note.content}</p>
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">
+                    {note.content}
+                  </p>
                   <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                     <Clock className="w-3 h-3" />
                     {note.timestamp?.toDate().toLocaleString()} • BY {note.author}
@@ -770,22 +812,30 @@ function Dashboard({ currentUser }) {
                 </div>
               ))
             ) : (
-              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">No public notes at this time</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
+                No public notes at this time
+              </p>
             )}
           </div>
         </div>
 
-        {/* Assigned Tasks Section */}
-        <div className="card !p-0 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-amber-600" />
-            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">My Private Tasks</h3>
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">
+              My Private Tasks
+            </h3>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
             {adminTasks.length > 0 ? (
-              adminTasks.map(task => (
-                <div key={task.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-l-4 border-amber-500">
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">{task.content}</p>
+              adminTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-l-4 border-amber-500"
+                >
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">
+                    {task.content}
+                  </p>
                   <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                     <Clock className="w-3 h-3" />
                     {task.timestamp?.toDate().toLocaleString()} • FROM ADMIN
@@ -793,41 +843,48 @@ function Dashboard({ currentUser }) {
                 </div>
               ))
             ) : (
-              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">No private tasks assigned to you</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
+                No private tasks assigned to you
+              </p>
             )}
           </div>
         </div>
 
-        {/* Rate Chart Section */}
-        <div className="card">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
           <div className="flex items-center gap-2 mb-4">
-            <IndianRupee className="w-5 h-5 text-emerald-600" />
+            <Coins className="w-5 h-5 text-emerald-600" />
             <h3 className="text-lg font-bold uppercase tracking-tight">Current Rate Chart</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {rateChart.length > 0 ? (
-              rateChart.map(rate => (
-                <div key={rate.id} className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl">
-                  <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-xs tracking-wider">{rate.itemName}</span>
-                  <span className="font-black text-emerald-700 dark:text-emerald-400">₹{rate.rate}</span>
+              rateChart.map((rate) => (
+                <div
+                  key={rate.id}
+                  className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 rounded-xl"
+                >
+                  <span className="font-bold text-slate-700 dark:text-slate-300 uppercase text-xs tracking-wider">
+                    {rate.itemName}
+                  </span>
+                  <span className="font-black text-emerald-700 dark:text-emerald-400">Rs. {rate.rate}</span>
                 </div>
               ))
             ) : (
-              <p className="text-slate-400 dark:text-slate-500 text-sm italic col-span-2 text-center py-4">No rates published yet</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm italic col-span-2 text-center py-4">
+                No rates published yet
+              </p>
             )}
           </div>
         </div>
 
-        {/* Message Admin Section */}
-        <div className="card space-y-6">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <MessageSquare className="w-5 h-5 text-indigo-600" />
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Message Admin</h3>
             </div>
             <form onSubmit={handleSendMessage} className="space-y-3">
-              <textarea 
-                className="input-field min-h-[80px] text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+              <textarea
+                className="input-field w-full min-h-[80px] p-3 border rounded-xl text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                 placeholder="SEND A NOTE OR REPORT TO ADMIN..."
                 value={employeeMessage}
                 onChange={(e) => setEmployeeMessage(e.target.value.toUpperCase())}
@@ -835,16 +892,20 @@ function Dashboard({ currentUser }) {
               />
               <div className="flex items-center justify-between gap-2">
                 {messageStatus.text && (
-                  <span className={`text-[10px] font-bold ${messageStatus.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <span
+                    className={`text-[10px] font-bold ${
+                      messageStatus.type === "success" ? "text-emerald-600" : "text-red-650"
+                    }`}
+                  >
                     {messageStatus.text}
                   </span>
                 )}
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isSending}
-                  className="btn-primary py-2 px-4 text-xs flex items-center gap-2 ml-auto"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase ml-auto cursor-pointer"
                 >
-                  {isSending ? 'Sending...' : <><Send className="w-3 h-3" /> Send</>}
+                  {isSending ? "Sending..." : "Send"}
                 </button>
               </div>
             </form>
@@ -852,9 +913,11 @@ function Dashboard({ currentUser }) {
 
           {myMessages.length > 0 && (
             <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-              <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">My Recent Messages</h4>
+              <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">
+                My Recent Messages
+              </h4>
               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-                {myMessages.map(msg => (
+                {myMessages.map((msg) => (
                   <div key={msg.id} className="space-y-2">
                     <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
                       <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{msg.content}</p>
@@ -881,60 +944,62 @@ function Dashboard({ currentUser }) {
           )}
         </div>
 
-        <div className="card">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Bardana Stock</h3>
           <div className="space-y-3">
             {Object.entries(bardanaBreakdown).length > 0 ? (
               Object.entries(bardanaBreakdown)
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([item, qty]) => (
-                <div 
-                  key={item} 
-                  className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${qty < 100 ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                    <span className="font-medium text-slate-700 dark:text-slate-300">{item}</span>
+                .map(([item, qty]: any) => (
+                  <div
+                    key={item}
+                    className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${qty < 100 ? "bg-red-500" : "bg-emerald-500"}`}></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{item}</span>
+                    </div>
+                    <span className={`font-bold ${qty < 100 ? "text-red-650" : "text-slate-900 dark:text-white"}`}>
+                      {qty.toLocaleString()} Bags
+                    </span>
                   </div>
-                  <span className={`font-bold ${qty < 100 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
-                    {qty.toLocaleString()} Bags
-                  </span>
-                </div>
-              ))
+                ))
             ) : (
               <p className="text-slate-400 text-sm italic py-4 text-center">No Bardana data</p>
             )}
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Current Stock by Item</h3>
           <div className="space-y-3">
             {Object.entries(itemBreakdown).length > 0 ? (
               Object.entries(itemBreakdown)
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([item, weight]) => (
-                <div 
-                  key={item} 
-                  onClick={() => setSelectedItem(item)}
-                  className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${weight < 0 ? 'bg-red-500' : 'bg-indigo-500'}`}></div>
-                    <span className="font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">{item}</span>
+                .map(([item, weight]: any) => (
+                  <div
+                    key={item}
+                    onClick={() => setSelectedItem(item)}
+                    className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${weight < 0 ? "bg-red-500" : "bg-indigo-500"}`}></div>
+                      <span className="font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">
+                        {item}
+                      </span>
+                    </div>
+                    <span className={`font-bold ${weight < 0 ? "text-red-650" : "text-slate-900 dark:text-white"}`}>
+                      {weight.toLocaleString()} kg
+                    </span>
                   </div>
-                  <span className={`font-bold ${weight < 0 ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
-                    {weight.toLocaleString()} kg
-                  </span>
-                </div>
-              ))
+                ))
             ) : (
               <p className="text-slate-400 text-sm italic py-4 text-center">No data available</p>
             )}
           </div>
         </div>
 
-        <div className="card">
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
           <h3 className="text-lg font-semibold mb-4">Stock Summary</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
@@ -949,8 +1014,7 @@ function Dashboard({ currentUser }) {
           </div>
         </div>
 
-        {/* Out-turn Ratio Calculator */}
-        <div className="card bg-gradient-to-br from-indigo-600 to-indigo-800 text-white border-none">
+        <div className="bg-gradient-to-br from-indigo-600 to-indigo-850 text-white p-6 rounded-2xl shadow-sm border-none">
           <div className="flex items-center gap-2 mb-4">
             <Calculator className="w-5 h-5" />
             <h3 className="text-lg font-bold uppercase tracking-tight">Out-turn Calculator</h3>
@@ -958,8 +1022,8 @@ function Dashboard({ currentUser }) {
           <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest opacity-70">Raw Kapas (KG)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all font-bold"
                 placeholder="Enter weight..."
                 value={calcKapas}
@@ -969,7 +1033,7 @@ function Dashboard({ currentUser }) {
                 }}
               />
             </div>
-            
+
             {outTurnResults && (
               <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                 <div className="grid grid-cols-3 gap-2">
@@ -986,78 +1050,23 @@ function Dashboard({ currentUser }) {
                     <p className="text-sm font-black">~{outTurnResults.bales}</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={copyOutTurnToClipboard}
-                  className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                  className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer"
                 >
                   Copy Results
                 </button>
               </div>
             )}
-            <p className="text-[9px] opacity-50 italic">
-              * Based on standard 34% Lint and 63% Seed yield ratios.
-            </p>
+            <p className="text-[9px] opacity-50 italic">* Based on standard 34% Lint and 63% Seed yield ratios.</p>
           </div>
         </div>
       </div>
 
-      {/* Maturity Forecast Widget Section */}
-      <div className="card !p-0 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-amber-500 animate-pulse" />
-            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight font-mono">Maturity Forecast & Due Payments</h3>
-          </div>
-          <span className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider font-mono">
-            {todayStr}
-          </span>
-        </div>
-        <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
-          {maturedEntries.length > 0 ? (
-            maturedEntries.map(entry => {
-              const netValue = parseFloat(entry.netAmount || 0);
-              const paidValue = parseFloat(entry.amountPaid || 0);
-              const balanceLeft = Math.max(0, netValue - paidValue);
-              return (
-                <div key={entry.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex justify-between items-center gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">#{entry.tokenNo}</span>
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase">
-                        {entry.paymentMode || 'N/A'}
-                      </span>
-                    </div>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase mt-1">
-                      {entry.Name || entry.farmerName || 'UNKNOWN'}
-                    </p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-semibold">
-                      Village: {entry.Village || 'N/A'} • Phone: {entry.farmerPhone || 'N/A'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-slate-900 dark:text-white font-mono">
-                      ₹{netValue.toLocaleString('en-IN')}
-                    </p>
-                    <p className="text-xs font-bold text-red-500 dark:text-red-400 font-mono">
-                      Bal: ₹{balanceLeft.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
-              No payments maturing today ({todayStr})
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Item Details Modal */}
       <AnimatePresence>
         {selectedItem && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -1068,7 +1077,7 @@ function Dashboard({ currentUser }) {
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedItem}</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400">Transaction History</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedItem(null)}
                   className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"
                 >
@@ -1077,17 +1086,21 @@ function Dashboard({ currentUser }) {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Aavak Column */}
                 <div className="space-y-4">
                   <h4 className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2 border-b border-emerald-100 dark:border-emerald-900/30 pb-2">
                     <TrendingUp className="w-4 h-4" /> Aavak (Incoming)
                   </h4>
                   <div className="space-y-3">
                     {getFilteredDetails(selectedItem).aavakDetails.length > 0 ? (
-                      getFilteredDetails(selectedItem).aavakDetails.map(d => (
-                        <div key={d.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
+                      getFilteredDetails(selectedItem).aavakDetails.map((d) => (
+                        <div
+                          key={d.id}
+                          className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700"
+                        >
                           <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">#{d.tokenNo}</span>
+                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">
+                              #{d.tokenNo}
+                            </span>
                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {d.billingDate}
                             </span>
@@ -1106,25 +1119,29 @@ function Dashboard({ currentUser }) {
                   </div>
                 </div>
 
-                {/* Javak Column */}
                 <div className="space-y-4">
                   <h4 className="font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2 border-b border-orange-100 dark:border-orange-900/30 pb-2">
                     <TrendingDown className="w-4 h-4" /> Javak (Outgoing)
                   </h4>
                   <div className="space-y-3">
                     {getFilteredDetails(selectedItem).javakDetails.length > 0 ? (
-                      getFilteredDetails(selectedItem).javakDetails.map(d => (
-                        <div key={d.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700">
+                      getFilteredDetails(selectedItem).javakDetails.map((d) => (
+                        <div
+                          key={d.id}
+                          className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700"
+                        >
                           <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">#{d.gatePassNo}</span>
+                            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 font-mono">
+                              #{d.gatePassNo}
+                            </span>
                             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {d.date}
                             </span>
                           </div>
-                           <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-medium">
-                            <User className="w-3 h-3 text-slate-400 dark:text-slate-500" /> {d.driverName || 'N/A'}
+                          <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-medium col-span-2">
+                            <User className="w-3 h-3 text-slate-400 dark:text-slate-500" /> {d.driverName || "N/A"}{" "}
                             {d.driverPhone && (
-                              <a 
+                              <a
                                 href={`tel:${d.driverPhone}`}
                                 className="p-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded hover:bg-emerald-200 transition-colors"
                               >
@@ -1153,5 +1170,3 @@ function Dashboard({ currentUser }) {
     </div>
   );
 }
-
-export default Dashboard;

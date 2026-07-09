@@ -10,7 +10,8 @@ import {
   setDoc,
   getDocs,
   deleteDoc,
-  doc
+  doc,
+  where
 } from "firebase/firestore";
 import {
   IndianRupee,
@@ -22,24 +23,30 @@ import {
   Wallet,
   Lock,
   Unlock,
-  Share2
+  Share2,
+  Clock
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const formatDate = (date) => {
+const formatDate = (date: Date): string => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
 
-const getTodayDateStr = () => {
+const getTodayDateStr = (): string => {
   return formatDate(new Date());
 };
 
-export default function CashManagement({ currentUser }) {
-  const [transactions, setTransactions] = useState([]);
+interface CashManagementProps {
+  currentUser: any;
+}
+
+export default function CashManagement({ currentUser }: CashManagementProps) {
+  const todayStr = getTodayDateStr();
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [type, setType] = useState("OUT");
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -48,8 +55,9 @@ export default function CashManagement({ currentUser }) {
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
   const [sourceSelect, setSourceSelect] = useState("SBI");
   const [customSource, setCustomSource] = useState("");
-  const [openingBalance, setOpeningBalance] = useState(0);
-  const [todayClosure, setTodayClosure] = useState(null);
+  const [openingBalance, setOpeningBalance] = useState<number>(0);
+  const [todayClosure, setTodayClosure] = useState<any>(null);
+  const [maturedEntries, setMaturedEntries] = useState<any[]>([]);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -60,10 +68,26 @@ export default function CashManagement({ currentUser }) {
     if (!isAuthorized) return;
     const q = query(collection(db, "cashTransactions"), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any)));
     });
     return () => unsubscribe();
   }, [isAuthorized]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const maturityQuery = query(collection(db, "cottonEntries"), where("paymentDueDate", "==", todayStr));
+    const unsubscribeMaturity = onSnapshot(
+      maturityQuery,
+      (snapshot) => {
+        const entries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setMaturedEntries(entries);
+      },
+      (error) => {
+        console.error("Maturity forecast query error: ", error);
+      }
+    );
+    return () => unsubscribeMaturity();
+  }, [isAuthorized, todayStr]);
 
   useEffect(() => {
     if (!isAuthorized) return;
@@ -122,7 +146,7 @@ export default function CashManagement({ currentUser }) {
     }
   }, [statusMessage]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
 
@@ -198,7 +222,7 @@ export default function CashManagement({ currentUser }) {
     setCustomSource("");
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this transaction?")) return;
     try {
       await deleteDoc(doc(db, "cashTransactions", id));
@@ -216,8 +240,6 @@ export default function CashManagement({ currentUser }) {
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
   const balance = totalIn - totalOut;
-
-  const todayStr = getTodayDateStr();
 
   const todayTransactions = transactions.filter((t) => {
     if (t.id && t.id.includes(todayStr)) return true;
@@ -239,7 +261,7 @@ export default function CashManagement({ currentUser }) {
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
 
-  const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
+  const expectedClosingBalance = (parseFloat(openingBalance as any) || 0) + todayIn - todayOut;
 
   const handleCloseCounter = async () => {
     if (
@@ -253,11 +275,11 @@ export default function CashManagement({ currentUser }) {
       const docId = `Closure-${todayStr}`;
       await setDoc(doc(db, "dailyClosures", docId), {
         date: todayStr,
-        openingBalance: parseFloat(openingBalance) || 0,
-        totalCashIn: parseFloat(todayIn) || 0,
-        totalCashOut: parseFloat(todayOut) || 0,
-        expectedClosingBalance: parseFloat(expectedClosingBalance) || 0,
-        closingBalance: parseFloat(expectedClosingBalance) || 0,
+        openingBalance: parseFloat(openingBalance as any) || 0,
+        totalCashIn: parseFloat(todayIn as any) || 0,
+        totalCashOut: parseFloat(todayOut as any) || 0,
+        expectedClosingBalance: parseFloat(expectedClosingBalance as any) || 0,
+        closingBalance: parseFloat(expectedClosingBalance as any) || 0,
         closedBy: currentUser?.name || "ADMIN",
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp()
@@ -294,7 +316,7 @@ export default function CashManagement({ currentUser }) {
       // Setup Headers
       const headers = [["Timestamp", "Type", "Details", "Reason / Description", "Amount (INR)"]];
       
-      let tableRows = [];
+      let tableRows: any[] = [];
       if (transactions.length === 0) {
         // If empty, fill with standard underscores '_______' as requested
         tableRows = [
@@ -769,6 +791,65 @@ export default function CashManagement({ currentUser }) {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Maturity Forecast & Due Payments */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-500 animate-pulse" />
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight font-mono">
+              Maturity Forecast & Due Payments
+            </h3>
+          </div>
+          <span className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider font-mono">
+            {todayStr}
+          </span>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
+          {maturedEntries.length > 0 ? (
+            maturedEntries.map((entry) => {
+              const netValue = parseFloat(entry.netAmount || 0);
+              const paidValue = parseFloat(entry.amountPaid || 0);
+              const balanceLeft = Math.max(0, netValue - paidValue);
+              return (
+                <div
+                  key={entry.id}
+                  className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex justify-between items-center gap-4"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">
+                        #{entry.tokenNo}
+                      </span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase">
+                        {entry.paymentMode || "N/A"}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase mt-1">
+                      {entry.Name || entry.farmerName || "UNKNOWN"}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-semibold">
+                      Village: {entry.Village || "N/A"} • Phone: {entry.farmerPhone || "N/A"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-slate-900 dark:text-white font-mono">
+                      INR {netValue.toLocaleString("en-IN")}
+                    </p>
+                    <p className="text-xs font-bold text-red-500 dark:text-red-400 font-mono">
+                      Bal: INR {balanceLeft.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
+              No payments maturing today ({todayStr})
+            </p>
+          )}
         </div>
       </div>
     </div>
