@@ -111,12 +111,10 @@ export default function Dashboard({ currentUser }) {
   const [isSending, setIsSending] = useState(false);
   const [messageStatus, setMessageStatus] = useState({ text: "", type: "" });
 
-  // Custom Period Summary State
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  // Out-turn Calculator State
   const [calcKapas, setCalcKapas] = useState("");
   const [outTurnResults, setOutTurnResults] = useState(null);
   const [eodDate, setEodDate] = useState(new Date().toISOString().split("T")[0]);
@@ -135,7 +133,7 @@ export default function Dashboard({ currentUser }) {
       let todayAavakWt = 0;
       let todayJavakTrucks = 0;
       let todayAavakAmt = 0;
-      const breakdown: any = {};
+      const breakdown = {};
 
       aavakData.forEach((data) => {
         const weight = parseFloat(data.netWt || 0);
@@ -185,14 +183,14 @@ export default function Dashboard({ currentUser }) {
     const unsubscribeNotes = onSnapshot(
       query(collection(db, "adminNotes"), orderBy("timestamp", "desc")),
       (snapshot) => {
-        setAdminNotes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any)));
+        setAdminNotes(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       }
     );
 
     const unsubscribeTasks = onSnapshot(
       query(collection(db, "adminTasks"), orderBy("timestamp", "desc")),
       (snapshot) => {
-        const allTasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+        const allTasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const myTasks = allTasks.filter((task) => {
           if (currentUser?.role?.toUpperCase() === "ADMIN" || currentUser?.employeeId === "ADMIN") return true;
           return task.assignedTo === currentUser?.employeeId;
@@ -204,14 +202,14 @@ export default function Dashboard({ currentUser }) {
     const unsubscribeRates = onSnapshot(
       query(collection(db, "rateCharts"), orderBy("timestamp", "desc")),
       (snapshot) => {
-        setRateChart(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any)));
+        setRateChart(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       }
     );
 
     const unsubscribeMyMessages = onSnapshot(
       query(collection(db, "employeeMessages"), orderBy("timestamp", "desc")),
       (snapshot) => {
-        const allMsgs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any));
+        const allMsgs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         const filtered = allMsgs.filter((msg) => msg.senderId === currentUser?.employeeId);
         setMyMessages(filtered);
       }
@@ -230,7 +228,7 @@ export default function Dashboard({ currentUser }) {
 
     const unsubscribeBardana = onSnapshot(collection(db, "bardana"), (snapshot) => {
       let totalGunny = 0;
-      const breakdown: any = {};
+      const breakdown = {};
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
         const item = data.itemName?.toUpperCase() || "UNKNOWN";
@@ -409,7 +407,7 @@ export default function Dashboard({ currentUser }) {
     });
   };
 
-  const calculateOutTurn = (val: string) => {
+  const calculateOutTurn = (val) => {
     const kapas = parseFloat(val);
     if (isNaN(kapas) || kapas <= 0) {
       setOutTurnResults(null);
@@ -544,7 +542,7 @@ export default function Dashboard({ currentUser }) {
       }
     });
 
-    const finalY = (docRef as any).lastAutoTable.finalY || startY + 90;
+    const finalY = docRef.lastAutoTable.finalY || startY + 90;
     const pageHeight = docRef.internal.pageSize.height;
 
     let sigY = finalY + 25;

@@ -89,7 +89,6 @@ export default function CashManagement({ currentUser }) {
     if (!isAuthorized) return;
     const todayStr = getTodayDateStr();
 
-    // Listen for today's closure
     const unsubToday = onSnapshot(doc(db, "dailyClosures", `Closure-${todayStr}`), (docSnap) => {
       if (docSnap.exists()) {
         setTodayClosure({ id: docSnap.id, ...docSnap.data() });
@@ -98,7 +97,6 @@ export default function CashManagement({ currentUser }) {
       }
     });
 
-    // Fetch the most recent daily closure to set opening balance automatically
     const q = query(collection(db, "dailyClosures"), orderBy("createdAt", "desc"), limit(1));
     const unsubLatestClosure = onSnapshot(
       q,
@@ -107,7 +105,6 @@ export default function CashManagement({ currentUser }) {
           const lastClosureDoc = snapshot.docs[0].data();
           setOpeningBalance(lastClosureDoc.closingBalance || lastClosureDoc.expectedClosingBalance || 0);
         } else {
-          // Try querying with 'timestamp' descending as fallback for older documents
           const qFallback = query(collection(db, "dailyClosures"), orderBy("timestamp", "desc"), limit(1));
           getDocs(qFallback)
             .then((fallbackSnapshot) => {
@@ -158,7 +155,6 @@ export default function CashManagement({ currentUser }) {
       const day = String(today.getDate()).padStart(2, "0");
       const dateStr = `${year}-${month}-${day}`;
 
-      // Count existing records for this specific day to determine the next serial number
       const querySnapshot = await getDocs(collection(db, "cashTransactions"));
       const todayEntries = querySnapshot.docs.filter((docVal) => docVal.id.includes(dateStr));
       const count = todayEntries.length;
@@ -218,7 +214,7 @@ export default function CashManagement({ currentUser }) {
     setCustomSource("");
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id) => {
     if (!window.confirm("Delete this transaction?")) return;
     try {
       await deleteDoc(doc(db, "cashTransactions", id));
@@ -257,7 +253,7 @@ export default function CashManagement({ currentUser }) {
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
 
-  const expectedClosingBalance = (parseFloat(openingBalance as any) || 0) + todayIn - todayOut;
+  const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
 
   const handleCloseCounter = async () => {
     if (
@@ -292,29 +288,25 @@ export default function CashManagement({ currentUser }) {
     try {
       const doc = new jsPDF();
 
-      // Set Title and Branding details
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
-      doc.setTextColor(15, 23, 42); // slate-900
+      doc.setTextColor(15, 23, 42);
       doc.text("VENKATESH COTTON COMPANY", 14, 20);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139); // slate-500
+      doc.setTextColor(100, 116, 139);
       doc.text("CASH TRANSACTIONS REPORT - COUNTER DESK", 14, 26);
       doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 31);
       doc.text(`Running Liquidity Balance: INR ${balance.toLocaleString()}`, 14, 36);
 
-      // Separator line
-      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setDrawColor(226, 232, 240);
       doc.line(14, 40, 196, 40);
 
-      // Setup Headers
       const headers = [["Timestamp", "Type", "Details", "Reason / Description", "Amount (INR)"]];
       
-      let tableRows: any[] = [];
+      let tableRows = [];
       if (transactions.length === 0) {
-        // If empty, fill with standard underscores '_______' as requested
         tableRows = [
           ["_______", "_______", "_______", "_______", "_______"]
         ];
@@ -338,7 +330,6 @@ export default function CashManagement({ currentUser }) {
 
           const reasonStr = t.reason || "_______";
           
-          // Ensure no INR / Rupee symbols are used in PDF amounts
           const amountFormatted = `${t.type === "IN" ? "+" : "-"} ${parseFloat(t.amount || 0).toLocaleString()}`;
 
           return [
@@ -357,7 +348,7 @@ export default function CashManagement({ currentUser }) {
         body: tableRows,
         theme: "striped",
         headStyles: {
-          fillColor: [37, 211, 102], // WhatsApp Green (#25D366)
+          fillColor: [37, 211, 102],
           textColor: [255, 255, 255],
           fontStyle: "bold",
         },
@@ -370,7 +361,6 @@ export default function CashManagement({ currentUser }) {
           4: { halign: "right" }
         },
         didDrawPage: (data) => {
-          // Footer
           doc.setFontSize(8);
           doc.setTextColor(156, 163, 175);
           doc.text(
@@ -385,7 +375,6 @@ export default function CashManagement({ currentUser }) {
       const cleanFileName = `Cash_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
       const file = new File([pdfBlob], cleanFileName, { type: "application/pdf" });
 
-      // Native Browser Web Share API
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -393,12 +382,10 @@ export default function CashManagement({ currentUser }) {
           text: `Attached is the Cash Transactions Report generated on ${new Date().toLocaleDateString()}.`
         });
       } else {
-        // Fallback method: Download PDF directly using file save with clean underscores if table layout empty
         doc.save(cleanFileName);
       }
     } catch (error) {
       console.error("Error sharing or generating PDF:", error);
-      // Fallback direct download
       try {
         const doc = new jsPDF();
         doc.text("Venkatesh Cotton Company - Cash Report", 14, 20);
@@ -450,7 +437,6 @@ export default function CashManagement({ currentUser }) {
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50">
           <div className="flex items-center gap-3">
@@ -591,7 +577,6 @@ export default function CashManagement({ currentUser }) {
         </div>
       )}
 
-      {/* EOD Drawer Closure Section */}
       <div className="card bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
@@ -702,7 +687,6 @@ export default function CashManagement({ currentUser }) {
         )}
       </div>
 
-      {/* History Table */}
       <div className="card !p-0 overflow-hidden">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -790,7 +774,6 @@ export default function CashManagement({ currentUser }) {
         </div>
       </div>
 
-      {/* Maturity Forecast & Due Payments */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
           <div className="flex items-center gap-2">
