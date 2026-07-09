@@ -32,9 +32,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-export let globalAavakEntries: any[] = [];
-export let globalJavakEntries: any[] = [];
-let globalListeners: any[] = [];
+export let globalAavakEntries = [];
+export let globalJavakEntries = [];
+let globalListeners = [];
 
 const setupGlobalListeners = () => {
   onSnapshot(collection(db, "cottonEntries"), (snapshot) => {
@@ -58,7 +58,7 @@ const setupGlobalListeners = () => {
 
 setupGlobalListeners();
 
-export const subscribeToAavak = (callback: (data: any[]) => void) => {
+export const subscribeToAavak = (callback) => {
   globalListeners.push({ type: "aavak", callback });
   callback(globalAavakEntries);
   return () => {
@@ -66,7 +66,7 @@ export const subscribeToAavak = (callback: (data: any[]) => void) => {
   };
 };
 
-export const subscribeToJavak = (callback: (data: any[]) => void) => {
+export const subscribeToJavak = (callback) => {
   globalListeners.push({ type: "javak", callback });
   callback(globalJavakEntries);
   return () => {
@@ -74,14 +74,7 @@ export const subscribeToJavak = (callback: (data: any[]) => void) => {
   };
 };
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: any;
-  color: string;
-}
-
-const StatCard = ({ title, value, icon: Icon, color }: StatCardProps) => (
+const StatCard = ({ title, value, icon: Icon, color }) => (
   <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm flex items-center gap-4">
     <div className={`p-3 rounded-lg ${color}`}>
       <Icon className="w-6 h-6 text-white" />
@@ -93,11 +86,7 @@ const StatCard = ({ title, value, icon: Icon, color }: StatCardProps) => (
   </div>
 );
 
-interface DashboardProps {
-  currentUser: any;
-}
-
-export default function Dashboard({ currentUser }: DashboardProps) {
+export default function Dashboard({ currentUser }) {
   const [stats, setStats] = useState({
     totalAavakNetWt: 0,
     totalAavakAmount: 0,
@@ -108,16 +97,16 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     todayAavakAmount: 0
   });
   const [cashBalance, setCashBalance] = useState(0);
-  const [itemBreakdown, setItemBreakdown] = useState<any>({});
-  const [rawData, setRawData] = useState<{ aavak: any[]; javak: any[] }>({ aavak: [], javak: [] });
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [itemBreakdown, setItemBreakdown] = useState({});
+  const [rawData, setRawData] = useState({ aavak: [], javak: [] });
+  const [selectedItem, setSelectedItem] = useState(null);
   const [bardanaStock, setBardanaStock] = useState(0);
-  const [bardanaBreakdown, setBardanaBreakdown] = useState<any>({});
+  const [bardanaBreakdown, setBardanaBreakdown] = useState({});
   const [showAlert, setShowAlert] = useState(false);
-  const [adminNotes, setAdminNotes] = useState<any[]>([]);
-  const [adminTasks, setAdminTasks] = useState<any[]>([]);
-  const [rateChart, setRateChart] = useState<any[]>([]);
-  const [myMessages, setMyMessages] = useState<any[]>([]);
+  const [adminNotes, setAdminNotes] = useState([]);
+  const [adminTasks, setAdminTasks] = useState([]);
+  const [rateChart, setRateChart] = useState([]);
+  const [myMessages, setMyMessages] = useState([]);
   const [employeeMessage, setEmployeeMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [messageStatus, setMessageStatus] = useState({ text: "", type: "" });
@@ -129,16 +118,16 @@ export default function Dashboard({ currentUser }: DashboardProps) {
 
   // Out-turn Calculator State
   const [calcKapas, setCalcKapas] = useState("");
-  const [outTurnResults, setOutTurnResults] = useState<any>(null);
+  const [outTurnResults, setOutTurnResults] = useState(null);
   const [eodDate, setEodDate] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
 
-    let aavakDataGlobal: any[] = [];
-    let javakDataGlobal: any[] = [];
+    let aavakDataGlobal = [];
+    let javakDataGlobal = [];
 
-    const handleDataUpdate = (aavakData: any[], javakData: any[]) => {
+    const handleDataUpdate = (aavakData, javakData) => {
       let totalAavakWt = 0;
       let totalAavakAmt = 0;
       let totalJavakWt = 0;
@@ -289,7 +278,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     };
   }, [currentUser?.employeeId, currentUser?.role]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!employeeMessage.trim() || !currentUser) return;
 
@@ -437,13 +426,13 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     });
   };
 
-  const getFilteredDetails = (itemName: string) => {
+  const getFilteredDetails = (itemName) => {
     const aavakDetails = rawData.aavak.filter((d) => (d.itemName || "Uncategorized") === itemName);
     const javakDetails = rawData.javak.filter((d) => (d.commodity || "Uncategorized") === itemName);
     return { aavakDetails, javakDetails };
   };
 
-  const generateEODReport = (rawEntries: any[], selectedDate: string, operatorName = currentUser?.name || "Admin Counter") => {
+  const generateEODReport = (rawEntries, selectedDate, operatorName = currentUser?.name || "Admin Counter") => {
     const todayStrLocal = selectedDate || new Date().toISOString().split("T")[0];
     const baseEntries = rawEntries || rawData.aavak || [];
     const todayEntries = baseEntries.filter((entry) => entry.billingDate === todayStrLocal);
@@ -950,17 +939,17 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             {Object.entries(bardanaBreakdown).length > 0 ? (
               Object.entries(bardanaBreakdown)
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([item, qty]: any) => (
+                .map(([item, qty]) => (
                   <div
                     key={item}
                     className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${qty < 100 ? "bg-red-500" : "bg-emerald-500"}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${Number(qty) < 100 ? "bg-red-500" : "bg-emerald-500"}`}></div>
                       <span className="font-medium text-slate-700 dark:text-slate-300">{item}</span>
                     </div>
-                    <span className={`font-bold ${qty < 100 ? "text-red-650" : "text-slate-900 dark:text-white"}`}>
-                      {qty.toLocaleString()} Bags
+                    <span className={`font-bold ${Number(qty) < 100 ? "text-red-650" : "text-slate-900 dark:text-white"}`}>
+                      {Number(qty).toLocaleString()} Bags
                     </span>
                   </div>
                 ))
@@ -976,20 +965,20 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             {Object.entries(itemBreakdown).length > 0 ? (
               Object.entries(itemBreakdown)
                 .sort(([a], [b]) => a.localeCompare(b))
-                .map(([item, weight]: any) => (
+                .map(([item, weight]) => (
                   <div
                     key={item}
                     onClick={() => setSelectedItem(item)}
                     className="flex justify-between items-center p-3 border border-slate-100 dark:border-slate-800 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${weight < 0 ? "bg-red-500" : "bg-indigo-500"}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${Number(weight) < 0 ? "bg-red-500" : "bg-indigo-500"}`}></div>
                       <span className="font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-700 dark:group-hover:text-indigo-400">
                         {item}
                       </span>
                     </div>
-                    <span className={`font-bold ${weight < 0 ? "text-red-650" : "text-slate-900 dark:text-white"}`}>
-                      {weight.toLocaleString()} kg
+                    <span className={`font-bold ${Number(weight) < 0 ? "text-red-650" : "text-slate-900 dark:text-white"}`}>
+                      {Number(weight).toLocaleString()} kg
                     </span>
                   </div>
                 ))

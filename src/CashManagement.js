@@ -29,24 +29,20 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const formatDate = (date: Date): string => {
+const formatDate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
 
-const getTodayDateStr = (): string => {
+const getTodayDateStr = () => {
   return formatDate(new Date());
 };
 
-interface CashManagementProps {
-  currentUser: any;
-}
-
-export default function CashManagement({ currentUser }: CashManagementProps) {
+export default function CashManagement({ currentUser }) {
   const todayStr = getTodayDateStr();
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState([]);
   const [type, setType] = useState("OUT");
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -55,9 +51,9 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
   const [sourceSelect, setSourceSelect] = useState("SBI");
   const [customSource, setCustomSource] = useState("");
-  const [openingBalance, setOpeningBalance] = useState<number>(0);
-  const [todayClosure, setTodayClosure] = useState<any>(null);
-  const [maturedEntries, setMaturedEntries] = useState<any[]>([]);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [todayClosure, setTodayClosure] = useState(null);
+  const [maturedEntries, setMaturedEntries] = useState([]);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -68,7 +64,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
     if (!isAuthorized) return;
     const q = query(collection(db, "cashTransactions"), orderBy("timestamp", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as any)));
+      setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
   }, [isAuthorized]);
@@ -146,7 +142,7 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
     }
   }, [statusMessage]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount) return;
 
@@ -275,11 +271,11 @@ export default function CashManagement({ currentUser }: CashManagementProps) {
       const docId = `Closure-${todayStr}`;
       await setDoc(doc(db, "dailyClosures", docId), {
         date: todayStr,
-        openingBalance: parseFloat(openingBalance as any) || 0,
-        totalCashIn: parseFloat(todayIn as any) || 0,
-        totalCashOut: parseFloat(todayOut as any) || 0,
-        expectedClosingBalance: parseFloat(expectedClosingBalance as any) || 0,
-        closingBalance: parseFloat(expectedClosingBalance as any) || 0,
+        openingBalance: parseFloat(String(openingBalance)) || 0,
+        totalCashIn: parseFloat(String(todayIn)) || 0,
+        totalCashOut: parseFloat(String(todayOut)) || 0,
+        expectedClosingBalance: parseFloat(String(expectedClosingBalance)) || 0,
+        closingBalance: parseFloat(String(expectedClosingBalance)) || 0,
         closedBy: currentUser?.name || "ADMIN",
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp()
