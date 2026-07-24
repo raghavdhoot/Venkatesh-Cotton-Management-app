@@ -402,14 +402,6 @@ function App() {
                                         required
                                         autoFocus
                                     />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Password</label>
-                                    <input 
-                                        type="password" 
-                                        className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
-                                        placeholder="••••••••"
-                                    />
                                     {loginError && <p className="text-red-500 text-xs font-bold mt-1 uppercase tracking-wide">⚠️ {loginError}</p>}
                                 </div>
                                 <button type="submit" className="btn-primary w-full py-3.5 font-black uppercase tracking-widest text-xs mt-2 shadow-lg shadow-indigo-100 dark:shadow-none">
