@@ -35,7 +35,16 @@ function Aavak({ currentUser }) {
     const [amountPaid, setAmountPaid] = useState('');
     const [balanceAmount, setBalanceAmount] = useState('');
     const [accountantName, setAccountantName] = useState('');
-    
+
+    const [isRtgsModalOpen, setIsRtgsModalOpen] = useState(false);
+    const [rtgsDetails, setRtgsDetails] = useState({
+        bankName: '',
+        accountNumber: '',
+        accountHolderName: '',
+        ifscCode: '',
+        phoneNo: ''
+    });
+
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
@@ -126,6 +135,13 @@ function Aavak({ currentUser }) {
         setAmountPaid(entry.amountPaid || '');
         setBalanceAmount(entry.balanceAmount || '');
         setAccountantName(entry.accountantName || entry.makerName || '');
+        setRtgsDetails(entry.rtgsDetails || {
+            bankName: '',
+            accountNumber: '',
+            accountHolderName: '',
+            ifscCode: '',
+            phoneNo: ''
+        });
         setIsNewEntry(false);
     };
 
@@ -275,10 +291,30 @@ function Aavak({ currentUser }) {
         }
     }, [parsedNetAmount, parsedAmountPaid]);
 
+    const handlePaymentModeChange = (newMode) => {
+        setPaymentMode(newMode);
+        if (newMode === 'RTGS') {
+            setIsRtgsModalOpen(true);
+        }
+    };
+
+    const handleRtgsDetailChange = (field, value) => {
+        setRtgsDetails(prev => ({ ...prev, [field]: value }));
+    };
+
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         
         if (!isNewEntry && !currentEntryId) return;
+
+        if (paymentMode === 'RTGS') {
+            const { bankName, accountNumber, accountHolderName, ifscCode, phoneNo } = rtgsDetails;
+            if (!bankName || !accountNumber || !accountHolderName || !ifscCode || !phoneNo) {
+                setStatusMessage({ text: 'Please fill all RTGS bank details before saving', type: 'error' });
+                setIsRtgsModalOpen(true);
+                return;
+            }
+        }
 
         setStatusMessage({ text: 'Saving...', type: 'info' });
 
@@ -304,6 +340,13 @@ function Aavak({ currentUser }) {
             weighmentDeduction: parseFloat(weighmentDeduction),
             netAmount: netAmount !== '' ? parseFloat(netAmount) : null,
             paymentMode: paymentMode,
+            rtgsDetails: paymentMode === 'RTGS' ? {
+                bankName: rtgsDetails.bankName ? rtgsDetails.bankName.toUpperCase() : '',
+                accountNumber: rtgsDetails.accountNumber || '',
+                accountHolderName: rtgsDetails.accountHolderName ? rtgsDetails.accountHolderName.toUpperCase() : '',
+                ifscCode: rtgsDetails.ifscCode ? rtgsDetails.ifscCode.toUpperCase() : '',
+                phoneNo: rtgsDetails.phoneNo || ''
+            } : null,
             amountPaid: amountPaid !== '' ? parseFloat(amountPaid) : null,
             balanceAmount: balanceAmount !== '' ? parseFloat(balanceAmount) : null,
             accountantName: (accountantName || currentUser?.name || 'Authorized Client').toUpperCase(),
@@ -360,6 +403,11 @@ function Aavak({ currentUser }) {
             "Amount Paid": entry.amountPaid || '',
             "Balance": entry.balanceAmount || '',
             "Payment Mode": entry.paymentMode || '',
+            "Bank Name": entry.rtgsDetails?.bankName || '',
+            "Account Number": entry.rtgsDetails?.accountNumber || '',
+            "Account Holder": entry.rtgsDetails?.accountHolderName || '',
+            "IFSC Code": entry.rtgsDetails?.ifscCode || '',
+            "RTGS Phone No": entry.rtgsDetails?.phoneNo || '',
             "Operator": entry.accountantName || entry.makerName || ''
         }));
         
@@ -394,6 +442,14 @@ function Aavak({ currentUser }) {
         setAmountPaid('');
         setBalanceAmount('');
         setAccountantName('');
+        setRtgsDetails({
+            bankName: '',
+            accountNumber: '',
+            accountHolderName: '',
+            ifscCode: '',
+            phoneNo: ''
+        });
+        setIsRtgsModalOpen(false);
         setIsNewEntry(false);
     };
 
@@ -810,12 +866,21 @@ function Aavak({ currentUser }) {
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Payment Mode</label>
-                                                <select className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                                                <select className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={paymentMode} onChange={(e) => handlePaymentModeChange(e.target.value)}>
                                                     <option value="CASH">CASH</option>
                                                     <option value="RTGS">RTGS/UPI (ONLINE)</option>
                                                     <option value="CHEQUE">CHEQUE</option>
                                                     <option value="CREDIT">CREDIT (DUE)</option>
                                                 </select>
+                                                {paymentMode === 'RTGS' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsRtgsModalOpen(true)}
+                                                        className="mt-2 w-full text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg py-1.5 cursor-pointer"
+                                                    >
+                                                        {rtgsDetails.accountNumber ? `Bank: ${rtgsDetails.bankName || '—'} (Edit)` : 'Enter Bank Details'}
+                                                    </button>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Amount Paid Today * </label>
@@ -996,6 +1061,94 @@ function Aavak({ currentUser }) {
             </div>
 
             <AnimatePresence>
+                {isRtgsModalOpen && (
+                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 max-w-md w-full p-6 rounded-2xl shadow-xl space-y-5">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
+                                <div className="space-y-0.5">
+                                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">RTGS / Bank Details</h4>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Required for online payment settlement</p>
+                                </div>
+                                <button onClick={() => setIsRtgsModalOpen(false)} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Bank Name *</label>
+                                    <input
+                                        type="text"
+                                        className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                        placeholder="e.g. STATE BANK OF INDIA"
+                                        value={rtgsDetails.bankName}
+                                        onChange={(e) => handleRtgsDetailChange('bankName', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Account Number *</label>
+                                    <input
+                                        type="text"
+                                        className="input-field font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                        placeholder="e.g. 123456789012"
+                                        value={rtgsDetails.accountNumber}
+                                        onChange={(e) => handleRtgsDetailChange('accountNumber', e.target.value.replace(/[^0-9]/g, ''))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Account Holder Name *</label>
+                                    <input
+                                        type="text"
+                                        className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                        placeholder="As per bank passbook"
+                                        value={rtgsDetails.accountHolderName}
+                                        onChange={(e) => handleRtgsDetailChange('accountHolderName', e.target.value)}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">IFSC Code *</label>
+                                        <input
+                                            type="text"
+                                            className="input-field uppercase font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                            placeholder="e.g. SBIN0001234"
+                                            value={rtgsDetails.ifscCode}
+                                            onChange={(e) => handleRtgsDetailChange('ifscCode', e.target.value.toUpperCase())}
+                                            maxLength={11}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Phone No *</label>
+                                        <input
+                                            type="text"
+                                            className="input-field font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                            placeholder="e.g. 9876543210"
+                                            value={rtgsDetails.phoneNo}
+                                            onChange={(e) => handleRtgsDetailChange('phoneNo', e.target.value.replace(/[^0-9]/g, ''))}
+                                            maxLength={10}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRtgsModalOpen(false)}
+                                    className="flex-1 p-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-indigo-100 dark:shadow-none cursor-pointer"
+                                >
+                                    Save Bank Details
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setPaymentMode('CASH'); setIsRtgsModalOpen(false); }}
+                                    className="p-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
                 {deleteConfirmId && (
                     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl shadow-xl text-center space-y-4">
