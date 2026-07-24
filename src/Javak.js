@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
 
@@ -27,6 +27,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [grossWt, setGrossWt] = useState('');
     const [tareWt, setTareWt] = useState('');
     const [netWt, setNetWt] = useState('');
+
+    const [isAdvancePayment, setIsAdvancePayment] = useState(false);
+    const [advanceAmount, setAdvanceAmount] = useState('');
 
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [driverPhoto, setDriverPhoto] = useState(null);
@@ -145,6 +148,34 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         }
     };
 
+    // Syncs the Advance Payment (if given) to the Cash Management ledger.
+    // Uses a deterministic doc id tied to this Javak entry so edits update the
+    // same cash record instead of creating duplicates, and removes it if the
+    // advance is unchecked or set back to 0.
+    const syncAdvancePaymentOut = async (entryId, payload) => {
+        const cashDocRef = doc(db, 'cashTransactions', `javak_adv_${entryId}`);
+        const amount = parseFloat(payload.advanceAmount || 0);
+
+        if (payload.isAdvancePayment && amount > 0) {
+            const now = new Date();
+            await setDoc(cashDocRef, {
+                type: 'OUT',
+                personName: payload.driverName || 'DRIVER',
+                employeeName: currentUser?.name || 'Staff',
+                reason: `Advance Payment for ${payload.vehicleNumber || 'Vehicle'}`,
+                amount,
+                source: 'JAVAK',
+                sourceEntryId: entryId,
+                date: now.toLocaleDateString('en-CA'),
+                time: now.toLocaleTimeString(),
+                timestamp: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        } else {
+            await deleteDoc(cashDocRef).catch(() => {});
+        }
+    };
+
     const capturePhoto = () => {
         const videoElement = document.getElementById('camera-preview');
         const canvasElement = document.createElement('canvas');
@@ -179,6 +210,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             grossWt: grossWt ? parseFloat(grossWt) : null,
             tareWt: tareWt ? parseFloat(tareWt) : null,
             netWt: netWt ? parseFloat(netWt) : null,
+            isAdvancePayment: !!isAdvancePayment,
+            advanceAmount: isAdvancePayment && advanceAmount ? parseFloat(advanceAmount) : null,
             driverPhoto: driverPhoto || null,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -189,11 +222,13 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                 const docId = `javak_${Date.now()}`;
                 await setDoc(doc(db, 'javakEntries', docId), payload);
                 await syncBardanaStockOut(docId, payload);
+                await syncAdvancePaymentOut(docId, payload);
                 setStatusMessage({ text: 'Gatepass generated successfully!', type: 'success' });
                 resetState();
             } else {
                 await updateDoc(doc(db, 'javakEntries', currentEntryId), payload);
                 await syncBardanaStockOut(currentEntryId, payload);
+                await syncAdvancePaymentOut(currentEntryId, payload);
                 setStatusMessage({ text: 'Gatepass details updated successfully!', type: 'success' });
             }
         } catch (error) {
@@ -205,6 +240,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const handleDeleteEntry = async (id) => {
         try {
             await deleteDoc(doc(db, 'javakEntries', id));
+            await deleteDoc(doc(db, 'cashTransactions', `javak_adv_${id}`)).catch(() => {});
             setStatusMessage({ text: 'Gatepass entry deleted.', type: 'success' });
             setDeleteConfirmId(null);
             resetState();
@@ -257,6 +293,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
+        setIsAdvancePayment(!!entry.isAdvancePayment);
+        setAdvanceAmount(entry.advanceAmount || '');
         setDriverPhoto(entry.driverPhoto || null);
     };
 
@@ -277,6 +315,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setGrossWt('');
         setTareWt('');
         setNetWt('');
+        setIsAdvancePayment(false);
+        setAdvanceAmount('');
         setDriverPhoto(null);
         stopCamera();
     };
@@ -606,6 +646,46 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     </div>
                                 </div>
 
+                                <div className="p-5 bg-emerald-50/40 dark:bg-emerald-950/10 rounded-xl border border-emerald-100 dark:border-emerald-950/20 space-y-4">
+                                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                                            checked={isAdvancePayment}
+                                            onChange={(e) => {
+                                                setIsAdvancePayment(e.target.checked);
+                                                if (!e.target.checked) setAdvanceAmount('');
+                                            }}
+                                        />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                            <IndianRupee className="w-3.5 h-3.5" /> Advance Payment given to Driver
+                                        </span>
+                                    </label>
+
+                                    {isAdvancePayment && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div>
+                                                <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Advance Amount *</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="input-field font-bold text-emerald-700 dark:text-emerald-400 dark:bg-slate-800 dark:border-slate-700"
+                                                    value={advanceAmount}
+                                                    onChange={(e) => setAdvanceAmount(e.target.value)}
+                                                    placeholder="0.00"
+                                                    required={isAdvancePayment}
+                                                />
+                                            </div>
+                                            <div className="flex flex-col justify-center p-3 bg-white dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-emerald-950/30">
+                                                <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-1">Will be logged in Cash Management as</span>
+                                                <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                                                    Out : to {driverName || 'Driver Name'} | By: {currentUser?.name || 'Staff'} | Reason: Advance Payment for {vehicleNumber || 'Vehicle No'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
                                     <div className="space-y-4">
                                         <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Driver KYC Details</h4>
@@ -698,6 +778,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                     <div className="font-bold text-slate-900 dark:text-white">{e.commodity}</div>
                                                     <div className="text-[10px] text-slate-400 font-mono font-bold">Qty: {e.numberOfBags} Bales</div>
                                                     <div className="text-[10px] text-slate-400 font-mono">Bardana: {e.bardana || 0} | Sutli: {e.sutli || 0}</div>
+                                                    {e.isAdvancePayment && parseFloat(e.advanceAmount || 0) > 0 && (
+                                                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 mt-0.5">Advance Paid: {e.advanceAmount}</div>
+                                                    )}
                                                 </td>
                                                 <td className="px-5 py-4 font-mono font-semibold">
                                                     <div>Net: <span className="font-bold text-slate-900 dark:text-white">{e.netWt} kg</span></div>
