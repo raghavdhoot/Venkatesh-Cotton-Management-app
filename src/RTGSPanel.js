@@ -54,6 +54,7 @@ export default function RTGSPanel({ currentUser }) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [error, setError] = useState(null);
   const [isUpdatingMap, setIsUpdatingMap] = useState({});
+  const [rtgsConfirmation, setRtgsConfirmation] = useState(null);
 
   // 1. ADMIN & CASHIER ACCESS GUARD Check (Visible to designated roles in App.tsx)
   const isAdmin = currentUser && (
@@ -97,7 +98,9 @@ export default function RTGSPanel({ currentUser }) {
               id: docSnap.id,
               tokenNo: data.tokenNo || docSnap.id,
               farmerName: data.Name || data.farmerName || "UNKNOWN FARMER",
+              farmerPhone: data.farmerPhone || "",
               amount: data.amountPaid || data.netAmount || data.amount || 0,
+              accountNumber: data.rtgsDetails?.accountNumber || "",
               makerDone,
               chequePassed,
             };
@@ -155,20 +158,35 @@ export default function RTGSPanel({ currentUser }) {
     try {
       const docRef = doc(db, collectionPath, id);
       let updatePayload = {};
+      const newValue = !currentValue;
 
       if (field === "makerDone") {
-        const newMakerValue = !currentValue;
         updatePayload = {
-          makerDone: newMakerValue,
-          ...(!newMakerValue ? { chequePassed: false } : {})
+          makerDone: newValue,
+          ...(!newValue ? { chequePassed: false } : {})
         };
       } else if (field === "chequePassed") {
         updatePayload = {
-          chequePassed: !currentValue
+          chequePassed: newValue
         };
       }
 
       await updateDoc(docRef, updatePayload);
+
+      // RTGS success confirmation: fires strictly the moment "Cheque Passed"
+      // is freshly marked DONE (false -> true). Never on uncheck, and never
+      // on the "Maker Done" checkbox.
+      if (field === "chequePassed" && newValue === true) {
+        const tx = transactions.find(t => t.id === id);
+        if (tx) {
+          setRtgsConfirmation({
+            amount: tx.amount,
+            tokenNo: tx.tokenNo,
+            accountLast4: (tx.accountNumber || "").slice(-4),
+            farmerPhone: tx.farmerPhone || ""
+          });
+        }
+      }
     } catch (err) {
       console.error("Error updating RTGS document status:", err);
       try {
@@ -179,6 +197,18 @@ export default function RTGSPanel({ currentUser }) {
     } finally {
       setIsUpdatingMap(prev => ({ ...prev, [id]: false }));
     }
+  };
+
+  const rtgsConfirmationMessage = rtgsConfirmation
+    ? `Payment of Rupees ${(rtgsConfirmation.amount || 0).toLocaleString("en-IN")} against Token Number - ${rtgsConfirmation.tokenNo || ""} has been made to Account number ending ${rtgsConfirmation.accountLast4 || "----"} A/c Thankyou. VCC.`
+    : "";
+
+  const handleShareRtgsConfirmation = () => {
+    if (!rtgsConfirmation?.farmerPhone) return;
+    window.open(
+      "https://api.whatsapp.com/send?phone=91" + rtgsConfirmation.farmerPhone + "&text=" + encodeURIComponent(rtgsConfirmationMessage),
+      "_blank"
+    );
   };
 
   // Filtered transaction logic
@@ -535,6 +565,36 @@ export default function RTGSPanel({ currentUser }) {
           </table>
         </div>
       </div>
+
+      {rtgsConfirmation && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 max-w-md w-full p-6 rounded-2xl shadow-2xl text-center space-y-5 border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 mx-auto bg-emerald-50 dark:bg-emerald-950/30 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">RTGS Payment Successful</h4>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed px-2">{rtgsConfirmationMessage}</p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-1">
+              {rtgsConfirmation.farmerPhone && (
+                <button
+                  onClick={handleShareRtgsConfirmation}
+                  className="p-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-md shadow-emerald-200 dark:shadow-none cursor-pointer"
+                >
+                  Share on WhatsApp
+                </button>
+              )}
+              <button
+                onClick={() => setRtgsConfirmation(null)}
+                className="p-2.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white font-bold text-xs rounded-xl uppercase tracking-wider cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

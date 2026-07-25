@@ -24,7 +24,8 @@ import {
   Lock,
   Unlock,
   Share2,
-  Clock
+  Clock,
+  CalendarDays
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -54,6 +55,7 @@ export default function CashManagement({ currentUser }) {
   const [openingBalance, setOpeningBalance] = useState(0);
   const [todayClosure, setTodayClosure] = useState(null);
   const [maturedEntries, setMaturedEntries] = useState([]);
+  const [forecastDate, setForecastDate] = useState(todayStr);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -69,9 +71,11 @@ export default function CashManagement({ currentUser }) {
     return () => unsubscribe();
   }, [isAuthorized]);
 
+  // Maturity Forecast now queries whichever date is selected via the calendar
+  // picker (defaults to today), instead of being locked to today's date only.
   useEffect(() => {
-    if (!isAuthorized) return;
-    const maturityQuery = query(collection(db, "cottonEntries"), where("paymentDueDate", "==", todayStr));
+    if (!isAuthorized || !forecastDate) return;
+    const maturityQuery = query(collection(db, "cottonEntries"), where("paymentDueDate", "==", forecastDate));
     const unsubscribeMaturity = onSnapshot(
       maturityQuery,
       (snapshot) => {
@@ -83,7 +87,7 @@ export default function CashManagement({ currentUser }) {
       }
     );
     return () => unsubscribeMaturity();
-  }, [isAuthorized, todayStr]);
+  }, [isAuthorized, forecastDate]);
 
   useEffect(() => {
     if (!isAuthorized) return;
@@ -395,6 +399,8 @@ export default function CashManagement({ currentUser }) {
       }
     }
   };
+
+  const isForecastToday = forecastDate === todayStr;
 
   if (!isAuthorized) {
     return (
@@ -775,16 +781,35 @@ export default function CashManagement({ currentUser }) {
       </div>
 
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-amber-500 animate-pulse" />
             <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight font-mono">
               Maturity Forecast & Due Payments
             </h3>
           </div>
-          <span className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider font-mono">
-            {todayStr}
-          </span>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={forecastDate}
+                onChange={(e) => setForecastDate(e.target.value)}
+                className="input-field pl-9 py-1.5 text-xs font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+            {!isForecastToday && (
+              <button
+                onClick={() => setForecastDate(todayStr)}
+                className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 cursor-pointer whitespace-nowrap"
+              >
+                Today
+              </button>
+            )}
+            <span className="text-xs bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider font-mono whitespace-nowrap">
+              {forecastDate}
+            </span>
+          </div>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
           {maturedEntries.length > 0 ? (
@@ -826,7 +851,7 @@ export default function CashManagement({ currentUser }) {
             })
           ) : (
             <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
-              No payments maturing today ({todayStr})
+              No payments maturing on {forecastDate}
             </p>
           )}
         </div>

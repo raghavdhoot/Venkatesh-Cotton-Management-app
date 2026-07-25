@@ -45,6 +45,7 @@ function Aavak({ currentUser }) {
         phoneNo: ''
     });
 
+
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
@@ -355,7 +356,12 @@ function Aavak({ currentUser }) {
 
         try {
             if (isNewEntry) {
-                const docId = `aavak_${Date.now()}`;
+                // Doc ID format: [Token No.] - [Amount Paid]
+                const sanitize = (val) => String(val || '').trim().replace(/[\/\.\#\$\[\]]/g, '-');
+                const tokenPart = sanitize(dataPayload.tokenNo) || 'TOKEN';
+                const amountPart = sanitize(dataPayload.amountPaid ?? 0) || '0';
+                const docId = `${tokenPart}-${amountPart}`;
+
                 await setDoc(doc(db, 'cottonEntries', docId), {
                     ...dataPayload,
                     makerId: currentUser?.employeeId || 'ADMIN',

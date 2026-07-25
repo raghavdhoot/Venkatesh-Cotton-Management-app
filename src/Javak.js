@@ -219,7 +219,12 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
         try {
             if (isNewEntry) {
-                const docId = `javak_${Date.now()}`;
+                // Doc ID format: [Gate Pass / Bill No.] - [Destination]
+                const sanitize = (val) => String(val || '').trim().replace(/[\/\.\#\$\[\]]/g, '-');
+                const billPart = sanitize(payload.gatePassNo) || 'GP';
+                const destinationPart = sanitize(payload.destination) || 'DEST';
+                const docId = `${billPart}-${destinationPart}`;
+
                 await setDoc(doc(db, 'javakEntries', docId), payload);
                 await syncBardanaStockOut(docId, payload);
                 await syncAdvancePaymentOut(docId, payload);
