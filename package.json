@@ -29,7 +29,6 @@
     "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.0",
     "@types/node": "^26.1.1",
     "baseline-browser-mapping": "^2.9.7"
   },
