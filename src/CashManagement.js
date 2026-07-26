@@ -11,7 +11,8 @@ import {
   getDocs,
   deleteDoc,
   doc,
-  where
+  where,
+  updateDoc
 } from "firebase/firestore";
 import {
   IndianRupee,
@@ -25,7 +26,8 @@ import {
   Unlock,
   Share2,
   Clock,
-  CalendarDays
+  CalendarDays,
+  AlertTriangle
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -56,12 +58,9 @@ export default function CashManagement({ currentUser }) {
   const [todayClosure, setTodayClosure] = useState(null);
   const [maturedEntries, setMaturedEntries] = useState([]);
   const [forecastDate, setForecastDate] = useState(todayStr);
-  // Raw Aavak entries, kept only so we can pull out installmentLogs — these
-  // are payments made TODAY settling balance on bills booked on an EARLIER
-  // date. Aavak.js writes them straight onto the cottonEntries doc and never
-  // mirrors them into 'cashTransactions', so without this they were
-  // completely invisible to Cash Management / the EOD report.
   const [aavakEntries, setAavakEntries] = useState([]);
+  // Per-row typed-but-not-yet-submitted settle amount for overdue CASH pattis
+  const [dueSettleAmounts, setDueSettleAmounts] = useState({});
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -77,10 +76,6 @@ export default function CashManagement({ currentUser }) {
     return () => unsubscribe();
   }, [isAuthorized]);
 
-  // Pulls every Aavak entry so its installmentLogs (older-bill settlements)
-  // can be folded into the cash ledger below. Full-collection listen is
-  // deliberate: there's no indexable field to filter "has an installment
-  // paid today" server-side since installmentLogs is a nested array.
   useEffect(() => {
     if (!isAuthorized) return;
     const unsubscribeAavak = onSnapshot(
@@ -95,8 +90,6 @@ export default function CashManagement({ currentUser }) {
     return () => unsubscribeAavak();
   }, [isAuthorized]);
 
-  // Maturity Forecast now queries whichever date is selected via the calendar
-  // picker (defaults to today), instead of being locked to today's date only.
   useEffect(() => {
     if (!isAuthorized || !forecastDate) return;
     const maturityQuery = query(collection(db, "cottonEntries"), where("paymentDueDate", "==", forecastDate));
@@ -160,9 +153,6 @@ export default function CashManagement({ currentUser }) {
     };
   }, [isAuthorized]);
 
-  // Flatten every Aavak entry's installmentLogs into transaction-shaped rows
-  // so older-bill settlements paid today sit in the same ledger as normal
-  // cash transactions and Javak advances.
   const installmentTransactions = React.useMemo(() => {
     const rows = [];
     aavakEntries.forEach((entry) => {
@@ -184,10 +174,6 @@ export default function CashManagement({ currentUser }) {
     return rows;
   }, [aavakEntries]);
 
-  // Everything that should count as "money moving through the drawer" —
-  // manual cash entries, Javak advances (already written into
-  // cashTransactions by Javak.js), and Aavak installment settlements — merged
-  // into one ledger so nothing silently falls outside the EOD report.
   const combinedTransactions = React.useMemo(() => {
     const getSortKey = (t) => {
       if (t.timestamp && typeof t.timestamp.toDate === "function") {
@@ -202,11 +188,6 @@ export default function CashManagement({ currentUser }) {
     return [...transactions, ...installmentTransactions].sort((a, b) => getSortKey(b) - getSortKey(a));
   }, [transactions, installmentTransactions]);
 
-  // Robust "is this today" check. Doc IDs no longer reliably encode a date
-  // (Javak/Aavak doc IDs are now [Token/Bill No.]-[Amount/Destination], with
-  // no date component), so the date field / timestamp are checked first and
-  // the old id-substring check is kept only as a last-resort fallback for
-  // legacy manual cash entries.
   const isTransactionToday = (t) => {
     if (t._logDate) return t._logDate === todayStr;
     if (t.date && typeof t.date === "string") return t.date === todayStr;
@@ -219,6 +200,84 @@ export default function CashManagement({ currentUser }) {
     }
     if (t.id && t.id.includes(todayStr)) return true;
     return false;
+  };
+
+  // ---- PAYMENT DUE: CASH/immediate pattis whose billing date has already
+  // passed while a balance remains outstanding. Cash is meant to be settled
+  // same-day; the moment the date rolls over without full payment, that
+  // patti is "due". Kept separate from the paymentDueDate-based Maturity
+  // Forecast above (which needs an explicit due-date field most CASH
+  // entries never set) so this works for every CASH bill automatically.
+  const cashPaymentsDue = React.useMemo(() => {
+    return aavakEntries
+      .filter((e) => {
+        const balance = parseFloat(e.balanceAmount || 0) || 0;
+        return (
+          (e.paymentMode || "").toUpperCase() === "CASH" &&
+          balance > 0.01 &&
+          e.billingDate &&
+          e.billingDate < todayStr
+        );
+      })
+      .sort((a, b) => (a.billingDate < b.billingDate ? -1 : 1)); // oldest first
+  }, [aavakEntries, todayStr]);
+
+  const getDaysOverdue = (billingDate) => {
+    if (!billingDate) return 0;
+    const billed = new Date(billingDate + "T00:00:00");
+    const today = new Date(todayStr + "T00:00:00");
+    return Math.max(0, Math.round((today - billed) / 86400000));
+  };
+
+  const totalCashDueAmount = cashPaymentsDue.reduce(
+    (acc, e) => acc + (parseFloat(e.balanceAmount || 0) || 0),
+    0
+  );
+
+  const handleDueAmountInputChange = (id, val) => {
+    setDueSettleAmounts((prev) => ({ ...prev, [id]: val }));
+  };
+
+  // Settles part or all of an overdue CASH patti's balance directly from
+  // this screen — writes an installmentLog exactly like Aavak.js's own
+  // "Log New Installment" flow does, so both stay perfectly consistent.
+  const handleSettleDuePayment = async (entry) => {
+    const raw = dueSettleAmounts[entry.id];
+    const toPay = parseFloat(raw);
+    const currentBalance = parseFloat(entry.balanceAmount || 0) || 0;
+
+    if (isNaN(toPay) || toPay <= 0) {
+      setStatusMessage({ text: "Enter a valid amount to settle", type: "error" });
+      return;
+    }
+    if (toPay > currentBalance + 0.01) {
+      setStatusMessage({ text: "Amount exceeds remaining balance", type: "error" });
+      return;
+    }
+
+    const newPaid = parseFloat(entry.amountPaid || 0) + toPay;
+    const newBalance = currentBalance - toPay;
+    const newLog = {
+      amount: toPay,
+      date: todayStr,
+      time: new Date().toLocaleTimeString(),
+      operator: currentUser?.name || "Staff"
+    };
+    const existingLogs = entry.installmentLogs || [];
+
+    try {
+      await updateDoc(doc(db, "cottonEntries", entry.id), {
+        amountPaid: parseFloat(newPaid.toFixed(2)),
+        balanceAmount: parseFloat(newBalance.toFixed(2)),
+        installmentLogs: [...existingLogs, newLog],
+        updatedAt: serverTimestamp()
+      });
+      setStatusMessage({ text: `Due payment settled for Token ${entry.tokenNo || entry.id}`, type: "success" });
+      setDueSettleAmounts((prev) => ({ ...prev, [entry.id]: "" }));
+    } catch (error) {
+      console.error("Error settling due payment:", error);
+      setStatusMessage({ text: "Error settling due payment", type: "error" });
+    }
   };
 
   useEffect(() => {
@@ -314,10 +373,6 @@ export default function CashManagement({ currentUser }) {
     }
   };
 
-  // All-time totals now run over combinedTransactions (cashTransactions +
-  // Javak advances already inside it + Aavak installment settlements) since
-  // installment payouts are real cash leaving the same drawer, not a
-  // separate ledger.
   const totalIn = combinedTransactions
     .filter((t) => t.type === "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
@@ -335,8 +390,6 @@ export default function CashManagement({ currentUser }) {
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
 
-  // Breakdown shown on the EOD card so Javak advances and Aavak installment
-  // settlements are visibly, not just silently, folded into today's totals.
   const todayJavakAdvanceTotal = todayTransactions
     .filter((t) => t.source === "JAVAK")
     .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
@@ -361,9 +414,6 @@ export default function CashManagement({ currentUser }) {
         openingBalance: parseFloat(String(openingBalance)) || 0,
         totalCashIn: parseFloat(String(todayIn)) || 0,
         totalCashOut: parseFloat(String(todayOut)) || 0,
-        // Breakdown so it's clear Javak advances and older-bill Aavak
-        // installment settlements were actually included in totalCashOut
-        // above, not silently dropped.
         javakAdvancesToday: parseFloat(String(todayJavakAdvanceTotal)) || 0,
         aavakInstallmentsToday: parseFloat(String(todayAavakInstallmentTotal)) || 0,
         expectedClosingBalance: parseFloat(String(expectedClosingBalance)) || 0,
@@ -675,6 +725,87 @@ export default function CashManagement({ currentUser }) {
         </div>
       )}
 
+      {/* PAYMENT DUE — CASH-mode pattis billed on an earlier date that still
+          carry a balance. Cash is supposed to be immediate, so once the day
+          has rolled over without full payment, it lands here. */}
+      <div className="bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/40 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <h3 className="text-lg font-bold text-red-700 dark:text-red-400 uppercase tracking-tight">
+              Payment Due (Cash / Immediate — Unsettled)
+            </h3>
+          </div>
+          {cashPaymentsDue.length > 0 && (
+            <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-extrabold px-3 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
+              {cashPaymentsDue.length} Pattis • ₹{totalCashDueAmount.toLocaleString("en-IN")} Outstanding
+            </span>
+          )}
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[320px] overflow-y-auto">
+          {cashPaymentsDue.length > 0 ? (
+            cashPaymentsDue.map((entry) => {
+              const balance = parseFloat(entry.balanceAmount || 0) || 0;
+              const daysOverdue = getDaysOverdue(entry.billingDate);
+              return (
+                <div
+                  key={entry.id}
+                  className="p-4 hover:bg-red-50/40 dark:hover:bg-red-950/10 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-red-600 dark:text-red-400 font-mono">
+                        #{entry.tokenNo || entry.id}
+                      </span>
+                      <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold px-1.5 py-0.5 rounded uppercase">
+                        CASH
+                      </span>
+                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold px-1.5 py-0.5 rounded uppercase">
+                        {daysOverdue} Day{daysOverdue === 1 ? "" : "s"} Overdue
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase mt-1">
+                      {entry.Name || entry.farmerName || "UNKNOWN"}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-semibold">
+                      Village: {entry.Village || "N/A"} • Phone: {entry.farmerPhone || "N/A"} • Billed: {entry.billingDate}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-right mr-2">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Balance Due</p>
+                      <p className="text-sm font-black text-red-600 dark:text-red-400 font-mono">
+                        ₹{balance.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder={`Up to ${balance}`}
+                      value={dueSettleAmounts[entry.id] || ""}
+                      onChange={(e) => handleDueAmountInputChange(entry.id, e.target.value)}
+                      className="w-28 input-field py-1.5 px-2 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSettleDuePayment(entry)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider rounded-lg cursor-pointer whitespace-nowrap"
+                    >
+                      Settle
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
+              No overdue cash payments — all immediate bills are settled.
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="card bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
@@ -784,9 +915,6 @@ export default function CashManagement({ currentUser }) {
           </div>
         )}
 
-        {/* Breakdown so Javak advances and Aavak older-bill installment
-            settlements are visibly folded into today's totals above, rather
-            than silently summed with no trace. */}
         {(todayJavakAdvanceTotal > 0 || todayAavakInstallmentTotal > 0) && (
           <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
             <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/40">
