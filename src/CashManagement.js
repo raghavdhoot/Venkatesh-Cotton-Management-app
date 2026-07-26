@@ -27,7 +27,8 @@ import {
   Share2,
   Clock,
   CalendarDays,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -59,8 +60,11 @@ export default function CashManagement({ currentUser }) {
   const [maturedEntries, setMaturedEntries] = useState([]);
   const [forecastDate, setForecastDate] = useState(todayStr);
   const [aavakEntries, setAavakEntries] = useState([]);
-  // Per-row typed-but-not-yet-submitted settle amount for overdue CASH pattis
   const [dueSettleAmounts, setDueSettleAmounts] = useState({});
+  // Shown when today's Immediate(CASH) patti count doesn't match the count
+  // of those pattis that are fully settled — cashier must explicitly
+  // acknowledge before the counter is allowed to close.
+  const [isCloseWarningOpen, setIsCloseWarningOpen] = useState(false);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -202,12 +206,6 @@ export default function CashManagement({ currentUser }) {
     return false;
   };
 
-  // ---- PAYMENT DUE: CASH/immediate pattis whose billing date has already
-  // passed while a balance remains outstanding. Cash is meant to be settled
-  // same-day; the moment the date rolls over without full payment, that
-  // patti is "due". Kept separate from the paymentDueDate-based Maturity
-  // Forecast above (which needs an explicit due-date field most CASH
-  // entries never set) so this works for every CASH bill automatically.
   const cashPaymentsDue = React.useMemo(() => {
     return aavakEntries
       .filter((e) => {
@@ -219,7 +217,7 @@ export default function CashManagement({ currentUser }) {
           e.billingDate < todayStr
         );
       })
-      .sort((a, b) => (a.billingDate < b.billingDate ? -1 : 1)); // oldest first
+      .sort((a, b) => (a.billingDate < b.billingDate ? -1 : 1));
   }, [aavakEntries, todayStr]);
 
   const getDaysOverdue = (billingDate) => {
@@ -238,9 +236,6 @@ export default function CashManagement({ currentUser }) {
     setDueSettleAmounts((prev) => ({ ...prev, [id]: val }));
   };
 
-  // Settles part or all of an overdue CASH patti's balance directly from
-  // this screen — writes an installmentLog exactly like Aavak.js's own
-  // "Log New Installment" flow does, so both stay perfectly consistent.
   const handleSettleDuePayment = async (entry) => {
     const raw = dueSettleAmounts[entry.id];
     const toPay = parseFloat(raw);
@@ -399,14 +394,31 @@ export default function CashManagement({ currentUser }) {
 
   const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
 
-  const handleCloseCounter = async () => {
-    if (
-      !window.confirm(
-        `Are you sure you want to CLOSE the counter for today (${todayStr})? This will lock today's cash entries.`
-      )
-    )
-      return;
+  // ---- IMMEDIATE (CASH) PATTI vs SETTLED-PAYMENT COUNT CHECK ----
+  // "Patti given for Immediate payment" = every CASH-mode Aavak bill billed
+  // TODAY. "Payments made" = how many of those are fully settled
+  // (balanceAmount <= 0). If the two counts differ, someone was billed CASH
+  // today but hasn't actually been paid in full yet — the cashier needs to
+  // see that before locking the drawer for the day.
+  const todaysImmediatePattis = React.useMemo(
+    () =>
+      aavakEntries.filter(
+        (e) => (e.paymentMode || "").toUpperCase() === "CASH" && e.billingDate === todayStr
+      ),
+    [aavakEntries, todayStr]
+  );
+  const todaysSettledImmediatePattis = React.useMemo(
+    () => todaysImmediatePattis.filter((e) => (parseFloat(e.balanceAmount || 0) || 0) <= 0.01),
+    [todaysImmediatePattis]
+  );
+  const todaysUnsettledImmediatePattis = React.useMemo(
+    () => todaysImmediatePattis.filter((e) => (parseFloat(e.balanceAmount || 0) || 0) > 0.01),
+    [todaysImmediatePattis]
+  );
+  const immediatePaymentCountMismatch =
+    todaysImmediatePattis.length !== todaysSettledImmediatePattis.length;
 
+  const executeCloseCounter = async () => {
     try {
       const docId = `Closure-${todayStr}`;
       await setDoc(doc(db, "dailyClosures", docId), {
@@ -416,6 +428,11 @@ export default function CashManagement({ currentUser }) {
         totalCashOut: parseFloat(String(todayOut)) || 0,
         javakAdvancesToday: parseFloat(String(todayJavakAdvanceTotal)) || 0,
         aavakInstallmentsToday: parseFloat(String(todayAavakInstallmentTotal)) || 0,
+        // Recorded so it's auditable later whether the counter was closed
+        // with immediate-payment pattis still outstanding.
+        immediatePattisToday: todaysImmediatePattis.length,
+        immediatePattisSettledToday: todaysSettledImmediatePattis.length,
+        closedWithUnsettledImmediatePayments: immediatePaymentCountMismatch,
         expectedClosingBalance: parseFloat(String(expectedClosingBalance)) || 0,
         closingBalance: parseFloat(String(expectedClosingBalance)) || 0,
         closedBy: currentUser?.name || "ADMIN",
@@ -428,6 +445,25 @@ export default function CashManagement({ currentUser }) {
       console.error("Error closing counter:", error);
       setStatusMessage({ text: "Error closing counter", type: "error" });
     }
+  };
+
+  const handleCloseCounter = () => {
+    if (immediatePaymentCountMismatch) {
+      setIsCloseWarningOpen(true);
+      return;
+    }
+    if (
+      !window.confirm(
+        `Are you sure you want to CLOSE the counter for today (${todayStr})? This will lock today's cash entries.`
+      )
+    )
+      return;
+    executeCloseCounter();
+  };
+
+  const handleConfirmCloseAnyway = () => {
+    setIsCloseWarningOpen(false);
+    executeCloseCounter();
   };
 
   const handleShareWhatsAppPDF = async () => {
@@ -725,9 +761,6 @@ export default function CashManagement({ currentUser }) {
         </div>
       )}
 
-      {/* PAYMENT DUE — CASH-mode pattis billed on an earlier date that still
-          carry a balance. Cash is supposed to be immediate, so once the day
-          has rolled over without full payment, it lands here. */}
       <div className="bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/40 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-2">
@@ -827,6 +860,15 @@ export default function CashManagement({ currentUser }) {
                   ? `Counter for today (${todayStr}) is successfully locked.`
                   : `Daily counter balance verification for today (${todayStr}).`}
               </p>
+              {!todayClosure && todaysImmediatePattis.length > 0 && (
+                <p
+                  className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${
+                    immediatePaymentCountMismatch ? "text-red-500" : "text-emerald-500"
+                  }`}
+                >
+                  Immediate Pattis Today: {todaysSettledImmediatePattis.length} / {todaysImmediatePattis.length} Settled
+                </p>
+              )}
             </div>
           </div>
 
@@ -876,6 +918,14 @@ export default function CashManagement({ currentUser }) {
                 {todayClosure.timestamp?.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>
+            {todayClosure.closedWithUnsettledImmediatePayments && (
+              <div className="col-span-2 md:col-span-5 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900/40 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                  Closed with {(todayClosure.immediatePattisToday || 0) - (todayClosure.immediatePattisSettledToday || 0)} unsettled Immediate/Cash patti(s) — {todayClosure.immediatePattisSettledToday || 0} / {todayClosure.immediatePattisToday || 0} settled at close time.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
@@ -1108,6 +1158,69 @@ export default function CashManagement({ currentUser }) {
           )}
         </div>
       </div>
+
+      {isCloseWarningOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 max-w-lg w-full rounded-2xl shadow-2xl border-2 border-red-300 dark:border-red-900/60 overflow-hidden">
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 flex-shrink-0 bg-red-100 dark:bg-red-950/40 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">
+                    Immediate Payment Mismatch
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {todaysImmediatePattis.length} Cash / Immediate patti(s) were billed today, but only{" "}
+                    {todaysSettledImmediatePattis.length} have been fully paid. Closing now will lock the
+                    drawer with unsettled immediate payments.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsCloseWarningOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border border-red-100 dark:border-red-900/40 rounded-xl divide-y divide-red-100 dark:divide-red-900/40">
+                {todaysUnsettledImmediatePattis.map((entry) => (
+                  <div key={entry.id} className="p-3 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-black text-red-600 dark:text-red-400 font-mono">
+                        #{entry.tokenNo || entry.id}
+                      </span>
+                      <span className="ml-2 font-bold text-slate-700 dark:text-slate-300 uppercase">
+                        {entry.Name || entry.farmerName || "UNKNOWN"}
+                      </span>
+                    </div>
+                    <span className="font-bold text-red-600 dark:text-red-400 font-mono">
+                      Due: ₹{(parseFloat(entry.balanceAmount || 0) || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => setIsCloseWarningOpen(false)}
+                  className="flex-1 p-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer"
+                >
+                  Go Back &amp; Settle
+                </button>
+                <button
+                  onClick={handleConfirmCloseAnyway}
+                  className="flex-1 p-3 rounded-xl bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider text-xs font-black shadow-md shadow-red-200 dark:shadow-none cursor-pointer"
+                >
+                  Close Anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
