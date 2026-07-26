@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2 } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2, Users, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToAavak } from './components/Dashboard';
@@ -60,6 +60,11 @@ function Aavak({ currentUser }) {
     const [paymentLogValue, setPaymentLogValue] = useState('');
     const [paymentHistoryEntry, setPaymentHistoryEntry] = useState(null);
     const [printEntry, setPrintEntry] = useState(null);
+
+    const [isBulkExportOpen, setIsBulkExportOpen] = useState(false);
+    const [bulkSearchQuery, setBulkSearchQuery] = useState('');
+    const [selectedBulkIds, setSelectedBulkIds] = useState(new Set());
+    const [bulkPrintEntries, setBulkPrintEntries] = useState(null);
 
     const commodityOptions = ['KAPAS', 'SOYABEAN', 'CHANA', 'TUAAR', 'WHEAT'];
 
@@ -423,6 +428,72 @@ function Aavak({ currentUser }) {
         XLSX.writeFile(workbook, `Aavak_Export_${new Date().toLocaleDateString('en-CA')}.xlsx`);
     };
 
+    const bulkFilteredEntries = entries.filter(e => {
+        if (!bulkSearchQuery) return true;
+        const q = bulkSearchQuery.toLowerCase();
+        return (e.Village && e.Village.toLowerCase().includes(q)) || (e.Name && e.Name.toLowerCase().includes(q));
+    });
+
+    const toggleBulkSelect = (id) => {
+        setSelectedBulkIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAllBulk = () => {
+        setSelectedBulkIds(prev => {
+            const allSelected = bulkFilteredEntries.length > 0 && bulkFilteredEntries.every(e => prev.has(e.id));
+            if (allSelected) return new Set();
+            return new Set(bulkFilteredEntries.map(e => e.id));
+        });
+    };
+
+    const getSelectedBulkEntries = () => entries.filter(e => selectedBulkIds.has(e.id));
+
+    const closeBulkExport = () => {
+        setIsBulkExportOpen(false);
+        setBulkSearchQuery('');
+        setSelectedBulkIds(new Set());
+    };
+
+    const handleBulkExportExcel = () => {
+        const selected = getSelectedBulkEntries();
+        if (selected.length === 0) {
+            setStatusMessage({ text: 'Select at least one patti to export', type: 'error' });
+            return;
+        }
+        const rows = selected.map(entry => ({
+            "Date": entry.billingDate || '',
+            "Token No": entry.tokenNo || '',
+            "Farmer Name": entry.Name || '',
+            "Village": entry.Village || '',
+            "Net Wt (kg)": entry.netWtAfterDeduction || entry.netWt || '',
+            "Net Amount": entry.netAmount || ''
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Selected Pattis");
+        XLSX.writeFile(workbook, `Aavak_Group_Export_${new Date().toLocaleDateString('en-CA')}.xlsx`);
+    };
+
+    const handleBulkExportPdf = () => {
+        const selected = getSelectedBulkEntries();
+        if (selected.length === 0) {
+            setStatusMessage({ text: 'Select at least one patti to export', type: 'error' });
+            return;
+        }
+        setBulkPrintEntries(selected);
+        setTimeout(() => {
+            window.print();
+        }, 150);
+    };
+
     const resetState = () => {
         setCurrentEntryId(null);
         setTokenNo('');
@@ -465,15 +536,42 @@ function Aavak({ currentUser }) {
         return () => window.removeEventListener('afterprint', clearPrintEntry);
     }, []);
 
+    useEffect(() => {
+        const clearBulkPrintEntries = () => setBulkPrintEntries(null);
+        window.addEventListener('afterprint', clearBulkPrintEntries);
+        return () => window.removeEventListener('afterprint', clearBulkPrintEntries);
+    }, []);
+
     const printableAavak = printEntry;
 
     return (
         <div className="space-y-6">
             <style>{`
                 @media screen {
-                    .vcc-print-sheet { display: none !important; }
+                    .vcc-print-sheet, .vcc-bulk-report { display: none !important; }
                 }
                 @media print {
+                    .vcc-bulk-report {
+                        display: block !important;
+                        visibility: visible !important;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 210mm !important;
+                        padding: 10mm !important;
+                        background: #ffffff !important;
+                        color: #000000 !important;
+                        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+                    }
+                    .vcc-bulk-report * { visibility: visible !important; }
+                    .vcc-bulk-report table { width: 100% !important; border-collapse: collapse !important; }
+                    .vcc-bulk-report th, .vcc-bulk-report td {
+                        border: 1px solid #000 !important;
+                        padding: 5px 8px !important;
+                        font-size: 10px !important;
+                        text-align: left !important;
+                    }
+                    .vcc-bulk-report th { background: #f1f5f9 !important; font-weight: 700 !important; }
                     @page { size: A4; margin: 0; }
                     html, body {
                         background: #ffffff !important;
@@ -694,6 +792,38 @@ function Aavak({ currentUser }) {
                     })}
                 </div>
             )}
+            {bulkPrintEntries && (
+                <div className="vcc-bulk-report text-black">
+                    <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '1px' }}>VENKATESH COTTON COMPANY</div>
+                        <div style={{ fontSize: '10px', marginTop: '2px' }}>NH752, Pomnala, Maharashtra 431801 | Aavak Group Report — {new Date().toLocaleDateString('en-CA')}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Token</th>
+                                <th>Farmer</th>
+                                <th>Village</th>
+                                <th>Net Wt (kg)</th>
+                                <th>Net Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {bulkPrintEntries.map(entry => (
+                                <tr key={entry.id}>
+                                    <td>{entry.billingDate}</td>
+                                    <td>{entry.tokenNo}</td>
+                                    <td>{entry.Name}</td>
+                                    <td>{entry.Village}</td>
+                                    <td>{entry.netWtAfterDeduction || entry.netWt}</td>
+                                    <td>{entry.netAmount}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-extrabold text-xl">
@@ -711,6 +841,9 @@ function Aavak({ currentUser }) {
                         className="btn-primary flex items-center gap-2 cursor-pointer"
                     >
                         <Plus className="w-4 h-4" /> New Inward Bill
+                    </button>
+                    <button onClick={() => setIsBulkExportOpen(true)} className="btn-secondary flex items-center gap-2 cursor-pointer">
+                        <Users className="w-4 h-4" /> Group Export
                     </button>
                     <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2 cursor-pointer">
                         <Download className="w-4 h-4" /> Export
@@ -900,7 +1033,7 @@ function Aavak({ currentUser }) {
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Billing Accountant</label>
-                                                <input type="text" className="input-field uppercase font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={accountantName} onChange={(e) => setAccountantName(e.target.value)} placeholder={currentUser?.name || "Officer"} />
+                                                <input type="text" className="input-field uppercase font-bold dark:bg-slate-800 dark:border-slate-700" value={accountantName} onChange={(e) => setAccountantName(e.target.value)} placeholder={currentUser?.name || "Officer"} />
                                             </div>
                                         </div>
                                     </div>
@@ -1149,6 +1282,93 @@ function Aavak({ currentUser }) {
                                     className="p-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer"
                                 >
                                     Cancel
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {isBulkExportOpen && (
+                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 max-w-2xl w-full p-6 rounded-2xl shadow-xl space-y-5">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
+                                <div className="space-y-0.5">
+                                    <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Group Export — Pattis</h4>
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Search by Village or Farmer Name, select pattis, then export</p>
+                                </div>
+                                <button onClick={closeBulkExport} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
+                            </div>
+
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    className="input-field pl-9 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                    placeholder="Search Village or Farmer Name..."
+                                    value={bulkSearchQuery}
+                                    onChange={(e) => setBulkSearchQuery(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                <button onClick={toggleSelectAllBulk} className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 cursor-pointer">
+                                    {bulkFilteredEntries.length > 0 && bulkFilteredEntries.every(e => selectedBulkIds.has(e.id)) ? (
+                                        <CheckSquare className="w-4 h-4" />
+                                    ) : (
+                                        <Square className="w-4 h-4" />
+                                    )}
+                                    Select All ({bulkFilteredEntries.length})
+                                </button>
+                                <span>{selectedBulkIds.size} Selected</span>
+                            </div>
+
+                            <div className="max-h-72 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
+                                {bulkFilteredEntries.length === 0 ? (
+                                    <div className="text-center p-8 text-xs font-semibold text-slate-400 uppercase">No pattis match this search</div>
+                                ) : (
+                                    bulkFilteredEntries.map(entry => (
+                                        <label key={entry.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 rounded accent-indigo-600 cursor-pointer"
+                                                checked={selectedBulkIds.has(entry.id)}
+                                                onChange={() => toggleBulkSelect(entry.id)}
+                                            />
+                                            <div className="flex-1 flex items-center justify-between text-xs">
+                                                <div>
+                                                    <div className="font-extrabold text-slate-900 dark:text-white">{entry.Name} <span className="text-slate-400 font-mono">#{entry.tokenNo}</span></div>
+                                                    <div className="text-[10px] text-slate-400 uppercase tracking-wider">{entry.Village} | {entry.billingDate}</div>
+                                                </div>
+                                                <div className="text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                    {entry.netWtAfterDeduction || entry.netWt} kg
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ))
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={handleBulkExportExcel}
+                                    className="flex-1 p-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-emerald-100 dark:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4" /> Export Excel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleBulkExportPdf}
+                                    className="flex-1 p-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-indigo-100 dark:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <Printer className="w-4 h-4" /> Export PDF
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closeBulkExport}
+                                    className="p-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer"
+                                >
+                                    Close
                                 </button>
                             </div>
                         </motion.div>

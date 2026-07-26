@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
 
@@ -36,6 +37,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [videoStream, setVideoStream] = useState(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [printEntry, setPrintEntry] = useState(null);
+
+    const [isBulkExportOpen, setIsBulkExportOpen] = useState(false);
+    const [bulkSearchQuery, setBulkSearchQuery] = useState('');
+    const [selectedBulkIds, setSelectedBulkIds] = useState(new Set());
+    const [bulkPrintEntries, setBulkPrintEntries] = useState(null);
 
     const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS', 'OIL TANKER', 'COCONUT HUSK'];
 
@@ -303,6 +309,72 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setDriverPhoto(entry.driverPhoto || null);
     };
 
+    const bulkFilteredEntries = entries.filter(e => {
+        if (!bulkSearchQuery) return true;
+        const q = bulkSearchQuery.toLowerCase();
+        return (e.destination && e.destination.toLowerCase().includes(q)) || (e.driverName && e.driverName.toLowerCase().includes(q));
+    });
+
+    const toggleBulkSelect = (id) => {
+        setSelectedBulkIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAllBulk = () => {
+        setSelectedBulkIds(prev => {
+            const allSelected = bulkFilteredEntries.length > 0 && bulkFilteredEntries.every(e => prev.has(e.id));
+            if (allSelected) return new Set();
+            return new Set(bulkFilteredEntries.map(e => e.id));
+        });
+    };
+
+    const getSelectedBulkEntries = () => entries.filter(e => selectedBulkIds.has(e.id));
+
+    const closeBulkExport = () => {
+        setIsBulkExportOpen(false);
+        setBulkSearchQuery('');
+        setSelectedBulkIds(new Set());
+    };
+
+    const handleBulkExportExcel = () => {
+        const selected = getSelectedBulkEntries();
+        if (selected.length === 0) {
+            setStatusMessage({ text: 'Select at least one gate pass to export', type: 'error' });
+            return;
+        }
+        const rows = selected.map(entry => ({
+            "Date": entry.date || '',
+            "Gate Pass No": entry.gatePassNo || '',
+            "Driver Name": entry.driverName || '',
+            "Destination": entry.destination || '',
+            "Net Wt (kg)": entry.netWt || '',
+            "Advance Amount": entry.isAdvancePayment ? (entry.advanceAmount || '') : ''
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Selected Gate Passes");
+        XLSX.writeFile(workbook, `Javak_Group_Export_${new Date().toLocaleDateString('en-CA')}.xlsx`);
+    };
+
+    const handleBulkExportPdf = () => {
+        const selected = getSelectedBulkEntries();
+        if (selected.length === 0) {
+            setStatusMessage({ text: 'Select at least one gate pass to export', type: 'error' });
+            return;
+        }
+        setBulkPrintEntries(selected);
+        setTimeout(() => {
+            window.print();
+        }, 150);
+    };
+
     const resetState = () => {
         setCurrentEntryId(null);
         setIsNewEntry(false);
@@ -332,15 +404,42 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         return () => window.removeEventListener('afterprint', clearPrintEntry);
     }, []);
 
+    useEffect(() => {
+        const clearBulkPrintEntries = () => setBulkPrintEntries(null);
+        window.addEventListener('afterprint', clearBulkPrintEntries);
+        return () => window.removeEventListener('afterprint', clearBulkPrintEntries);
+    }, []);
+
     const finalPrintData = printEntry || {};
 
     return (
         <div className="space-y-6">
             <style>{`
                 @media screen {
-                    .print-view-container { display: none !important; }
+                    .print-view-container, .vcc-bulk-report { display: none !important; }
                 }
                 @media print {
+                    .vcc-bulk-report {
+                        display: block !important;
+                        visibility: visible !important;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 210mm !important;
+                        padding: 10mm !important;
+                        background: #ffffff !important;
+                        color: #000000 !important;
+                        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+                    }
+                    .vcc-bulk-report * { visibility: visible !important; }
+                    .vcc-bulk-report table { width: 100% !important; border-collapse: collapse !important; }
+                    .vcc-bulk-report th, .vcc-bulk-report td {
+                        border: 1px solid #000 !important;
+                        padding: 5px 8px !important;
+                        font-size: 10px !important;
+                        text-align: left !important;
+                    }
+                    .vcc-bulk-report th { background: #f1f5f9 !important; font-weight: 700 !important; }
                     @page { size: A4; margin: 4mm 8mm; }
                     body * { visibility: hidden; }
                     .print-view-container, .print-view-container * { visibility: visible; }
@@ -510,6 +609,39 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                 })}
             </div>
 
+            {bulkPrintEntries && (
+                <div className="vcc-bulk-report text-black">
+                    <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '1px' }}>VENKATESH COTTON COMPANY</div>
+                        <div style={{ fontSize: '10px', marginTop: '2px' }}>NH752, Pomnala, Maharashtra 431801 | Javak Group Report — {new Date().toLocaleDateString('en-CA')}</div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Gate Pass No</th>
+                                <th>Driver Name</th>
+                                <th>Destination</th>
+                                <th>Net Wt (kg)</th>
+                                <th>Advance Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {bulkPrintEntries.map(entry => (
+                                <tr key={entry.id}>
+                                    <td>{entry.date}</td>
+                                    <td>{entry.gatePassNo}</td>
+                                    <td>{entry.driverName}</td>
+                                    <td>{entry.destination}</td>
+                                    <td>{entry.netWt}</td>
+                                    <td>{entry.isAdvancePayment ? (entry.advanceAmount || '') : ''}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400 font-extrabold text-xl">
@@ -527,6 +659,12 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                         className="btn-primary flex items-center gap-2 bg-amber-600 hover:bg-amber-700 border-none shadow-md shadow-amber-100"
                     >
                         <Plus className="w-4 h-4" /> New Gate Pass
+                    </button>
+                    <button 
+                        onClick={() => setIsBulkExportOpen(true)}
+                        className="btn-secondary flex items-center gap-2"
+                    >
+                        <Users className="w-4 h-4" /> Group Export
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generateJavakPdf({
@@ -862,6 +1000,93 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     </div>
                 </div>
             </div>
+
+            {isBulkExportOpen && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 max-w-2xl w-full p-6 rounded-2xl shadow-xl space-y-5">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
+                            <div className="space-y-0.5">
+                                <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Group Export — Gate Passes</h4>
+                                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Search by Destination or Driver Name, select gate passes, then export</p>
+                            </div>
+                            <button onClick={closeBulkExport} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
+                        </div>
+
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                className="input-field pl-9 uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                placeholder="Search Destination or Driver Name..."
+                                value={bulkSearchQuery}
+                                onChange={(e) => setBulkSearchQuery(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            <button onClick={toggleSelectAllBulk} className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 cursor-pointer">
+                                {bulkFilteredEntries.length > 0 && bulkFilteredEntries.every(e => selectedBulkIds.has(e.id)) ? (
+                                    <CheckSquare className="w-4 h-4" />
+                                ) : (
+                                    <Square className="w-4 h-4" />
+                                )}
+                                Select All ({bulkFilteredEntries.length})
+                            </button>
+                            <span>{selectedBulkIds.size} Selected</span>
+                        </div>
+
+                        <div className="max-h-72 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
+                            {bulkFilteredEntries.length === 0 ? (
+                                <div className="text-center p-8 text-xs font-semibold text-slate-400 uppercase">No gate passes match this search</div>
+                            ) : (
+                                bulkFilteredEntries.map(entry => (
+                                    <label key={entry.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded accent-amber-600 cursor-pointer"
+                                            checked={selectedBulkIds.has(entry.id)}
+                                            onChange={() => toggleBulkSelect(entry.id)}
+                                        />
+                                        <div className="flex-1 flex items-center justify-between text-xs">
+                                            <div>
+                                                <div className="font-extrabold text-slate-900 dark:text-white">{entry.driverName || 'N/A'} <span className="text-slate-400 font-mono">#{entry.gatePassNo}</span></div>
+                                                <div className="text-[10px] text-slate-400 uppercase tracking-wider">{entry.destination} | {entry.date}</div>
+                                            </div>
+                                            <div className="text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                {entry.netWt} kg
+                                            </div>
+                                        </div>
+                                    </label>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={handleBulkExportExcel}
+                                className="flex-1 p-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-emerald-100 dark:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <FileSpreadsheet className="w-4 h-4" /> Export Excel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleBulkExportPdf}
+                                className="flex-1 p-3 rounded-xl bg-amber-600 hover:bg-amber-700 uppercase tracking-wider text-white text-xs font-black shadow-lg shadow-amber-100 dark:shadow-none flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <Printer className="w-4 h-4" /> Export PDF
+                            </button>
+                            <button
+                                type="button"
+                                onClick={closeBulkExport}
+                                className="p-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {deleteConfirmId && (
                 <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-3">
