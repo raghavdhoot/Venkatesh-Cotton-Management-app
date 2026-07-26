@@ -97,6 +97,7 @@ export default function Dashboard({ currentUser }) {
     todayAavakAmount: 0
   });
   const [cashBalance, setCashBalance] = useState(0);
+  const [rawCashTransactions, setRawCashTransactions] = useState([]);
   const [itemBreakdown, setItemBreakdown] = useState({});
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
   const [selectedItem, setSelectedItem] = useState(null);
@@ -215,11 +216,16 @@ export default function Dashboard({ currentUser }) {
       }
     );
 
+    // Also keep the full raw list (not just the aggregated balance) so the
+    // EOD report can pull Cash In / Cash Out entries for any selected date —
+    // previously only the running balance was kept, so the report had no
+    // way to see individual transactions at all.
     const unsubscribeCash = onSnapshot(collection(db, "cashTransactions"), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setRawCashTransactions(list);
       let totalIn = 0;
       let totalOut = 0;
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
+      list.forEach((data) => {
         if (data.type === "IN") totalIn += data.amount || 0;
         else totalOut += data.amount || 0;
       });
@@ -430,17 +436,72 @@ export default function Dashboard({ currentUser }) {
     return { aavakDetails, javakDetails };
   };
 
-  const generateEODReport = (rawEntries, selectedDate, operatorName = currentUser?.name || "Admin Counter") => {
-    const todayStrLocal = selectedDate || new Date().toISOString().split("T")[0];
-    const baseEntries = rawEntries || rawData.aavak || [];
-    const todayEntries = baseEntries.filter((entry) => entry.billingDate === todayStrLocal);
+  // Robust "did this happen on this date" check for cashTransactions docs.
+  // Doc IDs don't reliably carry a date anymore (Javak advance docs are
+  // named after the gate pass, manual entries embed the date, etc.), so the
+  // explicit `date` field is checked first, then the resolved timestamp,
+  // and the id-substring match is kept only as a last-resort fallback.
+  const isEntryOnDate = (t, dateStr) => {
+    if (t.date && typeof t.date === "string") return t.date === dateStr;
+    if (t.timestamp && typeof t.timestamp.toDate === "function") {
+      try {
+        return t.timestamp.toDate().toISOString().split("T")[0] === dateStr;
+      } catch (e) {
+        // fall through
+      }
+    }
+    if (t.id && typeof t.id === "string" && t.id.includes(dateStr)) return true;
+    return false;
+  };
 
+  // Same Maker Amount / Cheque Passed completion logic as RTGSPanel.js, kept
+  // in sync so the EOD report's RTGS status always matches what's shown
+  // there — partial/unsettled maker amounts are never reported as completed.
+  const resolveRtgsStatus = (entry) => {
+    const amount = parseFloat(entry.amountPaid || entry.netAmount || entry.amount || 0) || 0;
+    const legacyMakerDone =
+      entry.makerDone === null || entry.makerDone === undefined ? true : entry.makerDone === true;
+    const rawMakerAmount = entry.makerAmount;
+    const makerAmount =
+      rawMakerAmount === null || rawMakerAmount === undefined
+        ? legacyMakerDone
+          ? amount
+          : 0
+        : parseFloat(rawMakerAmount) || 0;
+    const makerDone = amount > 0 && makerAmount >= amount;
+    const chequePassedRaw =
+      entry.chequePassed === null || entry.chequePassed === undefined ? true : entry.chequePassed === true;
+    const chequePassed = makerDone ? chequePassedRaw : false;
+
+    let status = "MAKER PENDING";
+    if (makerAmount > 0 && !makerDone) status = "PARTIAL PAYMENT";
+    else if (makerDone && !chequePassed) status = "CLEARANCE PENDING";
+    else if (makerDone && chequePassed) status = "PAYMENT COMPLETED";
+
+    return { amount, makerAmount, status };
+  };
+
+  const generateEODReport = (
+    aavakEntriesAll,
+    javakEntriesAll,
+    cashTransactionsAll,
+    selectedDate,
+    operatorName = currentUser?.name || "Admin Counter"
+  ) => {
+    const todayStrLocal = selectedDate || new Date().toISOString().split("T")[0];
+    const aavakEntriesSafe = aavakEntriesAll || rawData.aavak || [];
+    const javakEntriesSafe = javakEntriesAll || rawData.javak || [];
+    const cashTxSafe = cashTransactionsAll || rawCashTransactions || [];
+
+    const todayEntries = aavakEntriesSafe.filter((entry) => entry.billingDate === todayStrLocal);
+
+    // ---- 1. AAVAK PATTIS ----
     const totalPattis = todayEntries.length;
     let totalAccumulatedWeight = 0;
     let grossOutflowCommitted = 0;
     let realizedOutflowPaid = 0;
 
-    const rows = todayEntries.map((entry) => {
+    const pattiRows = todayEntries.map((entry) => {
       const tokenNoStr = entry.tokenNo || entry.id || "N/A";
       const farmerName = entry.Name || entry.farmerName || "N/A";
       const netWeight = parseFloat(entry.netWt || entry.netWeight || 0);
@@ -475,7 +536,97 @@ export default function Dashboard({ currentUser }) {
 
     const remainingOutstandingLiability = grossOutflowCommitted - realizedOutflowPaid;
 
+    // ---- 2. RTGS TRANSACTIONS (subset of today's pattis with paymentMode RTGS) ----
+    const rtgsToday = todayEntries.filter((e) => e.paymentMode === "RTGS");
+    const rtgsRows = rtgsToday.map((entry) => {
+      const { amount, makerAmount, status } = resolveRtgsStatus(entry);
+      const balance = Math.max(0, amount - makerAmount);
+      return [
+        entry.tokenNo || entry.id || "N/A",
+        entry.Name || entry.farmerName || "N/A",
+        `INR ${amount.toLocaleString("en-IN")}`,
+        `INR ${makerAmount.toLocaleString("en-IN")}`,
+        `INR ${balance.toLocaleString("en-IN")}`,
+        status
+      ];
+    });
+
+    // ---- 3. JAVAK DISPATCH & DRIVER ADVANCES ----
+    const javakToday = javakEntriesSafe.filter((e) => e.date === todayStrLocal);
+    let totalJavakAdvance = 0;
+    const javakRows = javakToday.map((entry) => {
+      const advanceGiven = entry.isAdvancePayment ? parseFloat(entry.advanceAmount || 0) || 0 : 0;
+      totalJavakAdvance += advanceGiven;
+      return [
+        entry.gatePassNo || entry.id || "N/A",
+        entry.vehicleNumber || "N/A",
+        entry.destination || "N/A",
+        entry.commodity || "N/A",
+        advanceGiven > 0 ? `INR ${advanceGiven.toLocaleString("en-IN")}` : "—"
+      ];
+    });
+
+    // ---- 4. CASH IN (manual + any other source recorded today) ----
+    const cashInToday = cashTxSafe.filter((t) => t.type === "IN" && isEntryOnDate(t, todayStrLocal));
+    const totalCashIn = cashInToday.reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
+    const cashInRows = cashInToday.map((t) => [
+      t.timestamp?.toDate ? t.timestamp.toDate().toLocaleTimeString() : "—",
+      t.source || "N/A",
+      t.recordedBy || "N/A",
+      `INR ${parseFloat(t.amount || 0).toLocaleString("en-IN")}`
+    ]);
+
+    // ---- 5. CASH OUT (manual + Javak advances already in cashTransactions +
+    //         Aavak installment settlements on OLDER bills paid today, which
+    //         live only inside cottonEntries.installmentLogs). ----
+    const manualCashOutToday = cashTxSafe.filter((t) => t.type !== "IN" && isEntryOnDate(t, todayStrLocal));
+
+    const olderBillInstallmentsToday = [];
+    aavakEntriesSafe.forEach((entry) => {
+      (entry.installmentLogs || []).forEach((log) => {
+        if (log.date === todayStrLocal) {
+          olderBillInstallmentsToday.push({
+            amount: parseFloat(log.amount || 0) || 0,
+            recipient: entry.Name || entry.farmerName || "FARMER",
+            recordedBy: log.operator || "Staff",
+            time: log.time || "—",
+            tokenNo: entry.tokenNo || entry.id
+          });
+        }
+      });
+    });
+
+    const totalJavakAdvanceFromCash = manualCashOutToday
+      .filter((t) => t.source === "JAVAK")
+      .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
+    const totalOlderBillInstallments = olderBillInstallmentsToday.reduce((acc, r) => acc + r.amount, 0);
+    const totalCashOut = manualCashOutToday.reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0) + totalOlderBillInstallments;
+
+    const cashOutRows = [
+      ...manualCashOutToday.map((t) => [
+        t.timestamp?.toDate ? t.timestamp.toDate().toLocaleTimeString() : "—",
+        t.source === "JAVAK" ? "JAVAK ADVANCE" : "CASH OUT",
+        t.recipient || t.personName || "N/A",
+        t.reason || "N/A",
+        t.recordedBy || "N/A",
+        `INR ${parseFloat(t.amount || 0).toLocaleString("en-IN")}`
+      ]),
+      ...olderBillInstallmentsToday.map((r) => [
+        r.time,
+        "AAVAK INSTALLMENT",
+        r.recipient,
+        `OLDER BILL SETTLEMENT — TOKEN ${r.tokenNo}`,
+        r.recordedBy,
+        `INR ${r.amount.toLocaleString("en-IN")}`
+      ])
+    ];
+
+    const netCashMovementToday = totalCashIn - totalCashOut;
+
+    // ---- PDF assembly ----
     const docRef = new jsPDF();
+    const pageWidth = docRef.internal.pageSize.width;
+    const pageHeight = docRef.internal.pageSize.height;
 
     docRef.setFillColor(15, 23, 42);
     docRef.rect(0, 0, 210, 40, "F");
@@ -499,9 +650,9 @@ export default function Dashboard({ currentUser }) {
 
     const startY = 50;
     docRef.setFillColor(248, 250, 252);
-    docRef.rect(14, startY, 182, 35, "F");
+    docRef.rect(14, startY, 182, 48, "F");
     docRef.setDrawColor(226, 232, 240);
-    docRef.rect(14, startY, 182, 35, "S");
+    docRef.rect(14, startY, 182, 48, "S");
 
     docRef.setTextColor(15, 23, 42);
     docRef.setFontSize(10);
@@ -512,40 +663,128 @@ export default function Dashboard({ currentUser }) {
     docRef.setFontSize(9);
     docRef.text(`Total Pattis Generated: ${totalPattis}`, 20, startY + 16);
     docRef.text(`Acc. Weight Received: ${totalAccumulatedWeight.toLocaleString("en-IN")} kg`, 20, startY + 22);
-    docRef.text(`Gross Outflow:        INR ${grossOutflowCommitted.toLocaleString("en-IN")}`, 20, startY + 28);
+    docRef.text(`Gross Outflow (Aavak): INR ${grossOutflowCommitted.toLocaleString("en-IN")}`, 20, startY + 28);
+    docRef.text(`Javak Advances Given: INR ${totalJavakAdvance.toLocaleString("en-IN")}`, 20, startY + 34);
+    docRef.text(`RTGS Entries Today: ${rtgsToday.length}`, 20, startY + 40);
 
-    docRef.text(`Realized Paid Today: INR ${realizedOutflowPaid.toLocaleString("en-IN")}`, 110, startY + 16);
+    docRef.text(`Realized Paid Today (Aavak): INR ${realizedOutflowPaid.toLocaleString("en-IN")}`, 110, startY + 16);
     docRef.setFont("Helvetica", "bold");
-    docRef.text(`Outstanding Credit:  INR ${remainingOutstandingLiability.toLocaleString("en-IN")}`, 110, startY + 22);
+    docRef.text(`Outstanding Credit: INR ${remainingOutstandingLiability.toLocaleString("en-IN")}`, 110, startY + 22);
+    docRef.setFont("Helvetica", "normal");
+    docRef.text(`Total Cash In: INR ${totalCashIn.toLocaleString("en-IN")}`, 110, startY + 28);
+    docRef.text(`Total Cash Out (All Sources): INR ${totalCashOut.toLocaleString("en-IN")}`, 110, startY + 34);
+    docRef.setFont("Helvetica", "bold");
+    docRef.text(`Net Cash Movement: INR ${netCashMovementToday.toLocaleString("en-IN")}`, 110, startY + 40);
 
-    autoTable(docRef, {
-      startY: startY + 45,
-      head: [["Token No", "Farmer Name", "Net Wt", "Net Amount", "Paid Today", "Remaining"]],
-      body: rows,
-      theme: "striped",
-      headStyles: {
-        fillColor: [30, 41, 59],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        fontSize: 9
-      },
-      bodyStyles: {
-        fontSize: 8,
-        textColor: [51, 65, 85]
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      styles: {
-        lineColor: [241, 245, 249],
-        lineWidth: 0.5
+    let cursorY = startY + 48;
+
+    const ensureSpace = (needed) => {
+      if (cursorY + needed > pageHeight - 30) {
+        docRef.addPage();
+        cursorY = 20;
       }
-    });
+    };
 
-    const finalY = docRef.lastAutoTable.finalY || startY + 90;
-    const pageHeight = docRef.internal.pageSize.height;
+    const addSectionTitle = (title) => {
+      ensureSpace(14);
+      docRef.setTextColor(15, 23, 42);
+      docRef.setFont("Helvetica", "bold");
+      docRef.setFontSize(10);
+      docRef.text(title, 14, cursorY + 8);
+      cursorY += 12;
+    };
 
-    let sigY = finalY + 25;
+    const addEmptyNote = (text) => {
+      docRef.setFont("Helvetica", "italic");
+      docRef.setFontSize(8);
+      docRef.setTextColor(148, 163, 184);
+      docRef.text(text, 14, cursorY);
+      cursorY += 8;
+    };
+
+    const addSectionTable = (head, body, headColor) => {
+      ensureSpace(20);
+      autoTable(docRef, {
+        startY: cursorY,
+        head: [head],
+        body,
+        theme: "striped",
+        headStyles: {
+          fillColor: headColor,
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 8
+        },
+        bodyStyles: {
+          fontSize: 7.5,
+          textColor: [51, 65, 85]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        styles: {
+          lineColor: [241, 245, 249],
+          lineWidth: 0.5
+        },
+        margin: { left: 14, right: 14 }
+      });
+      cursorY = (docRef.lastAutoTable.finalY || cursorY) + 10;
+    };
+
+    cursorY += 8;
+
+    addSectionTitle("AAVAK PATTIS GENERATED TODAY");
+    if (pattiRows.length > 0) {
+      addSectionTable(
+        ["Token No", "Farmer Name", "Net Wt", "Net Amount", "Paid Today", "Remaining"],
+        pattiRows,
+        [30, 41, 59]
+      );
+    } else {
+      addEmptyNote("No Aavak pattis were generated on this date.");
+    }
+
+    addSectionTitle("RTGS TRANSACTIONS TODAY (MAKER AMOUNT / CHEQUE STATUS)");
+    if (rtgsRows.length > 0) {
+      addSectionTable(
+        ["Token No", "Farmer Name", "Amount", "Maker Paid", "Balance", "Status"],
+        rtgsRows,
+        [79, 70, 229]
+      );
+    } else {
+      addEmptyNote("No RTGS transactions recorded on this date.");
+    }
+
+    addSectionTitle("JAVAK DISPATCH & DRIVER ADVANCES TODAY");
+    if (javakRows.length > 0) {
+      addSectionTable(
+        ["Gate Pass No", "Vehicle No", "Destination", "Commodity", "Advance Given"],
+        javakRows,
+        [217, 119, 6]
+      );
+    } else {
+      addEmptyNote("No Javak gate passes were issued on this date.");
+    }
+
+    addSectionTitle("CASH IN TODAY");
+    if (cashInRows.length > 0) {
+      addSectionTable(["Time", "Source", "Recorded By", "Amount"], cashInRows, [16, 185, 129]);
+    } else {
+      addEmptyNote("No Cash In transactions recorded on this date.");
+    }
+
+    addSectionTitle("CASH OUT TODAY (INCLUDING JAVAK ADVANCES & OLDER-BILL AAVAK SETTLEMENTS)");
+    if (cashOutRows.length > 0) {
+      addSectionTable(
+        ["Time", "Type", "Paid To", "Reason", "Recorded By", "Amount"],
+        cashOutRows,
+        [220, 38, 38]
+      );
+    } else {
+      addEmptyNote("No Cash Out transactions recorded on this date.");
+    }
+
+    let sigY = cursorY + 20;
     if (sigY > pageHeight - 30) {
       docRef.addPage();
       sigY = 40;
@@ -580,7 +819,7 @@ export default function Dashboard({ currentUser }) {
                 className="bg-transparent text-xs font-bold font-mono px-2 py-1.5 focus:outline-none text-slate-700 dark:text-slate-300 border-none rounded-lg"
               />
               <button
-                onClick={() => generateEODReport(rawData.aavak, eodDate)}
+                onClick={() => generateEODReport(rawData.aavak, rawData.javak, rawCashTransactions, eodDate)}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 uppercase tracking-wide shadow-sm cursor-pointer"
               >
                 <span>DAILY REPORT</span>
