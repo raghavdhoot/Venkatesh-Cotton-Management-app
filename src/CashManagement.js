@@ -56,6 +56,12 @@ export default function CashManagement({ currentUser }) {
   const [todayClosure, setTodayClosure] = useState(null);
   const [maturedEntries, setMaturedEntries] = useState([]);
   const [forecastDate, setForecastDate] = useState(todayStr);
+  // Raw Aavak entries, kept only so we can pull out installmentLogs — these
+  // are payments made TODAY settling balance on bills booked on an EARLIER
+  // date. Aavak.js writes them straight onto the cottonEntries doc and never
+  // mirrors them into 'cashTransactions', so without this they were
+  // completely invisible to Cash Management / the EOD report.
+  const [aavakEntries, setAavakEntries] = useState([]);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -69,6 +75,24 @@ export default function CashManagement({ currentUser }) {
       setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
+  }, [isAuthorized]);
+
+  // Pulls every Aavak entry so its installmentLogs (older-bill settlements)
+  // can be folded into the cash ledger below. Full-collection listen is
+  // deliberate: there's no indexable field to filter "has an installment
+  // paid today" server-side since installmentLogs is a nested array.
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const unsubscribeAavak = onSnapshot(
+      collection(db, "cottonEntries"),
+      (snapshot) => {
+        setAavakEntries(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (err) => {
+        console.error("Error loading Aavak entries for installment sync:", err);
+      }
+    );
+    return () => unsubscribeAavak();
   }, [isAuthorized]);
 
   // Maturity Forecast now queries whichever date is selected via the calendar
@@ -135,6 +159,67 @@ export default function CashManagement({ currentUser }) {
       unsubLatestClosure();
     };
   }, [isAuthorized]);
+
+  // Flatten every Aavak entry's installmentLogs into transaction-shaped rows
+  // so older-bill settlements paid today sit in the same ledger as normal
+  // cash transactions and Javak advances.
+  const installmentTransactions = React.useMemo(() => {
+    const rows = [];
+    aavakEntries.forEach((entry) => {
+      (entry.installmentLogs || []).forEach((log, idx) => {
+        rows.push({
+          id: `aavak-installment-${entry.id}-${idx}`,
+          type: "OUT",
+          amount: parseFloat(log.amount || 0) || 0,
+          recipient: entry.Name || entry.farmerName || "FARMER",
+          reason: `AAVAK INSTALLMENT — TOKEN ${entry.tokenNo || entry.id} (OLDER BILL SETTLEMENT)`,
+          recordedBy: log.operator || "Staff",
+          source: "AAVAK_INSTALLMENT",
+          _logDate: log.date || null,
+          displayTimestamp: log.date ? `${log.date} ${log.time || ""}`.trim() : "PENDING",
+          isSynthetic: true
+        });
+      });
+    });
+    return rows;
+  }, [aavakEntries]);
+
+  // Everything that should count as "money moving through the drawer" —
+  // manual cash entries, Javak advances (already written into
+  // cashTransactions by Javak.js), and Aavak installment settlements — merged
+  // into one ledger so nothing silently falls outside the EOD report.
+  const combinedTransactions = React.useMemo(() => {
+    const getSortKey = (t) => {
+      if (t.timestamp && typeof t.timestamp.toDate === "function") {
+        try { return t.timestamp.toDate().getTime(); } catch (e) { /* fall through */ }
+      }
+      if (t._logDate) {
+        const parsed = Date.parse(t._logDate);
+        return isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    };
+    return [...transactions, ...installmentTransactions].sort((a, b) => getSortKey(b) - getSortKey(a));
+  }, [transactions, installmentTransactions]);
+
+  // Robust "is this today" check. Doc IDs no longer reliably encode a date
+  // (Javak/Aavak doc IDs are now [Token/Bill No.]-[Amount/Destination], with
+  // no date component), so the date field / timestamp are checked first and
+  // the old id-substring check is kept only as a last-resort fallback for
+  // legacy manual cash entries.
+  const isTransactionToday = (t) => {
+    if (t._logDate) return t._logDate === todayStr;
+    if (t.date && typeof t.date === "string") return t.date === todayStr;
+    if (t.timestamp && typeof t.timestamp.toDate === "function") {
+      try {
+        return formatDate(t.timestamp.toDate()) === todayStr;
+      } catch (e) {
+        // fall through to id check
+      }
+    }
+    if (t.id && t.id.includes(todayStr)) return true;
+    return false;
+  };
 
   useEffect(() => {
     if (statusMessage.text) {
@@ -229,26 +314,19 @@ export default function CashManagement({ currentUser }) {
     }
   };
 
-  const totalIn = transactions
+  // All-time totals now run over combinedTransactions (cashTransactions +
+  // Javak advances already inside it + Aavak installment settlements) since
+  // installment payouts are real cash leaving the same drawer, not a
+  // separate ledger.
+  const totalIn = combinedTransactions
     .filter((t) => t.type === "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
-  const totalOut = transactions
+  const totalOut = combinedTransactions
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
   const balance = totalIn - totalOut;
 
-  const todayTransactions = transactions.filter((t) => {
-    if (t.id && t.id.includes(todayStr)) return true;
-    if (t.timestamp) {
-      try {
-        const date = t.timestamp.toDate();
-        return formatDate(date) === todayStr;
-      } catch (e) {
-        return false;
-      }
-    }
-    return false;
-  });
+  const todayTransactions = combinedTransactions.filter(isTransactionToday);
 
   const todayIn = todayTransactions
     .filter((t) => t.type === "IN")
@@ -256,6 +334,15 @@ export default function CashManagement({ currentUser }) {
   const todayOut = todayTransactions
     .filter((t) => t.type !== "IN")
     .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+
+  // Breakdown shown on the EOD card so Javak advances and Aavak installment
+  // settlements are visibly, not just silently, folded into today's totals.
+  const todayJavakAdvanceTotal = todayTransactions
+    .filter((t) => t.source === "JAVAK")
+    .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
+  const todayAavakInstallmentTotal = todayTransactions
+    .filter((t) => t.source === "AAVAK_INSTALLMENT")
+    .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
 
   const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
 
@@ -274,6 +361,11 @@ export default function CashManagement({ currentUser }) {
         openingBalance: parseFloat(String(openingBalance)) || 0,
         totalCashIn: parseFloat(String(todayIn)) || 0,
         totalCashOut: parseFloat(String(todayOut)) || 0,
+        // Breakdown so it's clear Javak advances and older-bill Aavak
+        // installment settlements were actually included in totalCashOut
+        // above, not silently dropped.
+        javakAdvancesToday: parseFloat(String(todayJavakAdvanceTotal)) || 0,
+        aavakInstallmentsToday: parseFloat(String(todayAavakInstallmentTotal)) || 0,
         expectedClosingBalance: parseFloat(String(expectedClosingBalance)) || 0,
         closingBalance: parseFloat(String(expectedClosingBalance)) || 0,
         closedBy: currentUser?.name || "ADMIN",
@@ -310,15 +402,15 @@ export default function CashManagement({ currentUser }) {
       const headers = [["Timestamp", "Type", "Details", "Reason / Description", "Amount (INR)"]];
       
       let tableRows = [];
-      if (transactions.length === 0) {
+      if (combinedTransactions.length === 0) {
         tableRows = [
           ["_______", "_______", "_______", "_______", "_______"]
         ];
       } else {
-        tableRows = transactions.map((t) => {
-          const timestampStr = t.timestamp?.toDate()
+        tableRows = combinedTransactions.map((t) => {
+          const timestampStr = t.timestamp?.toDate
             ? t.timestamp.toDate().toLocaleString()
-            : "_______";
+            : (t.displayTimestamp || "_______");
           
           const typeStr = t.type === "IN" ? "IN" : "OUT";
           
@@ -326,7 +418,7 @@ export default function CashManagement({ currentUser }) {
           if (t.type === "IN") {
             detailsStr = `FROM: ${t.source || "_______"}`;
           } else {
-            detailsStr = `TO: ${t.recipient || "_______"}`;
+            detailsStr = `TO: ${t.recipient || t.personName || "_______"}`;
           }
           if (t.recordedBy) {
             detailsStr += ` (BY: ${t.recordedBy})`;
@@ -691,6 +783,26 @@ export default function CashManagement({ currentUser }) {
             </div>
           </div>
         )}
+
+        {/* Breakdown so Javak advances and Aavak older-bill installment
+            settlements are visibly folded into today's totals above, rather
+            than silently summed with no trace. */}
+        {(todayJavakAdvanceTotal > 0 || todayAavakInstallmentTotal > 0) && (
+          <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-100 dark:border-amber-900/40">
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">Included: Javak Advances Today</span>
+              <p className="text-base font-black text-amber-700 dark:text-amber-400 pt-1">
+                ₹{todayJavakAdvanceTotal.toLocaleString()}
+              </p>
+            </div>
+            <div className="p-3 bg-sky-50 dark:bg-sky-950/20 rounded-lg border border-sky-100 dark:border-sky-900/40">
+              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider block">Included: Aavak Installments (Older Bills) Today</span>
+              <p className="text-base font-black text-sky-700 dark:text-sky-400 pt-1">
+                ₹{todayAavakInstallmentTotal.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card !p-0 overflow-hidden">
@@ -723,10 +835,10 @@ export default function CashManagement({ currentUser }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {transactions.map((t) => (
+              {combinedTransactions.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-6 py-4 text-[10px] font-mono text-slate-500 dark:text-slate-400 uppercase">
-                    {t.timestamp?.toDate().toLocaleString() || "PENDING"}
+                    {t.timestamp?.toDate ? t.timestamp.toDate().toLocaleString() : (t.displayTimestamp || "PENDING")}
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -738,10 +850,16 @@ export default function CashManagement({ currentUser }) {
                     >
                       {t.type === "IN" ? "IN" : "OUT"}
                     </span>
+                    {t.source === "JAVAK" && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Javak</span>
+                    )}
+                    {t.source === "AAVAK_INSTALLMENT" && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">Aavak</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-xs font-bold text-slate-900 dark:text-white uppercase">
-                      {t.type === "IN" ? `From: ${t.source}` : `To: ${t.recipient}`}
+                      {t.type === "IN" ? `From: ${t.source}` : `To: ${t.recipient || t.personName || "N/A"}`}
                     </p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">
                       By: {t.recordedBy}
@@ -759,16 +877,22 @@ export default function CashManagement({ currentUser }) {
                     {(parseFloat(t.amount || t.amountPaid || 0) || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      className="text-slate-300 hover:text-red-600 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {t.isSynthetic ? (
+                      <span className="text-[9px] text-slate-300 dark:text-slate-600 uppercase font-bold" title="Edit this from the Aavak installment log instead — it isn't a standalone cash entry.">
+                        —
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="text-slate-300 hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
-              {transactions.length === 0 && (
+              {combinedTransactions.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 italic text-sm">
                     No transactions recorded yet.
