@@ -68,12 +68,21 @@ function Aavak({ currentUser }) {
 
     const commodityOptions = ['KAPAS', 'SOYABEAN', 'CHANA', 'TUAAR', 'WHEAT'];
 
+    // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
+    // e.g. MH-26-AB-1991, MH-26-A-123, MH-26-ABC-12345 is NOT valid (5 digits) etc.
+    const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
+    const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
+
     const formatVehicleNoInput = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        if (cleaned.length <= 2) return cleaned;
-        if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`;
-        if (cleaned.length <= 6) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4)}`;
-        return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
+        // Segment the raw characters the way they naturally alternate in a plate
+        // (letters, digits, letters, digits) instead of forcing fixed slice
+        // lengths — this lets the series be 1-3 letters and the number be
+        // 1-4 digits, matching VEHICLE_NO_REGEX, rather than always 2 and 4.
+        const match = cleaned.match(/^([A-Z]{1,2})([0-9]{1,2})?([A-Z]{1,3})?([0-9]{1,4})?/);
+        if (!match) return cleaned;
+        const [, state, rto, series, number] = match;
+        return [state, rto, series, number].filter(Boolean).join('-');
     };
 
     useEffect(() => {
@@ -320,6 +329,11 @@ function Aavak({ currentUser }) {
                 setIsRtgsModalOpen(true);
                 return;
             }
+        }
+
+        if (!isValidVehicleNo(vehicleNo)) {
+            setStatusMessage({ text: 'Invalid Vehicle No. format. Use e.g. MH-26-AB-1991', type: 'error' });
+            return;
         }
 
         setStatusMessage({ text: 'Saving...', type: 'info' });
@@ -929,7 +943,10 @@ function Aavak({ currentUser }) {
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-5 p-5 bg-indigo-50/40 dark:bg-indigo-950/10 rounded-xl border border-indigo-100/50 dark:border-indigo-950/20">
                                     <div className="md:col-span-2">
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Vehicle No *</label>
-                                        <input type="text" className="input-field uppercase font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={vehicleNo} onChange={(e) => setVehicleNo(formatVehicleNoInput(e.target.value))} placeholder="MH-26-H-1991" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        <input type="text" className={`input-field uppercase font-mono dark:bg-slate-800 dark:text-white ${vehicleNo && !isValidVehicleNo(vehicleNo) ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`} value={vehicleNo} onChange={(e) => setVehicleNo(formatVehicleNoInput(e.target.value))} placeholder="MH-26-H-1991" pattern="^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$" title="Format: AA-00-A-0000 (e.g. MH-26-AB-1991)" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        {vehicleNo && !isValidVehicleNo(vehicleNo) && (
+                                            <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">Format: AA-00-A-0000 (e.g. MH-26-AB-1991)</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Gross Weight * (kg)</label>

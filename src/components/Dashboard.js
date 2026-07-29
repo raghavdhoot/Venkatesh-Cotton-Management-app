@@ -18,7 +18,6 @@ import {
   Calendar,
   User,
   MapPin,
-  AlertTriangle,
   Clock,
   Share2,
   Calculator,
@@ -103,7 +102,6 @@ export default function Dashboard({ currentUser }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [bardanaStock, setBardanaStock] = useState(0);
   const [bardanaBreakdown, setBardanaBreakdown] = useState({});
-  const [showAlert, setShowAlert] = useState(false);
   const [adminNotes, setAdminNotes] = useState([]);
   const [adminTasks, setAdminTasks] = useState([]);
   const [rateChart, setRateChart] = useState([]);
@@ -252,12 +250,9 @@ export default function Dashboard({ currentUser }) {
       });
       setBardanaStock(totalGunny);
       setBardanaBreakdown(breakdown);
-
-      if (totalGunny < 100) {
-        setShowAlert(true);
-      } else {
-        setShowAlert(false);
-      }
+      // Low-stock (<100 units) notification trigger disabled per request —
+      // the red stock indicators below still reflect the low-stock state,
+      // but the popup modal no longer fires.
     });
 
     const unsubscribeAavak = subscribeToAavak((data) => {
@@ -828,13 +823,13 @@ export default function Dashboard({ currentUser }) {
           )}
           <button
             onClick={() => setIsPeriodModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
+            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
           >
             <Calendar className="w-4 h-4" /> Period Summary
           </button>
           <button
             onClick={handleCopySummary}
-            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
+            className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase flex items-center gap-2 whitespace-nowrap tracking-wider"
           >
             <Share2 className="w-4 h-4" /> Copy Today
           </button>
@@ -953,46 +948,6 @@ export default function Dashboard({ currentUser }) {
           </div>
         )}
       </div>
-
-      <AnimatePresence>
-        {showAlert && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8, y: 50 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: 50 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border-4 border-red-500"
-            >
-              <div className="p-8 text-center space-y-6">
-                <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                  <AlertTriangle className="w-12 h-12 text-red-600 dark:text-red-400" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                    Stock Warning!
-                  </h3>
-                  <p className="text-slate-600 dark:text-slate-400 font-medium">Bardana stock is dangerously low!</p>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl border border-red-100 dark:border-red-800/50">
-                  <p className="text-sm text-red-600 dark:text-red-400 font-bold uppercase tracking-widest mb-1">
-                    Bardana Stock
-                  </p>
-                  <p className="text-5xl font-black text-red-700 dark:text-red-500">{bardanaStock}</p>
-                  <p className="text-xs text-red-400 dark:text-red-500/60 mt-2 font-semibold italic">
-                    Minimum required: 100 Bags
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowAlert(false)}
-                  className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-red-200 active:scale-95 text-lg uppercase tracking-widest"
-                >
-                  I Understand
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard

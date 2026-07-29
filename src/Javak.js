@@ -198,6 +198,12 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
+
+        if (!isValidVehicleNo(vehicleNumber)) {
+            setStatusMessage({ text: 'Invalid Vehicle No. format. Use e.g. MH-26-AB-9000', type: 'error' });
+            return;
+        }
+
         setStatusMessage({ text: 'Saving Gatepass record...', type: 'info' });
 
         const resolvedCommodity = commodity === 'OTHER_PRODUCTS' ? customCommodity.trim().toUpperCase() : commodity;
@@ -273,12 +279,20 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         }, 150);
     };
 
+    // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
+    const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
+    const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
+
     const formatVehicleNumber = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        if (cleaned.length <= 2) return cleaned;
-        if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}-${cleaned.slice(2)}`;
-        if (cleaned.length <= 6) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4)}`;
-        return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 10)}`;
+        // Segment the raw characters the way they naturally alternate in a plate
+        // (letters, digits, letters, digits) instead of forcing fixed slice
+        // lengths — this lets the series be 1-3 letters and the number be
+        // 1-4 digits, matching VEHICLE_NO_REGEX, rather than always 2 and 4.
+        const match = cleaned.match(/^([A-Z]{1,2})([0-9]{1,2})?([A-Z]{1,3})?([0-9]{1,4})?/);
+        if (!match) return cleaned;
+        const [, state, rto, series, number] = match;
+        return [state, rto, series, number].filter(Boolean).join('-');
     };
 
     const handleSelectEntry = (entry) => {
@@ -744,8 +758,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Vehicle Registration *</label>
                                         <div className="relative">
                                             <Truck className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                                            <input type="text" className="input-field pl-9 uppercase font-mono font-bold dark:bg-slate-800 dark:border-slate-700" value={vehicleNumber} onChange={(e) => setVehicleNumber(formatVehicleNumber(e.target.value))} required placeholder="MH-26-Y-9000" />
+                                            <input type="text" className={`input-field pl-9 uppercase font-mono font-bold dark:bg-slate-800 ${vehicleNumber && !isValidVehicleNo(vehicleNumber) ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`} value={vehicleNumber} onChange={(e) => setVehicleNumber(formatVehicleNumber(e.target.value))} required placeholder="MH-26-Y-9000" pattern="^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$" title="Format: AA-00-A-0000 (e.g. MH-26-AB-9000)" />
                                         </div>
+                                        {vehicleNumber && !isValidVehicleNo(vehicleNumber) && (
+                                            <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">Format: AA-00-A-0000 (e.g. MH-26-AB-9000)</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Cargo Destination *</label>
