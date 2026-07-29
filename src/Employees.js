@@ -19,6 +19,10 @@ function Employees({ currentUser }) {
 
     const isAdmin = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
 
+    // Strict 10-digit phone number format, applies to the Phone Number input below.
+    const PHONE_REGEX = /^[0-9]{10}$/;
+    const isValidPhone = (val) => PHONE_REGEX.test(val || '');
+
     useEffect(() => {
         if (statusMessage.text) {
             const timer = setTimeout(() => setStatusMessage({ text: '', type: '' }), 3000);
@@ -61,6 +65,11 @@ function Employees({ currentUser }) {
         e.preventDefault();
         if (!firstName.trim() || !lastName.trim() || !joiningYear || !phone.trim()) {
             setStatusMessage({ text: 'All fields (Name, Phone, Year) are compulsory', type: 'error' });
+            return;
+        }
+
+        if (!isValidPhone(phone)) {
+            setStatusMessage({ text: 'Phone number must be exactly 10 digits', type: 'error' });
             return;
         }
 
@@ -263,13 +272,19 @@ function Employees({ currentUser }) {
                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4" />
                                 <input 
                                     type="tel" 
-                                    className="input-field pl-10 dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                    className={`input-field pl-10 dark:bg-slate-800 dark:text-white ${phone && !isValidPhone(phone) ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`}
                                     value={phone} 
-                                    onChange={(e) => setPhone(e.target.value)} 
+                                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} 
                                     required 
+                                    pattern="^[0-9]{10}$"
+                                    title="Enter a valid 10-digit phone number"
+                                    maxLength={10}
                                     placeholder="e.g., 9876543210"
                                 />
                             </div>
+                            {phone && !isValidPhone(phone) && (
+                                <p className="text-[10px] font-bold text-red-500 uppercase tracking-wide">Enter a valid 10-digit phone number</p>
+                            )}
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-semibold text-slate-600 dark:text-slate-400">Year of Joining</label>

@@ -45,6 +45,14 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
     const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS', 'OIL TANKER', 'COCONUT HUSK'];
 
+    // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
+    const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
+    const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
+
+    // Strict 10-digit phone number format, applies to Driver Phone input below.
+    const PHONE_REGEX = /^[0-9]{10}$/;
+    const isValidPhone = (val) => PHONE_REGEX.test(val || '');
+
     useEffect(() => {
         const unsubscribe = subscribeToJavak((list) => {
             setEntries(list);
@@ -204,6 +212,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             return;
         }
 
+        if (driverPhone && !isValidPhone(driverPhone)) {
+            setStatusMessage({ text: 'Driver Phone must be exactly 10 digits', type: 'error' });
+            return;
+        }
+
         setStatusMessage({ text: 'Saving Gatepass record...', type: 'info' });
 
         const resolvedCommodity = commodity === 'OTHER_PRODUCTS' ? customCommodity.trim().toUpperCase() : commodity;
@@ -278,10 +291,6 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             window.print();
         }, 150);
     };
-
-    // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
-    const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
-    const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
 
     const formatVehicleNumber = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -855,7 +864,19 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                         </div>
                                         <div>
                                             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Driver Phone Number</label>
-                                            <input type="text" className="input-field dark:bg-slate-800" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="WhatsApp Contact" />
+                                            <input
+                                                type="text"
+                                                className={`input-field dark:bg-slate-800 ${driverPhone && !isValidPhone(driverPhone) ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : ''}`}
+                                                value={driverPhone}
+                                                onChange={(e) => setDriverPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
+                                                placeholder="WhatsApp Contact"
+                                                pattern="^[0-9]{10}$"
+                                                title="Enter a valid 10-digit phone number"
+                                                maxLength={10}
+                                            />
+                                            {driverPhone && !isValidPhone(driverPhone) && (
+                                                <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">Enter a valid 10-digit phone number</p>
+                                            )}
                                         </div>
                                     </div>
 
