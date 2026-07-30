@@ -73,11 +73,6 @@ function Aavak({ currentUser }) {
     const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
     const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
 
-    // Strict 10-digit phone number format, applies to Farmer Phone and RTGS
-    // Phone No. inputs below.
-    const PHONE_REGEX = /^[0-9]{10}$/;
-    const isValidPhone = (val) => PHONE_REGEX.test(val || '');
-
     const formatVehicleNoInput = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
         // Segment the raw characters the way they naturally alternate in a plate
@@ -150,7 +145,7 @@ function Aavak({ currentUser }) {
         setGrossAmount(entry.grossAmount || '');
         setHamaliDeduction(entry.hamaliDeduction || 0);
         setWeighmentDeduction(entry.weighmentDeduction || 1);
-        setNetAmount(entry.netAmount || '');
+        setNetAmount(entry.netAmount !== undefined && entry.netAmount !== null && entry.netAmount !== '' ? Math.round(entry.netAmount) : '');
         setPaymentMode(entry.paymentMode || 'CASH');
         setAmountPaid(entry.amountPaid || '');
         setBalanceAmount(entry.balanceAmount || '');
@@ -291,7 +286,7 @@ function Aavak({ currentUser }) {
             setHamaliDeduction(parseFloat(hamali.toFixed(2)));
             setWeighmentDeduction(parseFloat(weighment.toFixed(2)));
             const netAmt = parsedGrossAmt - hamali - weighment;
-            setNetAmount(parseFloat(netAmt.toFixed(2)));
+            setNetAmount(Math.round(netAmt));
         } else {
             setHamaliDeduction(0);
             setWeighmentDeduction(0);
@@ -327,16 +322,6 @@ function Aavak({ currentUser }) {
         
         if (!isNewEntry && !currentEntryId) return;
 
-        if (!isValidVehicleNo(vehicleNo)) {
-            setStatusMessage({ text: 'Invalid Vehicle No. format. Use e.g. MH-26-AB-1991', type: 'error' });
-            return;
-        }
-
-        if (farmerPhone && !isValidPhone(farmerPhone)) {
-            setStatusMessage({ text: 'Farmer Phone must be exactly 10 digits', type: 'error' });
-            return;
-        }
-
         if (paymentMode === 'RTGS') {
             const { bankName, accountNumber, accountHolderName, ifscCode, phoneNo } = rtgsDetails;
             if (!bankName || !accountNumber || !accountHolderName || !ifscCode || !phoneNo) {
@@ -344,11 +329,11 @@ function Aavak({ currentUser }) {
                 setIsRtgsModalOpen(true);
                 return;
             }
-            if (!isValidPhone(phoneNo)) {
-                setStatusMessage({ text: 'RTGS Phone No. must be exactly 10 digits', type: 'error' });
-                setIsRtgsModalOpen(true);
-                return;
-            }
+        }
+
+        if (!isValidVehicleNo(vehicleNo)) {
+            setStatusMessage({ text: 'Invalid Vehicle No. format. Use e.g. MH-26-AB-1991', type: 'error' });
+            return;
         }
 
         setStatusMessage({ text: 'Saving...', type: 'info' });
@@ -373,7 +358,7 @@ function Aavak({ currentUser }) {
             grossAmount: grossAmount !== '' ? parseFloat(grossAmount) : null,
             hamaliDeduction: parseFloat(hamaliDeduction),
             weighmentDeduction: parseFloat(weighmentDeduction),
-            netAmount: netAmount !== '' ? parseFloat(netAmount) : null,
+            netAmount: netAmount !== '' ? Math.round(parseFloat(netAmount)) : null,
             paymentMode: paymentMode,
             rtgsDetails: paymentMode === 'RTGS' ? {
                 bankName: rtgsDetails.bankName ? rtgsDetails.bankName.toUpperCase() : '',
@@ -439,7 +424,7 @@ function Aavak({ currentUser }) {
             "Tare Weight": entry.tareWt || '',
             "Net Weight": entry.netWt || '',
             "Rate": entry.rate || '',
-            "Net Amount": entry.netAmount || '',
+            "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : '',
             "Amount Paid": entry.amountPaid || '',
             "Balance": entry.balanceAmount || '',
             "Payment Mode": entry.paymentMode || '',
@@ -503,7 +488,7 @@ function Aavak({ currentUser }) {
             "Farmer Name": entry.Name || '',
             "Village": entry.Village || '',
             "Net Wt (kg)": entry.netWtAfterDeduction || entry.netWt || '',
-            "Net Amount": entry.netAmount || ''
+            "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : ''
         }));
         const worksheet = XLSX.utils.json_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
@@ -793,7 +778,7 @@ function Aavak({ currentUser }) {
                                         <div className="summary-inner">
                                             <div className="summary-row">
                                                 <span>NET PAYABLE</span>
-                                                <strong>{printableAavak.netAmount || 0}</strong>
+                                                <strong>{Math.round(printableAavak.netAmount || 0)}</strong>
                                             </div>
                                             <div className="summary-row">
                                                 <span>AMOUNT PAID</span>
@@ -846,7 +831,7 @@ function Aavak({ currentUser }) {
                                     <td>{entry.Name}</td>
                                     <td>{entry.Village}</td>
                                     <td>{entry.netWtAfterDeduction || entry.netWt}</td>
-                                    <td>{entry.netAmount}</td>
+                                    <td>{Math.round(entry.netAmount || 0)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -947,20 +932,7 @@ function Aavak({ currentUser }) {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Farmer Phone</label>
-                                        <input
-                                            type="text"
-                                            className={`input-field dark:bg-slate-800 dark:text-white ${farmerPhone && !isValidPhone(farmerPhone) ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`}
-                                            value={farmerPhone}
-                                            onChange={(e) => setFarmerPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-                                            placeholder="e.g. 9876543210"
-                                            pattern="^[0-9]{10}$"
-                                            title="Enter a valid 10-digit phone number"
-                                            maxLength={10}
-                                            disabled={hasTareWtBeenEntered && !isNewEntry}
-                                        />
-                                        {farmerPhone && !isValidPhone(farmerPhone) && (
-                                            <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">Enter a valid 10-digit phone number</p>
-                                        )}
+                                        <input type="text" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={farmerPhone} onChange={(e) => setFarmerPhone(e.target.value)} placeholder="e.g. 9876543210" disabled={hasTareWtBeenEntered && !isNewEntry} />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Village *</label>
@@ -1043,7 +1015,7 @@ function Aavak({ currentUser }) {
                                             </div>
                                             <div className="md:col-span-2 border-l border-slate-200 dark:border-slate-700 pl-5">
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold mb-1">Final Net Payable</span>
-                                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400"> {netAmount || '0.00'}</span>
+                                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400"> {netAmount !== '' ? Math.round(netAmount) : '0'}</span>
                                             </div>
                                         </div>
 
@@ -1145,7 +1117,7 @@ function Aavak({ currentUser }) {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-xs font-bold font-mono text-slate-900 dark:text-white">
-                                                         {entry.amountPaid} <span className="text-[10px] text-slate-400">/   {entry.netAmount}</span>
+                                                         {entry.amountPaid} <span className="text-[10px] text-slate-400">/   {Math.round(entry.netAmount || 0)}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
@@ -1303,17 +1275,12 @@ function Aavak({ currentUser }) {
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Phone No *</label>
                                         <input
                                             type="text"
-                                            className={`input-field font-mono dark:bg-slate-800 dark:text-white ${rtgsDetails.phoneNo && !isValidPhone(rtgsDetails.phoneNo) ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`}
+                                            className="input-field font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                                             placeholder="e.g. 9876543210"
                                             value={rtgsDetails.phoneNo}
-                                            onChange={(e) => handleRtgsDetailChange('phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-                                            pattern="^[0-9]{10}$"
-                                            title="Enter a valid 10-digit phone number"
+                                            onChange={(e) => handleRtgsDetailChange('phoneNo', e.target.value.replace(/[^0-9]/g, ''))}
                                             maxLength={10}
                                         />
-                                        {rtgsDetails.phoneNo && !isValidPhone(rtgsDetails.phoneNo) && (
-                                            <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">Enter a valid 10-digit phone number</p>
-                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1452,7 +1419,7 @@ function Aavak({ currentUser }) {
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Bill Amount</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white"> {paymentHistoryEntry.netAmount}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white"> {Math.round(paymentHistoryEntry.netAmount || 0)}</p>
                                 </div>
                                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-center">
                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Paid till Date</p>
@@ -1469,7 +1436,7 @@ function Aavak({ currentUser }) {
                                 <div className="max-h-40 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                                     <div className="p-3 bg-slate-50 dark:bg-slate-800/10 flex justify-between items-center text-xs font-semibold">
                                         <span className="text-slate-400">Advance/Initial Bill Payment</span>
-                                        <span className="text-slate-900 dark:text-white font-mono font-bold"> {paymentHistoryEntry.netAmount - paymentHistoryEntry.balanceAmount - (paymentHistoryEntry.installmentLogs || []).reduce((acc, pay) => acc + (pay.amount || 0), 0)}</span>
+                                        <span className="text-slate-900 dark:text-white font-mono font-bold"> {Math.round(paymentHistoryEntry.netAmount - paymentHistoryEntry.balanceAmount - (paymentHistoryEntry.installmentLogs || []).reduce((acc, pay) => acc + (pay.amount || 0), 0))}</span>
                                     </div>
                                     {(paymentHistoryEntry.installmentLogs || []).map((install, idx) => (
                                         <div key={idx} className="p-3 flex justify-between items-center text-xs">
