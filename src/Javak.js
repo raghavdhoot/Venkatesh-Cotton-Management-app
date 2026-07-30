@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, getDocs, documentId, where, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet, Download } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
@@ -50,6 +50,20 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     // that commodity — hidden from the form and cleared out whenever BALES
     // is selected, so a stale value never gets silently saved.
     const isBardanaSutliApplicable = commodity !== 'BALES';
+
+    // Inline validation errors for the Bardana/Sutli guardrail, keyed by
+    // field name ('bardana' | 'sutli'). Populated only on submit attempts
+    // that fail the No. of Bags <= Bardana <= Sutli check for non-cotton
+    // commodities; cleared as soon as the person edits any of the three
+    // numbers so a fixed value doesn't keep showing a stale error.
+    const [fieldErrors, setFieldErrors] = useState({});
+
+    useEffect(() => {
+        if (Object.keys(fieldErrors).length > 0) {
+            setFieldErrors({});
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [numberOfBags, bardana, sutli, commodity]);
 
     // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
     const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
@@ -141,32 +155,72 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setIsCameraActive(false);
     };
 
+    // Auto-routes any Bardana/Sutli quantity on this Javak entry straight
+    // into the Bardana panel's own pipeline: same 'bardana' collection,
+    // same field schema (itemName, quantity, personName, employeeName,
+    // type, entryMaker, timestamp) and the same DATE-SERIAL doc ID scheme
+    // Bardana.js's own form uses — so these OUT movements interleave
+    // correctly in "Recent Transactions" and count toward "Current Bardana
+    // Stock" instead of living in a separate, invisible ID namespace.
+    // Previously saved entries route lacked a `timestamp` field, which
+    // Bardana.js's orderBy('timestamp') query silently excludes — so this
+    // also fixes those movements never showing up in the Bardana panel.
     const syncBardanaStockOut = async (entryId, payload) => {
+        // Clear out anything previously routed from this Javak entry first,
+        // so edits/re-saves never leave duplicate or stale stock movements
+        // behind in the shared Bardana pipeline.
+        try {
+            const existingQuery = query(
+                collection(db, 'bardana'),
+                where('source', '==', 'JAVAK'),
+                where('sourceEntryId', '==', entryId)
+            );
+            const existingSnap = await getDocs(existingQuery);
+            await Promise.all(existingSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
+        } catch (err) {
+            console.error('Error clearing previous Javak Bardana sync entries:', err);
+        }
+
         const stockRows = [
-            { id: 'bardana', itemName: 'BARDANA', quantity: payload.bardana },
-            { id: 'sutli', itemName: 'SUTLI', quantity: payload.sutli }
+            { itemName: 'BARDANA', quantity: payload.bardana },
+            { itemName: 'SUTLI', quantity: payload.sutli }
         ];
 
-        await Promise.all(stockRows.map(async (row) => {
-            const stockDocRef = doc(db, 'bardana', `javak_${entryId}_${row.id}`);
-            const quantity = parseFloat(row.quantity || 0);
+        for (const row of stockRows) {
+            const quantity = parseInt(row.quantity, 10) || 0;
+            if (quantity <= 0) continue;
 
-            if (quantity > 0) {
-                await setDoc(stockDocRef, {
-                    itemName: row.itemName,
-                    quantity,
-                    type: 'OUT',
-                    personName: payload.driverName || payload.destination || 'JAVAK DISPATCH',
-                    employeeName: currentUser?.name || 'Staff',
-                    source: 'JAVAK',
-                    sourceEntryId: entryId,
-                    date: payload.date || new Date().toLocaleDateString('en-CA'),
-                    updatedAt: serverTimestamp()
-                }, { merge: true });
-            } else {
-                await deleteDoc(stockDocRef).catch(() => {});
-            }
-        }));
+            // Mirrors Bardana.js's own ID generator: count today's existing
+            // docs (by ID range, since Firestore has no native date-prefix
+            // query) and take the next serial for the day.
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            const startId = `${dateStr}-00`;
+            const endId = `${dateStr}-99`;
+            const dateQuery = query(
+                collection(db, 'bardana'),
+                where(documentId(), '>=', startId),
+                where(documentId(), '<=', endId)
+            );
+            const dateSnap = await getDocs(dateQuery);
+            const nextSrNo = dateSnap.size + 1;
+            const docId = `${dateStr}-${String(nextSrNo).padStart(2, '0')}`;
+
+            await setDoc(doc(db, 'bardana', docId), {
+                itemName: row.itemName,
+                quantity,
+                personName: payload.driverName || payload.destination || 'JAVAK DISPATCH',
+                employeeName: currentUser?.name || 'Staff',
+                type: 'OUT',
+                entryMaker: currentUser?.name || 'Unknown',
+                source: 'JAVAK',
+                sourceEntryId: entryId,
+                timestamp: serverTimestamp()
+            });
+        }
 
         const stockPayload = {
             source: 'JAVAK',
@@ -240,6 +294,30 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             return;
         }
 
+        // Submission Validation Guardrail (non-cotton items only): the chain
+        // No. of Bales/Bags <= Bardana <= Sutli must hold strictly. Cotton
+        // Bales never uses Bardana/Sutli, so this check is skipped for it.
+        if (isBardanaSutliApplicable) {
+            const bagsNum = parseFloat(numberOfBags || 0);
+            const bardanaNum = parseFloat(bardana || 0);
+            const sutliNum = parseFloat(sutli || 0);
+            const errors = {};
+
+            if (!(bagsNum <= bardanaNum)) {
+                errors.bardana = `Bardana must be ≥ No. of Bales/Bags (${bagsNum || 0})`;
+            }
+            if (!(bardanaNum <= sutliNum)) {
+                errors.sutli = `Sutli must be ≥ Bardana (${bardanaNum || 0})`;
+            }
+
+            if (Object.keys(errors).length > 0) {
+                setFieldErrors(errors);
+                setStatusMessage({ text: 'Fix the highlighted Bardana/Sutli values before saving', type: 'error' });
+                return;
+            }
+        }
+
+        setFieldErrors({});
         setStatusMessage({ text: 'Saving Gatepass record...', type: 'info' });
 
         const resolvedCommodity = commodity === 'OTHER_PRODUCTS' ? customCommodity.trim().toUpperCase() : commodity;
@@ -269,11 +347,15 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
         try {
             if (isNewEntry) {
-                // Doc ID format: [Gate Pass / Bill No.] - [Destination]
+                // Doc ID format: [Gate Pass / Bill No.] - [Destination] - [Date]
+                // The date segment was added so a gate pass number reused
+                // against the same destination on a different day gets its
+                // own document instead of silently overwriting an earlier one.
                 const sanitize = (val) => String(val || '').trim().replace(/[\/\.\#\$\[\]]/g, '-');
                 const billPart = sanitize(payload.gatePassNo) || 'GP';
                 const destinationPart = sanitize(payload.destination) || 'DEST';
-                const docId = `${billPart}-${destinationPart}`;
+                const datePart = sanitize(payload.date) || sanitize(new Date().toLocaleDateString('en-CA'));
+                const docId = `${billPart}-${destinationPart}-${datePart}`;
 
                 await setDoc(doc(db, 'javakEntries', docId), payload);
                 await syncBardanaStockOut(docId, payload);
@@ -296,6 +378,20 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         try {
             await deleteDoc(doc(db, 'javakEntries', id));
             await deleteDoc(doc(db, 'cashTransactions', `javak_adv_${id}`)).catch(() => {});
+            // Clean up any Bardana/Sutli stock movements routed from this
+            // entry so deleting a Javak record doesn't leave orphaned OUT
+            // entries sitting in the Bardana panel.
+            try {
+                const routedQuery = query(
+                    collection(db, 'bardana'),
+                    where('source', '==', 'JAVAK'),
+                    where('sourceEntryId', '==', id)
+                );
+                const routedSnap = await getDocs(routedQuery);
+                await Promise.all(routedSnap.docs.map((d) => deleteDoc(d.ref).catch(() => {})));
+            } catch (cleanupErr) {
+                console.error('Error clearing routed Bardana entries:', cleanupErr);
+            }
             setStatusMessage({ text: 'Gatepass entry deleted.', type: 'success' });
             setDeleteConfirmId(null);
             resetState();
@@ -475,6 +571,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setIsAdvancePayment(false);
         setAdvanceAmount('');
         setDriverPhoto(null);
+        setFieldErrors({});
         stopCamera();
     };
 
@@ -851,11 +948,17 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <div>
                                             <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Bardana</label>
-                                            <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={bardana} onChange={(e) => setBardana(e.target.value)} placeholder="Bardana" />
+                                            <input type="number" step="0.01" className={`input-field font-bold dark:bg-slate-800 ${fieldErrors.bardana ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`} value={bardana} onChange={(e) => setBardana(e.target.value)} placeholder="Bardana" />
+                                            {fieldErrors.bardana && (
+                                                <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">{fieldErrors.bardana}</p>
+                                            )}
                                         </div>
                                         <div>
                                             <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Sutli</label>
-                                            <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={sutli} onChange={(e) => setSutli(e.target.value)} placeholder="Sutli" />
+                                            <input type="number" step="0.01" className={`input-field font-bold dark:bg-slate-800 ${fieldErrors.sutli ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`} value={sutli} onChange={(e) => setSutli(e.target.value)} placeholder="Sutli" />
+                                            {fieldErrors.sutli && (
+                                                <p className="mt-1 text-[9px] font-bold text-red-500 uppercase tracking-wide">{fieldErrors.sutli}</p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
