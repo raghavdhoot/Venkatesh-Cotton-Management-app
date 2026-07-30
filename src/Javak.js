@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet, Download } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
 
@@ -43,7 +43,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [selectedBulkIds, setSelectedBulkIds] = useState(new Set());
     const [bulkPrintEntries, setBulkPrintEntries] = useState(null);
 
-    const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS', 'OIL TANKER', 'COCONUT HUSK'];
+    const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS'];
 
     // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
     const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
@@ -330,6 +330,35 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setIsAdvancePayment(!!entry.isAdvancePayment);
         setAdvanceAmount(entry.advanceAmount || '');
         setDriverPhoto(entry.driverPhoto || null);
+    };
+
+    // Full-field Export to Excel — mirrors Aavak's "Export" button. Exports
+    // whatever is currently visible in the search-filtered dispatch log
+    // (not just a hand-picked subset like Group Export), covering every
+    // meaningful field stored on the javakEntries document.
+    const handleExportToExcel = () => {
+        const rows = filteredEntries.map(entry => ({
+            "Date": entry.date || '',
+            "Gate Pass No": entry.gatePassNo || '',
+            "Vehicle Number": entry.vehicleNumber || '',
+            "Destination": entry.destination || '',
+            "Commodity": entry.commodity || '',
+            "No. of Bags": entry.numberOfBags || '',
+            "Bardana": entry.bardana || '',
+            "Sutli": entry.sutli || '',
+            "Gross Weight (kg)": entry.grossWt || '',
+            "Tare Weight (kg)": entry.tareWt || '',
+            "Net Weight (kg)": entry.netWt || '',
+            "Driver Name": entry.driverName || '',
+            "Driver Phone": entry.driverPhone || '',
+            "Advance Payment Given": entry.isAdvancePayment ? 'YES' : 'NO',
+            "Advance Amount": entry.isAdvancePayment ? (entry.advanceAmount || '') : ''
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Javak Reports");
+        XLSX.writeFile(workbook, `Javak_Export_${new Date().toLocaleDateString('en-CA')}.xlsx`);
     };
 
     const bulkFilteredEntries = entries.filter(e => {
@@ -676,7 +705,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <button 
                         onClick={() => { resetState(); setIsNewEntry(true); }}
                         className="btn-primary flex items-center gap-2 bg-amber-600 hover:bg-amber-700 border-none shadow-md shadow-amber-100"
@@ -688,6 +717,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                         className="btn-secondary flex items-center gap-2"
                     >
                         <Users className="w-4 h-4" /> Group Export
+                    </button>
+                    <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2 cursor-pointer">
+                        <Download className="w-4 h-4" /> Export
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generateJavakPdf({
@@ -749,8 +781,6 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                             <option value="BALES">COTTON BALES</option>
                                             <option value="COTTON SEED">COTTON SEED</option>
                                             <option value="KAPAS">KAPAS RAW</option>
-                                            <option value="OIL TANKER">COTTON SEED OIL</option>
-                                            <option value="COCONUT HUSK">OTHER BY-PROD</option>
                                             <option value="OTHER_PRODUCTS">Other Products</option>
                                         </select>
                                     </div>
