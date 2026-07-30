@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2, Users, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2, Users, CheckSquare, Square, FileSpreadsheet, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToAavak } from './components/Dashboard';
@@ -31,10 +31,15 @@ function Aavak({ currentUser }) {
     const [hamaliDeduction, setHamaliDeduction] = useState(0);
     const [weighmentDeduction, setWeighmentDeduction] = useState(1);
     const [netAmount, setNetAmount] = useState('');
-    const [paymentMode, setPaymentMode] = useState('CASH');
+    const [paymentMode, setPaymentMode] = useState('CASH_IMMEDIATE');
     const [amountPaid, setAmountPaid] = useState('');
     const [balanceAmount, setBalanceAmount] = useState('');
     const [accountantName, setAccountantName] = useState('');
+
+    // New fields for expanded payment modes
+    const [dueDate, setDueDate] = useState('');
+    const [chequeNumber, setChequeNumber] = useState('');
+    const [payeeName, setPayeeName] = useState('');
 
     const [isRtgsModalOpen, setIsRtgsModalOpen] = useState(false);
     const [rtgsDetails, setRtgsDetails] = useState({
@@ -68,10 +73,31 @@ function Aavak({ currentUser }) {
 
     const commodityOptions = ['KAPAS', 'SOYABEAN', 'CHANA', 'TUAAR', 'WHEAT'];
 
+    // RBAC (UI-level): Purchase Rate and General Deduction % are only
+    // editable by Admin accounts. Non-admins still see the current values
+    // (read-only) so nothing looks hidden or broken — they just can't
+    // change them.
+    const isAdminUser = currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN';
+
     // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
     // e.g. MH-26-AB-1991, MH-26-A-123, MH-26-ABC-12345 is NOT valid (5 digits) etc.
     const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
     const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
+
+    // Expanded payment mode vocabulary + helpers. Legacy records saved
+    // before this change used bare 'CASH' / 'RTGS' / 'CHEQUE' / 'CREDIT' —
+    // those are normalized to the new values in handleSelectEntry below.
+    const PAYMENT_MODE_LABELS = {
+        CASH_IMMEDIATE: 'Cash - Immediate',
+        CASH_DUE: 'Cash - Due',
+        RTGS_IMMEDIATE: 'RTGS - Immediate',
+        RTGS_DUE: 'RTGS - Due',
+        CHEQUE: 'Cheque'
+    };
+    const getPaymentModeLabel = (mode) => PAYMENT_MODE_LABELS[mode] || mode || '';
+    const isDueMode = (mode) => mode === 'CASH_DUE' || mode === 'RTGS_DUE';
+    const isRtgsMode = (mode) => mode === 'RTGS_IMMEDIATE' || mode === 'RTGS_DUE';
+    const isChequeMode = (mode) => mode === 'CHEQUE';
 
     const formatVehicleNoInput = (val) => {
         const cleaned = val.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -146,7 +172,17 @@ function Aavak({ currentUser }) {
         setHamaliDeduction(entry.hamaliDeduction || 0);
         setWeighmentDeduction(entry.weighmentDeduction || 1);
         setNetAmount(entry.netAmount !== undefined && entry.netAmount !== null && entry.netAmount !== '' ? Math.round(entry.netAmount) : '');
-        setPaymentMode(entry.paymentMode || 'CASH');
+
+        // Normalize legacy payment mode values (from records saved before
+        // the expanded payment-mode set) onto the new vocabulary.
+        const legacyModeMap = { CASH: 'CASH_IMMEDIATE', RTGS: 'RTGS_IMMEDIATE', CHEQUE: 'CHEQUE', CREDIT: 'CASH_DUE' };
+        const rawMode = entry.paymentMode || 'CASH_IMMEDIATE';
+        const normalizedMode = legacyModeMap[rawMode] || rawMode;
+        setPaymentMode(normalizedMode);
+        setDueDate(entry.paymentDueDate || '');
+        setChequeNumber(entry.chequeNumber || '');
+        setPayeeName(entry.payeeName || '');
+
         setAmountPaid(entry.amountPaid || '');
         setBalanceAmount(entry.balanceAmount || '');
         setAccountantName(entry.accountantName || entry.makerName || '');
@@ -308,7 +344,7 @@ function Aavak({ currentUser }) {
 
     const handlePaymentModeChange = (newMode) => {
         setPaymentMode(newMode);
-        if (newMode === 'RTGS') {
+        if (isRtgsMode(newMode)) {
             setIsRtgsModalOpen(true);
         }
     };
@@ -322,13 +358,23 @@ function Aavak({ currentUser }) {
         
         if (!isNewEntry && !currentEntryId) return;
 
-        if (paymentMode === 'RTGS') {
+        if (isRtgsMode(paymentMode)) {
             const { bankName, accountNumber, accountHolderName, ifscCode, phoneNo } = rtgsDetails;
             if (!bankName || !accountNumber || !accountHolderName || !ifscCode || !phoneNo) {
                 setStatusMessage({ text: 'Please fill all RTGS bank details before saving', type: 'error' });
                 setIsRtgsModalOpen(true);
                 return;
             }
+        }
+
+        if (isDueMode(paymentMode) && !dueDate) {
+            setStatusMessage({ text: 'Please select a Due Date for this Due payment', type: 'error' });
+            return;
+        }
+
+        if (isChequeMode(paymentMode) && (!chequeNumber.trim() || !payeeName.trim())) {
+            setStatusMessage({ text: 'Please enter Cheque Number and Payee Name', type: 'error' });
+            return;
         }
 
         if (!isValidVehicleNo(vehicleNo)) {
@@ -360,7 +406,10 @@ function Aavak({ currentUser }) {
             weighmentDeduction: parseFloat(weighmentDeduction),
             netAmount: netAmount !== '' ? Math.round(parseFloat(netAmount)) : null,
             paymentMode: paymentMode,
-            rtgsDetails: paymentMode === 'RTGS' ? {
+            paymentDueDate: isDueMode(paymentMode) ? (dueDate || null) : null,
+            chequeNumber: isChequeMode(paymentMode) ? (chequeNumber.trim().toUpperCase() || null) : null,
+            payeeName: isChequeMode(paymentMode) ? (payeeName.trim().toUpperCase() || null) : null,
+            rtgsDetails: isRtgsMode(paymentMode) ? {
                 bankName: rtgsDetails.bankName ? rtgsDetails.bankName.toUpperCase() : '',
                 accountNumber: rtgsDetails.accountNumber || '',
                 accountHolderName: rtgsDetails.accountHolderName ? rtgsDetails.accountHolderName.toUpperCase() : '',
@@ -427,7 +476,10 @@ function Aavak({ currentUser }) {
             "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : '',
             "Amount Paid": entry.amountPaid || '',
             "Balance": entry.balanceAmount || '',
-            "Payment Mode": entry.paymentMode || '',
+            "Payment Mode": getPaymentModeLabel(entry.paymentMode),
+            "Due Date": entry.paymentDueDate || '',
+            "Cheque Number": entry.chequeNumber || '',
+            "Payee Name": entry.payeeName || '',
             "Bank Name": entry.rtgsDetails?.bankName || '',
             "Account Number": entry.rtgsDetails?.accountNumber || '',
             "Account Holder": entry.rtgsDetails?.accountHolderName || '',
@@ -529,7 +581,10 @@ function Aavak({ currentUser }) {
         setHamaliDeduction(0);
         setWeighmentDeduction(1);
         setNetAmount('');
-        setPaymentMode('CASH');
+        setPaymentMode('CASH_IMMEDIATE');
+        setDueDate('');
+        setChequeNumber('');
+        setPayeeName('');
         setAmountPaid('');
         setBalanceAmount('');
         setAccountantName('');
@@ -791,7 +846,7 @@ function Aavak({ currentUser }) {
                                         </div>
                                     </div>
                                     <div className="footer-block">
-                                        <div><strong>Payment Mode:</strong> {printableAavak.paymentMode || ''}</div>
+                                        <div><strong>Payment Mode:</strong> {getPaymentModeLabel(printableAavak.paymentMode)}</div>
                                         <div className="footer-line">Farmer Signature</div>
                                         <div className="footer-line">Accountant</div>
                                     </div>
@@ -967,8 +1022,23 @@ function Aavak({ currentUser }) {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">General Ded. %</label>
-                                            <input type="number" step="0.1" className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={generalDeductionPercent} onChange={(e) => setGeneralDeductionPercent(e.target.value)} placeholder={`Default ${billingSettings.generalDeductionPercent}%`} />
+                                            <label className="flex items-center gap-1.5 text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">
+                                                General Ded. %
+                                                {!isAdminUser && <Lock className="w-3 h-3 text-slate-400" />}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                className={`input-field dark:bg-slate-800 dark:text-white ${!isAdminUser ? 'dark:border-slate-700 opacity-70 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : 'dark:border-slate-700'}`}
+                                                value={generalDeductionPercent}
+                                                onChange={(e) => setGeneralDeductionPercent(e.target.value)}
+                                                placeholder={`Default ${billingSettings.generalDeductionPercent}%`}
+                                                disabled={!isAdminUser}
+                                                title={!isAdminUser ? 'Only Admin can change the deduction percentage' : ''}
+                                            />
+                                            {!isAdminUser && (
+                                                <p className="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">Admin only</p>
+                                            )}
                                         </div>
                                         <div className="md:col-span-2">
                                             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
@@ -983,8 +1053,24 @@ function Aavak({ currentUser }) {
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                                             <div>
-                                                <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Purchase Rate * (per Qtl)</label>
-                                                <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="Rate " required />
+                                                <label className="flex items-center gap-1.5 text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">
+                                                    Purchase Rate * (per Qtl)
+                                                    {!isAdminUser && <Lock className="w-3 h-3 text-slate-400" />}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    className={`input-field font-bold dark:bg-slate-800 dark:text-white ${!isAdminUser ? 'dark:border-slate-700 opacity-70 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : 'dark:border-slate-700'}`}
+                                                    value={rate}
+                                                    onChange={(e) => setRate(e.target.value)}
+                                                    placeholder="Rate "
+                                                    required
+                                                    disabled={!isAdminUser}
+                                                    title={!isAdminUser ? 'Only Admin can change the purchase rate' : ''}
+                                                />
+                                                {!isAdminUser && (
+                                                    <p className="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">Admin only</p>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Moisture %</label>
@@ -1023,12 +1109,13 @@ function Aavak({ currentUser }) {
                                             <div>
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Payment Mode</label>
                                                 <select className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={paymentMode} onChange={(e) => handlePaymentModeChange(e.target.value)}>
-                                                    <option value="CASH">CASH</option>
-                                                    <option value="RTGS">RTGS/UPI (ONLINE)</option>
+                                                    <option value="CASH_IMMEDIATE">CASH - IMMEDIATE</option>
+                                                    <option value="CASH_DUE">CASH - DUE</option>
+                                                    <option value="RTGS_IMMEDIATE">RTGS - IMMEDIATE</option>
+                                                    <option value="RTGS_DUE">RTGS - DUE</option>
                                                     <option value="CHEQUE">CHEQUE</option>
-                                                    <option value="CREDIT">CREDIT (DUE)</option>
                                                 </select>
-                                                {paymentMode === 'RTGS' && (
+                                                {isRtgsMode(paymentMode) && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setIsRtgsModalOpen(true)}
@@ -1053,6 +1140,52 @@ function Aavak({ currentUser }) {
                                                 <input type="text" className="input-field uppercase font-bold dark:bg-slate-800 dark:border-slate-700" value={accountantName} onChange={(e) => setAccountantName(e.target.value)} placeholder={currentUser?.name || "Officer"} />
                                             </div>
                                         </div>
+
+                                        {isDueMode(paymentMode) && (
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 p-5 bg-amber-50/40 dark:bg-amber-950/10 rounded-xl border border-amber-100/50 dark:border-amber-950/20">
+                                                <div>
+                                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Due Date *</label>
+                                                    <input
+                                                        type="date"
+                                                        className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                                        value={dueDate}
+                                                        onChange={(e) => setDueDate(e.target.value)}
+                                                        min={billingDate}
+                                                        required={isDueMode(paymentMode)}
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-3 flex items-center">
+                                                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">This bill will appear under Cash Management's Maturity Forecast on the selected due date.</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {isChequeMode(paymentMode) && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-5 bg-indigo-50/40 dark:bg-indigo-950/10 rounded-xl border border-indigo-100/50 dark:border-indigo-950/20">
+                                                <div>
+                                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Cheque Number *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field uppercase font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                                        value={chequeNumber}
+                                                        onChange={(e) => setChequeNumber(e.target.value)}
+                                                        placeholder="e.g. 004521"
+                                                        required={isChequeMode(paymentMode)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Payee Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                                        value={payeeName}
+                                                        onChange={(e) => setPayeeName(e.target.value)}
+                                                        placeholder="Name printed on the cheque"
+                                                        required={isChequeMode(paymentMode)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -1125,8 +1258,11 @@ function Aavak({ currentUser }) {
                                                         }`}>
                                                             {parseFloat(entry.balanceAmount || 0) <= 0 ? 'PAID' : `DUE:  ${entry.balanceAmount}`}
                                                         </span>
-                                                        <span className="text-[9px] text-slate-400 uppercase tracking-widest">{entry.paymentMode}</span>
+                                                        <span className="text-[9px] text-slate-400 uppercase tracking-widest">{getPaymentModeLabel(entry.paymentMode)}</span>
                                                     </div>
+                                                    {entry.paymentDueDate && (
+                                                        <div className="text-[9px] text-amber-500 font-bold uppercase tracking-widest mt-0.5">Due: {entry.paymentDueDate}</div>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
@@ -1295,7 +1431,7 @@ function Aavak({ currentUser }) {
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={() => { setPaymentMode('CASH'); setIsRtgsModalOpen(false); }}
+                                    onClick={() => { setPaymentMode('CASH_IMMEDIATE'); setIsRtgsModalOpen(false); }}
                                     className="p-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white uppercase tracking-wider text-xs font-black cursor-pointer"
                                 >
                                     Cancel

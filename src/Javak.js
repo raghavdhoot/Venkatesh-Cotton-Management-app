@@ -45,6 +45,12 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
 
     const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS'];
 
+    // Bardana & Sutli (packing material) only apply to loose/raw commodities.
+    // Cotton Bales are pre-packed, so those two fields are irrelevant for
+    // that commodity — hidden from the form and cleared out whenever BALES
+    // is selected, so a stale value never gets silently saved.
+    const isBardanaSutliApplicable = commodity !== 'BALES';
+
     // Strict vehicle plate format: 2 letters - 2 digits - 1 to 3 letters - 1 to 4 digits
     const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
     const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
@@ -52,6 +58,23 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     // Strict 10-digit phone number format, applies to Driver Phone input below.
     const PHONE_REGEX = /^[0-9]{10}$/;
     const isValidPhone = (val) => PHONE_REGEX.test(val || '');
+
+    // Final-amount rounding helper: every monetary value that gets persisted,
+    // stored, rendered on screen, or printed on an invoice/PDF must be a
+    // whole rupee amount. Applied consistently everywhere a final amount is
+    // produced or displayed. (Javak's only hand-typed final amount is the
+    // Advance Amount given to the driver.)
+    const roundAmt = (val) => Math.round(parseFloat(val) || 0);
+
+    const handleCommodityChange = (val) => {
+        setCommodity(val);
+        if (val === 'BALES') {
+            // Cotton Bales never uses Bardana/Sutli — clear any previously
+            // entered values so they can't be silently carried into the save.
+            setBardana('');
+            setSutli('');
+        }
+    };
 
     useEffect(() => {
         const unsubscribe = subscribeToJavak((list) => {
@@ -168,7 +191,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     // advance is unchecked or set back to 0.
     const syncAdvancePaymentOut = async (entryId, payload) => {
         const cashDocRef = doc(db, 'cashTransactions', `javak_adv_${entryId}`);
-        const amount = parseFloat(payload.advanceAmount || 0);
+        const amount = roundAmt(payload.advanceAmount || 0);
 
         if (payload.isAdvancePayment && amount > 0) {
             const now = new Date();
@@ -230,13 +253,15 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             driverPhone: driverPhone || '',
             commodity: resolvedCommodity || 'BALES',
             numberOfBags: numberOfBags ? parseInt(numberOfBags) : null,
-            bardana: bardana ? parseFloat(bardana) : null,
-            sutli: sutli ? parseFloat(sutli) : null,
+            // Bardana/Sutli are not applicable to Cotton Bales — force them to
+            // null on save even if a stale value somehow lingers in state.
+            bardana: isBardanaSutliApplicable && bardana ? parseFloat(bardana) : null,
+            sutli: isBardanaSutliApplicable && sutli ? parseFloat(sutli) : null,
             grossWt: grossWt ? parseFloat(grossWt) : null,
             tareWt: tareWt ? parseFloat(tareWt) : null,
             netWt: netWt ? parseFloat(netWt) : null,
             isAdvancePayment: !!isAdvancePayment,
-            advanceAmount: isAdvancePayment && advanceAmount ? parseFloat(advanceAmount) : null,
+            advanceAmount: isAdvancePayment && advanceAmount ? roundAmt(advanceAmount) : null,
             driverPhoto: driverPhoto || null,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -322,13 +347,16 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             setCustomCommodity(selectedCommodity);
         }
         setNumberOfBags(entry.numberOfBags || '');
-        setBardana(entry.bardana || '');
-        setSutli(entry.sutli || '');
+        // Only restore Bardana/Sutli when the loaded entry's commodity is
+        // actually eligible for them (i.e. not Cotton Bales).
+        const loadedIsBales = selectedCommodity === 'BALES';
+        setBardana(loadedIsBales ? '' : (entry.bardana || ''));
+        setSutli(loadedIsBales ? '' : (entry.sutli || ''));
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
         setIsAdvancePayment(!!entry.isAdvancePayment);
-        setAdvanceAmount(entry.advanceAmount || '');
+        setAdvanceAmount(entry.advanceAmount != null ? roundAmt(entry.advanceAmount) : '');
         setDriverPhoto(entry.driverPhoto || null);
     };
 
@@ -352,7 +380,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             "Driver Name": entry.driverName || '',
             "Driver Phone": entry.driverPhone || '',
             "Advance Payment Given": entry.isAdvancePayment ? 'YES' : 'NO',
-            "Advance Amount": entry.isAdvancePayment ? (entry.advanceAmount || '') : ''
+            "Advance Amount": entry.isAdvancePayment ? roundAmt(entry.advanceAmount || 0) : ''
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -407,7 +435,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             "Driver Name": entry.driverName || '',
             "Destination": entry.destination || '',
             "Net Wt (kg)": entry.netWt || '',
-            "Advance Amount": entry.isAdvancePayment ? (entry.advanceAmount || '') : ''
+            "Advance Amount": entry.isAdvancePayment ? roundAmt(entry.advanceAmount || 0) : ''
         }));
         const worksheet = XLSX.utils.json_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
@@ -686,7 +714,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     <td>{entry.driverName}</td>
                                     <td>{entry.destination}</td>
                                     <td>{entry.netWt}</td>
-                                    <td>{entry.isAdvancePayment ? (entry.advanceAmount || '') : ''}</td>
+                                    <td>{entry.isAdvancePayment ? roundAmt(entry.advanceAmount || 0) : ''}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -777,7 +805,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Commodity Cargo</label>
-                                        <select className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={commodity} onChange={(e) => setCommodity(e.target.value)}>
+                                        <select className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={commodity} onChange={(e) => handleCommodityChange(e.target.value)}>
                                             <option value="BALES">COTTON BALES</option>
                                             <option value="COTTON SEED">COTTON SEED</option>
                                             <option value="KAPAS">KAPAS RAW</option>
@@ -819,16 +847,18 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div>
-                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Bardana</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={bardana} onChange={(e) => setBardana(e.target.value)} placeholder="Bardana" />
+                                {isBardanaSutliApplicable && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Bardana</label>
+                                            <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={bardana} onChange={(e) => setBardana(e.target.value)} placeholder="Bardana" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Sutli</label>
+                                            <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={sutli} onChange={(e) => setSutli(e.target.value)} placeholder="Sutli" />
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Sutli</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700" value={sutli} onChange={(e) => setSutli(e.target.value)} placeholder="Sutli" />
-                                    </div>
-                                </div>
+                                )}
 
                                 <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-5 border border-slate-100 dark:border-slate-800">
                                     <div>
@@ -867,11 +897,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                 <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Advance Amount *</label>
                                                 <input
                                                     type="number"
-                                                    step="0.01"
+                                                    step="1"
                                                     className="input-field font-bold text-emerald-700 dark:text-emerald-400 dark:bg-slate-800 dark:border-slate-700"
                                                     value={advanceAmount}
                                                     onChange={(e) => setAdvanceAmount(e.target.value)}
-                                                    placeholder="0.00"
+                                                    placeholder="0"
                                                     required={isAdvancePayment}
                                                 />
                                             </div>
@@ -988,9 +1018,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                 <td className="px-5 py-4">
                                                     <div className="font-bold text-slate-900 dark:text-white">{e.commodity}</div>
                                                     <div className="text-[10px] text-slate-400 font-mono font-bold">Qty: {e.numberOfBags} Bales</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono">Bardana: {e.bardana || 0} | Sutli: {e.sutli || 0}</div>
+                                                    {e.commodity !== 'BALES' && (
+                                                        <div className="text-[10px] text-slate-400 font-mono">Bardana: {e.bardana || 0} | Sutli: {e.sutli || 0}</div>
+                                                    )}
                                                     {e.isAdvancePayment && parseFloat(e.advanceAmount || 0) > 0 && (
-                                                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 mt-0.5">Advance Paid: {e.advanceAmount}</div>
+                                                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 mt-0.5">Advance Paid: {roundAmt(e.advanceAmount || 0)}</div>
                                                     )}
                                                 </td>
                                                 <td className="px-5 py-4 font-mono font-semibold">

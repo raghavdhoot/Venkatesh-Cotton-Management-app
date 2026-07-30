@@ -23,6 +23,12 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Final-amount rounding helper: every monetary value that gets persisted,
+// stored, rendered on screen, or printed on a PDF report must be a whole
+// rupee amount. Applied consistently everywhere a final amount is produced
+// or displayed.
+const roundAmt = (val) => Math.round(parseFloat(val) || 0);
+
 const OperationType = {
   CREATE: "create",
   UPDATE: "update",
@@ -88,7 +94,7 @@ export default function RTGSPanel({ currentUser }) {
           const mappedData = snapshot.docs.map((docSnap) => {
             const data = docSnap.data();
 
-            const amount = parseFloat(data.amountPaid || data.netAmount || data.amount || 0) || 0;
+            const amount = roundAmt(data.amountPaid || data.netAmount || data.amount || 0);
 
             // Legacy support: entries saved before "Maker Amount" existed only
             // ever had a boolean makerDone (defaulting to true when absent).
@@ -101,7 +107,7 @@ export default function RTGSPanel({ currentUser }) {
             const rawMakerAmount = data.makerAmount;
             const makerAmount = (rawMakerAmount === null || rawMakerAmount === undefined)
               ? (legacyMakerDone ? amount : 0)
-              : (parseFloat(rawMakerAmount) || 0);
+              : roundAmt(rawMakerAmount);
 
             // Maker is only considered "done" once the maker amount fully
             // covers the bill. Anything less — even 1 rupee less — is a
@@ -210,7 +216,7 @@ export default function RTGSPanel({ currentUser }) {
         const tx = transactions.find(t => t.id === id);
         if (tx) {
           setRtgsConfirmation({
-            amount: tx.amount,
+            amount: roundAmt(tx.amount),
             tokenNo: tx.tokenNo,
             accountLast4: (tx.accountNumber || "").slice(-4),
             farmerPhone: tx.farmerPhone || ""
@@ -236,8 +242,8 @@ export default function RTGSPanel({ currentUser }) {
   // partially-corrected entry can never keep sitting in "Completed".
   const commitMakerAmount = async (tx) => {
     const draftRaw = makerAmountDrafts[tx.id];
-    let parsed = parseFloat(draftRaw);
-    if (isNaN(parsed) || parsed < 0) parsed = 0;
+    let parsed = roundAmt(draftRaw);
+    if (parsed < 0) parsed = 0;
     if (parsed > tx.amount) parsed = tx.amount;
 
     setMakerAmountDrafts(prev => ({ ...prev, [tx.id]: String(parsed) }));
@@ -272,7 +278,7 @@ export default function RTGSPanel({ currentUser }) {
   };
 
   const rtgsConfirmationMessage = rtgsConfirmation
-    ? `Payment of Rupees ${(rtgsConfirmation.amount || 0).toLocaleString("en-IN")} against Token Number - ${rtgsConfirmation.tokenNo || ""} has been made to Account number ending ${rtgsConfirmation.accountLast4 || "----"} A/c Thankyou. VCC.`
+    ? `Payment of Rupees ${roundAmt(rtgsConfirmation.amount || 0).toLocaleString("en-IN")} against Token Number - ${rtgsConfirmation.tokenNo || ""} has been made to Account number ending ${rtgsConfirmation.accountLast4 || "----"} A/c Thankyou. VCC.`
     : "";
 
   const handleShareRtgsConfirmation = () => {
@@ -301,12 +307,12 @@ export default function RTGSPanel({ currentUser }) {
   // are BOTH fully maker-paid AND cheque-passed. Partial / unsettled amounts
   // are never folded into it, under any circumstance.
   const stats = transactions.reduce((acc, tx) => {
-    acc.totalAmount += tx.amount;
-    const outstanding = Math.max(0, tx.amount - tx.makerAmount);
+    acc.totalAmount += roundAmt(tx.amount);
+    const outstanding = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount));
 
     if (tx.makerAmount <= 0) {
       acc.makerPendingCount += 1;
-      acc.pendingSettlementAmount += tx.amount;
+      acc.pendingSettlementAmount += roundAmt(tx.amount);
     } else if (!tx.makerDone) {
       acc.partialCount += 1;
       acc.pendingSettlementAmount += outstanding;
@@ -314,7 +320,7 @@ export default function RTGSPanel({ currentUser }) {
       acc.clearancePendingCount += 1;
     } else {
       acc.completedCount += 1;
-      acc.completedAmount += tx.amount;
+      acc.completedAmount += roundAmt(tx.amount);
     }
     return acc;
   }, {
@@ -344,7 +350,7 @@ export default function RTGSPanel({ currentUser }) {
       doc.text("RTGS TRANSFER STATUS REPORT", 14, 26);
       doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 31);
       
-      const totalVolume = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+      const totalVolume = filteredTransactions.reduce((sum, tx) => sum + roundAmt(tx.amount), 0);
       doc.text(`Filtered RTGS Volume: INR ${totalVolume.toLocaleString()}`, 14, 36);
 
       // Separator line
@@ -364,9 +370,9 @@ export default function RTGSPanel({ currentUser }) {
           const tokenStr = tx.tokenNo || "_______";
           const nameStr = tx.farmerName || "_______";
           
-          const amountFormatted = parseFloat(tx.amount || 0).toLocaleString();
-          const makerPaidFormatted = parseFloat(tx.makerAmount || 0).toLocaleString();
-          const balanceFormatted = Math.max(0, tx.amount - tx.makerAmount).toLocaleString();
+          const amountFormatted = roundAmt(tx.amount || 0).toLocaleString();
+          const makerPaidFormatted = roundAmt(tx.makerAmount || 0).toLocaleString();
+          const balanceFormatted = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount)).toLocaleString();
           
           const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassed);
           const statusStr = statusInfo.label || "_______";
@@ -609,7 +615,7 @@ export default function RTGSPanel({ currentUser }) {
                 filteredTransactions.map((tx) => {
                   const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassed);
                   const isLoadingRow = isUpdatingMap[tx.id];
-                  const balance = Math.max(0, tx.amount - tx.makerAmount);
+                  const balance = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount));
                   const draftValue = makerAmountDrafts[tx.id] ?? String(tx.makerAmount);
 
                   return (
@@ -625,7 +631,7 @@ export default function RTGSPanel({ currentUser }) {
                       </td>
                       {/* Indian Number Formatting */}
                       <td className="px-6 py-4.5 text-right font-black text-slate-900 dark:text-slate-100 tabular-nums">
-                        ₹{tx.amount.toLocaleString("en-IN")}
+                        ₹{roundAmt(tx.amount).toLocaleString("en-IN")}
                       </td>
                       {/* Maker Amount: custom partial-payment entry */}
                       <td className="px-6 py-4.5">
@@ -636,7 +642,7 @@ export default function RTGSPanel({ currentUser }) {
                               type="number"
                               min="0"
                               max={tx.amount}
-                              step="0.01"
+                              step="1"
                               disabled={isLoadingRow}
                               value={draftValue}
                               onChange={(e) => setMakerAmountDrafts(prev => ({ ...prev, [tx.id]: e.target.value }))}

@@ -33,6 +33,12 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// Final-amount rounding helper: every monetary value that gets persisted,
+// stored, rendered on screen, or printed on a PDF report must be a whole
+// rupee amount. Applied consistently everywhere a final amount is produced
+// or displayed.
+const roundAmt = (val) => Math.round(parseFloat(val) || 0);
+
 const formatDate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -128,14 +134,14 @@ export default function CashManagement({ currentUser }) {
       (snapshot) => {
         if (!snapshot.empty) {
           const lastClosureDoc = snapshot.docs[0].data();
-          setOpeningBalance(lastClosureDoc.closingBalance || lastClosureDoc.expectedClosingBalance || 0);
+          setOpeningBalance(roundAmt(lastClosureDoc.closingBalance || lastClosureDoc.expectedClosingBalance || 0));
         } else {
           const qFallback = query(collection(db, "dailyClosures"), orderBy("timestamp", "desc"), limit(1));
           getDocs(qFallback)
             .then((fallbackSnapshot) => {
               if (!fallbackSnapshot.empty) {
                 const lastDoc = fallbackSnapshot.docs[0].data();
-                setOpeningBalance(lastDoc.closingBalance || lastDoc.expectedClosingBalance || 0);
+                setOpeningBalance(roundAmt(lastDoc.closingBalance || lastDoc.expectedClosingBalance || 0));
               } else {
                 setOpeningBalance(0);
               }
@@ -164,7 +170,7 @@ export default function CashManagement({ currentUser }) {
         rows.push({
           id: `aavak-installment-${entry.id}-${idx}`,
           type: "OUT",
-          amount: parseFloat(log.amount || 0) || 0,
+          amount: roundAmt(log.amount || 0),
           recipient: entry.Name || entry.farmerName || "FARMER",
           reason: `AAVAK INSTALLMENT — TOKEN ${entry.tokenNo || entry.id} (OLDER BILL SETTLEMENT)`,
           recordedBy: log.operator || "Staff",
@@ -209,10 +215,10 @@ export default function CashManagement({ currentUser }) {
   const cashPaymentsDue = React.useMemo(() => {
     return aavakEntries
       .filter((e) => {
-        const balance = parseFloat(e.balanceAmount || 0) || 0;
+        const balance = roundAmt(e.balanceAmount || 0);
         return (
           (e.paymentMode || "").toUpperCase() === "CASH" &&
-          balance > 0.01 &&
+          balance > 0 &&
           e.billingDate &&
           e.billingDate < todayStr
         );
@@ -228,7 +234,7 @@ export default function CashManagement({ currentUser }) {
   };
 
   const totalCashDueAmount = cashPaymentsDue.reduce(
-    (acc, e) => acc + (parseFloat(e.balanceAmount || 0) || 0),
+    (acc, e) => acc + roundAmt(e.balanceAmount || 0),
     0
   );
 
@@ -239,7 +245,7 @@ export default function CashManagement({ currentUser }) {
   const handleSettleDuePayment = async (entry) => {
     const raw = dueSettleAmounts[entry.id];
     const toPay = parseFloat(raw);
-    const currentBalance = parseFloat(entry.balanceAmount || 0) || 0;
+    const currentBalance = roundAmt(entry.balanceAmount || 0);
 
     if (isNaN(toPay) || toPay <= 0) {
       setStatusMessage({ text: "Enter a valid amount to settle", type: "error" });
@@ -250,10 +256,10 @@ export default function CashManagement({ currentUser }) {
       return;
     }
 
-    const newPaid = parseFloat(entry.amountPaid || 0) + toPay;
+    const newPaid = roundAmt(entry.amountPaid || 0) + toPay;
     const newBalance = currentBalance - toPay;
     const newLog = {
-      amount: toPay,
+      amount: roundAmt(toPay),
       date: todayStr,
       time: new Date().toLocaleTimeString(),
       operator: currentUser?.name || "Staff"
@@ -262,8 +268,8 @@ export default function CashManagement({ currentUser }) {
 
     try {
       await updateDoc(doc(db, "cottonEntries", entry.id), {
-        amountPaid: parseFloat(newPaid.toFixed(2)),
-        balanceAmount: parseFloat(newBalance.toFixed(2)),
+        amountPaid: roundAmt(newPaid),
+        balanceAmount: roundAmt(newBalance),
         installmentLogs: [...existingLogs, newLog],
         updatedAt: serverTimestamp()
       });
@@ -318,7 +324,8 @@ export default function CashManagement({ currentUser }) {
         customIdSuffix = reason.trim().replace(/\s+/g, "");
       }
 
-      const customId = `${srNo}-${dateStr}-${amount}-${customIdSuffix}`;
+      const roundedAmount = roundAmt(amount);
+      const customId = `${srNo}-${dateStr}-${roundedAmount}-${customIdSuffix}`;
 
       const finalSource =
         type === "IN" ? (sourceSelect === "Other" ? customSource.trim() || "Other" : sourceSelect) : "N/A";
@@ -331,7 +338,7 @@ export default function CashManagement({ currentUser }) {
 
       await setDoc(doc(db, "cashTransactions", customId), {
         type,
-        amount: parseFloat(amount),
+        amount: roundedAmount,
         source: finalSource.toUpperCase(),
         recipient: type === "OUT" ? recipient.toUpperCase() || "N/A" : "N/A",
         reason: finalReason,
@@ -370,29 +377,29 @@ export default function CashManagement({ currentUser }) {
 
   const totalIn = combinedTransactions
     .filter((t) => t.type === "IN")
-    .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+    .reduce((acc, t) => acc + roundAmt(t.amount || t.amountPaid || 0), 0);
   const totalOut = combinedTransactions
     .filter((t) => t.type !== "IN")
-    .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+    .reduce((acc, t) => acc + roundAmt(t.amount || t.amountPaid || 0), 0);
   const balance = totalIn - totalOut;
 
   const todayTransactions = combinedTransactions.filter(isTransactionToday);
 
   const todayIn = todayTransactions
     .filter((t) => t.type === "IN")
-    .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+    .reduce((acc, t) => acc + roundAmt(t.amount || t.amountPaid || 0), 0);
   const todayOut = todayTransactions
     .filter((t) => t.type !== "IN")
-    .reduce((acc, t) => acc + (parseFloat(t.amount || t.amountPaid || 0) || 0), 0);
+    .reduce((acc, t) => acc + roundAmt(t.amount || t.amountPaid || 0), 0);
 
   const todayJavakAdvanceTotal = todayTransactions
     .filter((t) => t.source === "JAVAK")
-    .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
+    .reduce((acc, t) => acc + roundAmt(t.amount || 0), 0);
   const todayAavakInstallmentTotal = todayTransactions
     .filter((t) => t.source === "AAVAK_INSTALLMENT")
-    .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
+    .reduce((acc, t) => acc + roundAmt(t.amount || 0), 0);
 
-  const expectedClosingBalance = (parseFloat(openingBalance) || 0) + todayIn - todayOut;
+  const expectedClosingBalance = roundAmt((roundAmt(openingBalance) || 0) + todayIn - todayOut);
 
   // ---- IMMEDIATE (CASH) PATTI vs SETTLED-PAYMENT COUNT CHECK ----
   // "Patti given for Immediate payment" = every CASH-mode Aavak bill billed
@@ -408,11 +415,11 @@ export default function CashManagement({ currentUser }) {
     [aavakEntries, todayStr]
   );
   const todaysSettledImmediatePattis = React.useMemo(
-    () => todaysImmediatePattis.filter((e) => (parseFloat(e.balanceAmount || 0) || 0) <= 0.01),
+    () => todaysImmediatePattis.filter((e) => roundAmt(e.balanceAmount || 0) <= 0),
     [todaysImmediatePattis]
   );
   const todaysUnsettledImmediatePattis = React.useMemo(
-    () => todaysImmediatePattis.filter((e) => (parseFloat(e.balanceAmount || 0) || 0) > 0.01),
+    () => todaysImmediatePattis.filter((e) => roundAmt(e.balanceAmount || 0) > 0),
     [todaysImmediatePattis]
   );
   const immediatePaymentCountMismatch =
@@ -423,18 +430,18 @@ export default function CashManagement({ currentUser }) {
       const docId = `Closure-${todayStr}`;
       await setDoc(doc(db, "dailyClosures", docId), {
         date: todayStr,
-        openingBalance: parseFloat(String(openingBalance)) || 0,
-        totalCashIn: parseFloat(String(todayIn)) || 0,
-        totalCashOut: parseFloat(String(todayOut)) || 0,
-        javakAdvancesToday: parseFloat(String(todayJavakAdvanceTotal)) || 0,
-        aavakInstallmentsToday: parseFloat(String(todayAavakInstallmentTotal)) || 0,
+        openingBalance: roundAmt(openingBalance),
+        totalCashIn: roundAmt(todayIn),
+        totalCashOut: roundAmt(todayOut),
+        javakAdvancesToday: roundAmt(todayJavakAdvanceTotal),
+        aavakInstallmentsToday: roundAmt(todayAavakInstallmentTotal),
         // Recorded so it's auditable later whether the counter was closed
         // with immediate-payment pattis still outstanding.
         immediatePattisToday: todaysImmediatePattis.length,
         immediatePattisSettledToday: todaysSettledImmediatePattis.length,
         closedWithUnsettledImmediatePayments: immediatePaymentCountMismatch,
-        expectedClosingBalance: parseFloat(String(expectedClosingBalance)) || 0,
-        closingBalance: parseFloat(String(expectedClosingBalance)) || 0,
+        expectedClosingBalance: roundAmt(expectedClosingBalance),
+        closingBalance: roundAmt(expectedClosingBalance),
         closedBy: currentUser?.name || "ADMIN",
         timestamp: serverTimestamp(),
         createdAt: serverTimestamp()
@@ -480,7 +487,7 @@ export default function CashManagement({ currentUser }) {
       doc.setTextColor(100, 116, 139);
       doc.text("CASH TRANSACTIONS REPORT - COUNTER DESK", 14, 26);
       doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 31);
-      doc.text(`Running Liquidity Balance: INR ${balance.toLocaleString()}`, 14, 36);
+      doc.text(`Running Liquidity Balance: INR ${roundAmt(balance).toLocaleString()}`, 14, 36);
 
       doc.setDrawColor(226, 232, 240);
       doc.line(14, 40, 196, 40);
@@ -512,7 +519,7 @@ export default function CashManagement({ currentUser }) {
 
           const reasonStr = t.reason || "_______";
           
-          const amountFormatted = `${t.type === "IN" ? "+" : "-"} ${parseFloat(t.amount || 0).toLocaleString()}`;
+          const amountFormatted = `${t.type === "IN" ? "+" : "-"} ${roundAmt(t.amount || 0).toLocaleString()}`;
 
           return [
             timestampStr,
@@ -778,7 +785,7 @@ export default function CashManagement({ currentUser }) {
         <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[320px] overflow-y-auto">
           {cashPaymentsDue.length > 0 ? (
             cashPaymentsDue.map((entry) => {
-              const balance = parseFloat(entry.balanceAmount || 0) || 0;
+              const balance = roundAmt(entry.balanceAmount || 0);
               const daysOverdue = getDaysOverdue(entry.billingDate);
               return (
                 <div
@@ -888,25 +895,25 @@ export default function CashManagement({ currentUser }) {
             <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Opening Balance</span>
               <p className="text-base font-black text-slate-800 dark:text-slate-100">
-                ₹{(todayClosure.openingBalance || 0).toLocaleString()}
+                ₹{roundAmt(todayClosure.openingBalance || 0).toLocaleString()}
               </p>
             </div>
             <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cash In</span>
               <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
-                ₹{(todayClosure.totalCashIn || 0).toLocaleString()}
+                ₹{roundAmt(todayClosure.totalCashIn || 0).toLocaleString()}
               </p>
             </div>
             <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Cash Out</span>
               <p className="text-base font-black text-red-600 dark:text-red-400">
-                ₹{(todayClosure.totalCashOut || 0).toLocaleString()}
+                ₹{roundAmt(todayClosure.totalCashOut || 0).toLocaleString()}
               </p>
             </div>
             <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Closing Balance</span>
               <p className="text-base font-black text-slate-800 dark:text-slate-100">
-                ₹{(todayClosure.expectedClosingBalance || 0).toLocaleString()}
+                ₹{roundAmt(todayClosure.expectedClosingBalance || 0).toLocaleString()}
               </p>
             </div>
             <div className="col-span-2 md:col-span-1 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-800/50 text-center md:text-left flex flex-col justify-center">
@@ -1052,7 +1059,7 @@ export default function CashManagement({ currentUser }) {
                     }`}
                   >
                     {t.type === "IN" ? "+" : "-"}₹
-                    {(parseFloat(t.amount || t.amountPaid || 0) || 0).toLocaleString()}
+                    {roundAmt(t.amount || t.amountPaid || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 text-right">
                     {t.isSynthetic ? (
@@ -1116,8 +1123,8 @@ export default function CashManagement({ currentUser }) {
         <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
           {maturedEntries.length > 0 ? (
             maturedEntries.map((entry) => {
-              const netValue = parseFloat(entry.netAmount || 0);
-              const paidValue = parseFloat(entry.amountPaid || 0);
+              const netValue = roundAmt(entry.netAmount || 0);
+              const paidValue = roundAmt(entry.amountPaid || 0);
               const balanceLeft = Math.max(0, netValue - paidValue);
               return (
                 <div
@@ -1197,7 +1204,7 @@ export default function CashManagement({ currentUser }) {
                       </span>
                     </div>
                     <span className="font-bold text-red-600 dark:text-red-400 font-mono">
-                      Due: ₹{(parseFloat(entry.balanceAmount || 0) || 0).toLocaleString("en-IN")}
+                      Due: ₹{roundAmt(entry.balanceAmount || 0).toLocaleString("en-IN")}
                     </span>
                   </div>
                 ))}
