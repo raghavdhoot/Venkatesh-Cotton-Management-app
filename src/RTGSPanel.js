@@ -18,7 +18,11 @@ import {
   Ban,
   RefreshCw,
   Share2,
-  SplitSquareHorizontal
+  SplitSquareHorizontal,
+  PieChart,
+  CalendarCheck2,
+  CalendarClock,
+  Calendar
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -54,6 +58,27 @@ function handleFirestoreError(error, operationType, path, currentUser) {
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Classifies an entry into the Due Payments or Maturity Payments sub-panel.
+// Rule: if there is no due date on the entry (i.e. it's payable immediately)
+// or the due date has already arrived/passed, it belongs in Due Payments.
+// Only a due date that hasn't been reached yet holds the payment in the
+// Maturity Payments sub-panel.
+function classifyDueOrMaturity(dueDateRaw) {
+  if (!dueDateRaw) {
+    return { category: "DUE", dueDateObj: null };
+  }
+  const parsedDate = new Date(dueDateRaw);
+  if (isNaN(parsedDate.getTime())) {
+    return { category: "DUE", dueDateObj: null };
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueOnly = new Date(parsedDate);
+  dueOnly.setHours(0, 0, 0, 0);
+  const category = dueOnly.getTime() > today.getTime() ? "MATURITY" : "DUE";
+  return { category, dueDateObj: parsedDate };
+}
+
 export default function RTGSPanel({ currentUser }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +91,13 @@ export default function RTGSPanel({ currentUser }) {
   // Lets someone type a partial amount without every keystroke round-tripping
   // to Firestore; the value only commits on blur / Enter / the Full button.
   const [makerAmountDrafts, setMakerAmountDrafts] = useState({});
+  // Same draft pattern as above, but for the "Cheque / RTGS Passed" amount —
+  // this replaces the old single Cheque Passed checkbox so the bank-side
+  // clearance can also be recorded as a partial amount (-> "Partially Passed").
+  const [chequePassedDrafts, setChequePassedDrafts] = useState({});
+  // Dual sub-panel toggle: Due Payments (payable now / due date has arrived
+  // or passed) vs Maturity Payments (waiting on a future due date).
+  const [activeTab, setActiveTab] = useState("DUE");
 
   // 1. ADMIN & CASHIER ACCESS GUARD Check (Visible to designated roles in App.tsx)
   const isAdmin = currentUser && (
@@ -114,9 +146,28 @@ export default function RTGSPanel({ currentUser }) {
             // partial/unsettled payment and must never be treated as done.
             const makerDone = amount > 0 && makerAmount >= amount;
 
-            const chequePassedRaw = data.chequePassed === null || data.chequePassed === undefined
+            // Legacy support: entries saved before "Cheque Passed Amount"
+            // existed only ever had a boolean chequePassed (defaulting to
+            // true when absent). If chequePassedAmount was never recorded,
+            // backfill it from that legacy flag: fully passed if true,
+            // otherwise zero.
+            const legacyChequePassed = data.chequePassed === null || data.chequePassed === undefined
               ? true
               : data.chequePassed === true;
+
+            const rawChequePassedAmount = data.chequePassedAmount;
+            const chequePassedAmountUnclamped = (rawChequePassedAmount === null || rawChequePassedAmount === undefined)
+              ? (legacyChequePassed ? amount : 0)
+              : roundAmt(rawChequePassedAmount);
+
+            // Cheque/RTGS clearance can never be recorded — partially or in
+            // full — unless the Maker Amount already fully covers the bill,
+            // no matter what was last saved in Firestore.
+            const chequePassedAmount = makerDone ? Math.min(chequePassedAmountUnclamped, amount) : 0;
+            const chequePassed = amount > 0 && chequePassedAmount >= amount;
+
+            const dueDateRaw = data.dueDate || data.rtgsDetails?.dueDate || null;
+            const { category, dueDateObj } = classifyDueOrMaturity(dueDateRaw);
 
             return {
               id: docSnap.id,
@@ -127,9 +178,11 @@ export default function RTGSPanel({ currentUser }) {
               makerAmount,
               accountNumber: data.rtgsDetails?.accountNumber || "",
               makerDone,
-              // Cheque Passed can never be true unless the maker amount is
-              // fully settled, no matter what was last saved in Firestore.
-              chequePassed: makerDone ? chequePassedRaw : false,
+              chequePassedAmount,
+              chequePassed,
+              dueDate: dueDateRaw,
+              dueDateObj,
+              category,
             };
           });
           setTransactions(mappedData);
@@ -172,10 +225,28 @@ export default function RTGSPanel({ currentUser }) {
     });
   }, [transactions]);
 
-  // Status check helper. Order matters: partial payments are checked before
-  // "done" so a half-paid maker amount can never fall through into a
-  // completed-looking bucket.
-  const getStatusInfo = (makerAmount, amount, makerDone, chequePassed) => {
+  // Same seeding pattern as Maker Amount, for the Cheque / RTGS Passed
+  // amount drafts.
+  useEffect(() => {
+    setChequePassedDrafts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      transactions.forEach((tx) => {
+        if (next[tx.id] === undefined) {
+          next[tx.id] = String(tx.chequePassedAmount);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [transactions]);
+
+  // Status check helper. Order matters: each partial state is checked before
+  // the state "ahead" of it in the pipeline, so a half-settled entry can
+  // never fall through into a more-complete-looking bucket.
+  //   Maker Pending -> Partial Payment -> Clearance Pending
+  //     -> Partially Passed -> Payment Completed
+  const getStatusInfo = (makerAmount, amount, makerDone, chequePassedAmount) => {
     if (makerAmount <= 0) {
       return {
         label: "Maker Pending",
@@ -188,10 +259,16 @@ export default function RTGSPanel({ currentUser }) {
         colorClass: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/20 dark:text-sky-400 dark:border-sky-900/50",
       };
     }
-    if (makerDone && !chequePassed) {
+    if (chequePassedAmount <= 0) {
       return {
         label: "Clearance Pending",
         colorClass: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50",
+      };
+    }
+    if (chequePassedAmount < amount) {
+      return {
+        label: "Partially Passed",
+        colorClass: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/20 dark:text-violet-400 dark:border-violet-900/50",
       };
     }
     return {
@@ -200,46 +277,12 @@ export default function RTGSPanel({ currentUser }) {
     };
   };
 
-  // 3. SECURE CHECKBOX CONTROLS WITH PREVENT OWNER MISTAKE GUARD (Cheque Passed only)
-  const handleCheckboxToggle = async (id, currentValue) => {
-    setIsUpdatingMap(prev => ({ ...prev, [id]: true }));
-    const collectionPath = "cottonEntries";
-    try {
-      const docRef = doc(db, collectionPath, id);
-      const newValue = !currentValue;
-
-      await updateDoc(docRef, { chequePassed: newValue });
-
-      // RTGS success confirmation: fires strictly the moment "Cheque Passed"
-      // is freshly marked DONE (false -> true). Never on uncheck.
-      if (newValue === true) {
-        const tx = transactions.find(t => t.id === id);
-        if (tx) {
-          setRtgsConfirmation({
-            amount: roundAmt(tx.amount),
-            tokenNo: tx.tokenNo,
-            accountLast4: (tx.accountNumber || "").slice(-4),
-            farmerPhone: tx.farmerPhone || ""
-          });
-        }
-      }
-    } catch (err) {
-      console.error("Error updating RTGS document status:", err);
-      try {
-        handleFirestoreError(err, OperationType.UPDATE, `${collectionPath}/${id}`, currentUser);
-      } catch (errorObj) {
-        alert(`Error: ${err instanceof Error ? err.message : "Operation failed"}`);
-      }
-    } finally {
-      setIsUpdatingMap(prev => ({ ...prev, [id]: false }));
-    }
-  };
-
   // Commits whatever is in the Maker Amount draft input for this row to
   // Firestore. Clamped to [0, full amount] — a maker can never be recorded as
   // having paid more than the bill. If the committed amount no longer fully
-  // covers the bill, "Cheque Passed" is strictly forced back to false so a
-  // partially-corrected entry can never keep sitting in "Completed".
+  // covers the bill, Cheque/RTGS Passed Amount is strictly forced back to
+  // zero so a partially-corrected entry can never keep sitting in a
+  // completed-looking status.
   const commitMakerAmount = async (tx) => {
     const draftRaw = makerAmountDrafts[tx.id];
     let parsed = roundAmt(draftRaw);
@@ -257,7 +300,7 @@ export default function RTGSPanel({ currentUser }) {
       const updatePayload = {
         makerAmount: parsed,
         makerDone: newMakerDone,
-        ...(!newMakerDone ? { chequePassed: false } : {})
+        ...(!newMakerDone ? { chequePassedAmount: 0, chequePassed: false } : {})
       };
       await updateDoc(doc(db, collectionPath, tx.id), updatePayload);
     } catch (err) {
@@ -277,6 +320,63 @@ export default function RTGSPanel({ currentUser }) {
     commitMakerAmount(tx);
   };
 
+  // Commits whatever is in the Cheque/RTGS Passed draft input for this row.
+  // Clamped to [0, full amount]. Disabled entirely (guarded in the UI) until
+  // the Maker Amount fully covers the bill, mirroring the old checkbox's
+  // "Prevent Owner Mistake" guard — the difference now is the bank can pass
+  // the bill partially, landing the entry in "Partially Passed" instead of
+  // jumping straight from Clearance Pending to Completed.
+  const commitChequePassedAmount = async (tx) => {
+    if (!tx.makerDone) return;
+
+    const draftRaw = chequePassedDrafts[tx.id];
+    let parsed = roundAmt(draftRaw);
+    if (parsed < 0) parsed = 0;
+    if (parsed > tx.amount) parsed = tx.amount;
+
+    setChequePassedDrafts(prev => ({ ...prev, [tx.id]: String(parsed) }));
+
+    if (parsed === tx.chequePassedAmount) return; // nothing changed, skip the write
+
+    setIsUpdatingMap(prev => ({ ...prev, [tx.id]: true }));
+    const collectionPath = "cottonEntries";
+    try {
+      const newChequePassed = tx.amount > 0 && parsed >= tx.amount;
+      const wasFullyPassed = tx.amount > 0 && tx.chequePassedAmount >= tx.amount;
+
+      await updateDoc(doc(db, collectionPath, tx.id), {
+        chequePassedAmount: parsed,
+        chequePassed: newChequePassed
+      });
+
+      // RTGS success confirmation: fires strictly the moment the cheque/RTGS
+      // amount newly reaches full settlement (partial -> fully passed).
+      // Never fires on a downward edit, and never while still partial.
+      if (newChequePassed && !wasFullyPassed) {
+        setRtgsConfirmation({
+          amount: roundAmt(tx.amount),
+          tokenNo: tx.tokenNo,
+          accountLast4: (tx.accountNumber || "").slice(-4),
+          farmerPhone: tx.farmerPhone || ""
+        });
+      }
+    } catch (err) {
+      console.error("Error updating Cheque/RTGS Passed Amount:", err);
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `${collectionPath}/${tx.id}`, currentUser);
+      } catch (errorObj) {
+        alert(`Error: ${err instanceof Error ? err.message : "Operation failed"}`);
+      }
+    } finally {
+      setIsUpdatingMap(prev => ({ ...prev, [tx.id]: false }));
+    }
+  };
+
+  const markChequePassedFull = (tx) => {
+    setChequePassedDrafts(prev => ({ ...prev, [tx.id]: String(tx.amount) }));
+    commitChequePassedAmount(tx);
+  };
+
   const rtgsConfirmationMessage = rtgsConfirmation
     ? `Payment of Rupees ${roundAmt(rtgsConfirmation.amount || 0).toLocaleString("en-IN")} against Token Number - ${rtgsConfirmation.tokenNo || ""} has been made to Account number ending ${rtgsConfirmation.accountLast4 || "----"} A/c Thankyou. VCC.`
     : "";
@@ -289,35 +389,48 @@ export default function RTGSPanel({ currentUser }) {
     );
   };
 
-  // Filtered transaction logic
-  const filteredTransactions = transactions.filter(tx => {
+  // Dual sub-panel split: Due Payments (payable now — no due date, or the
+  // due date has arrived/passed) vs Maturity Payments (a future due date
+  // hasn't been reached yet). Everything below — stats, search, status
+  // filter, the table, and the PDF export — operates only on the active
+  // sub-panel's transactions.
+  const dueTransactions = transactions.filter(tx => tx.category === "DUE");
+  const maturityTransactions = transactions.filter(tx => tx.category === "MATURITY");
+  const tabTransactions = activeTab === "MATURITY" ? maturityTransactions : dueTransactions;
+
+  // Filtered transaction logic (scoped to the active Due/Maturity sub-panel)
+  const filteredTransactions = tabTransactions.filter(tx => {
     const matchesSearch = 
       tx.tokenNo?.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.farmerName?.toLowerCase().includes(searchTerm.toLowerCase());
 
     if (!matchesSearch) return false;
 
-    const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassed);
+    const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassedAmount);
     if (statusFilter === "ALL") return true;
     return statusInfo.label.toUpperCase().replace(/ /g, "_") === statusFilter;
   });
 
-  // Summary calculations.
+  // Summary calculations, scoped to the active Due/Maturity sub-panel.
   // IMPORTANT: completedAmount strictly only ever accumulates entries that
-  // are BOTH fully maker-paid AND cheque-passed. Partial / unsettled amounts
-  // are never folded into it, under any circumstance.
-  const stats = transactions.reduce((acc, tx) => {
+  // are BOTH fully maker-paid AND fully cheque/RTGS-passed. Partial /
+  // unsettled amounts are never folded into it, under any circumstance.
+  const stats = tabTransactions.reduce((acc, tx) => {
     acc.totalAmount += roundAmt(tx.amount);
-    const outstanding = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount));
+    const makerOutstanding = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount));
+    const chequeOutstanding = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.chequePassedAmount));
 
     if (tx.makerAmount <= 0) {
       acc.makerPendingCount += 1;
       acc.pendingSettlementAmount += roundAmt(tx.amount);
     } else if (!tx.makerDone) {
       acc.partialCount += 1;
-      acc.pendingSettlementAmount += outstanding;
-    } else if (!tx.chequePassed) {
+      acc.pendingSettlementAmount += makerOutstanding;
+    } else if (tx.chequePassedAmount <= 0) {
       acc.clearancePendingCount += 1;
+    } else if (tx.chequePassedAmount < tx.amount) {
+      acc.partiallyPassedCount += 1;
+      acc.partiallyPassedAmount += chequeOutstanding;
     } else {
       acc.completedCount += 1;
       acc.completedAmount += roundAmt(tx.amount);
@@ -328,15 +441,23 @@ export default function RTGSPanel({ currentUser }) {
     makerPendingCount: 0,
     partialCount: 0,
     clearancePendingCount: 0,
+    partiallyPassedCount: 0,
+    partiallyPassedAmount: 0,
     completedCount: 0,
     completedAmount: 0,
     pendingSettlementAmount: 0
   });
 
-  // 4. GENERATE AND SHARE RTGS REPORT PDF
+  const formatDueDate = (tx) => {
+    if (!tx.dueDateObj) return "IMMEDIATE";
+    return tx.dueDateObj.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  // 4. GENERATE AND SHARE RTGS REPORT PDF (active Due/Maturity sub-panel only)
   const handleShareWhatsAppPDF = async () => {
     try {
       const doc = new jsPDF();
+      const panelLabel = activeTab === "MATURITY" ? "MATURITY PAYMENTS" : "DUE PAYMENTS";
 
       // Set Title and Branding details
       doc.setFont("helvetica", "bold");
@@ -347,7 +468,7 @@ export default function RTGSPanel({ currentUser }) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139); // slate-500
-      doc.text("RTGS TRANSFER STATUS REPORT", 14, 26);
+      doc.text(`RTGS TRANSFER STATUS REPORT — ${panelLabel}`, 14, 26);
       doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 31);
       
       const totalVolume = filteredTransactions.reduce((sum, tx) => sum + roundAmt(tx.amount), 0);
@@ -357,13 +478,13 @@ export default function RTGSPanel({ currentUser }) {
       doc.setDrawColor(226, 232, 240); // slate-200
       doc.line(14, 40, 196, 40);
 
-      // Setup Headers: Token, Farmer, Amount, Maker Paid, Balance, Status
-      const headers = [["Token No.", "Farmer Name", "Amount", "Maker Paid", "Balance", "Status"]];
+      // Setup Headers: Token, Farmer, Amount, Maker Paid, Cheque Passed, Balance, Status
+      const headers = [["Token No.", "Farmer Name", "Amount", "Maker Paid", "Cheque Passed", "Balance", "Status"]];
       
       let tableRows = [];
       if (filteredTransactions.length === 0) {
         tableRows = [
-          ["_______", "_______", "_______", "_______", "_______", "_______"]
+          ["_______", "_______", "_______", "_______", "_______", "_______", "_______"]
         ];
       } else {
         tableRows = filteredTransactions.map((tx) => {
@@ -372,9 +493,10 @@ export default function RTGSPanel({ currentUser }) {
           
           const amountFormatted = roundAmt(tx.amount || 0).toLocaleString();
           const makerPaidFormatted = roundAmt(tx.makerAmount || 0).toLocaleString();
-          const balanceFormatted = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount)).toLocaleString();
+          const chequePassedFormatted = roundAmt(tx.chequePassedAmount || 0).toLocaleString();
+          const balanceFormatted = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.chequePassedAmount)).toLocaleString();
           
-          const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassed);
+          const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassedAmount);
           const statusStr = statusInfo.label || "_______";
 
           return [
@@ -382,6 +504,7 @@ export default function RTGSPanel({ currentUser }) {
             nameStr.toUpperCase(),
             amountFormatted,
             makerPaidFormatted,
+            chequePassedFormatted,
             balanceFormatted,
             statusStr.toUpperCase()
           ];
@@ -406,7 +529,8 @@ export default function RTGSPanel({ currentUser }) {
         columnStyles: {
           2: { halign: "right" },
           3: { halign: "right" },
-          4: { halign: "right" }
+          4: { halign: "right" },
+          5: { halign: "right" }
         },
         didDrawPage: (data) => {
           // Footer
@@ -421,7 +545,7 @@ export default function RTGSPanel({ currentUser }) {
       });
 
       const pdfBlob = doc.output("blob");
-      const cleanFileName = `RTGS_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+      const cleanFileName = `RTGS_Report_${activeTab}_${new Date().toISOString().slice(0, 10)}.pdf`;
       const file = new File([pdfBlob], cleanFileName, { type: "application/pdf" });
 
       // Native Browser Web Share API
@@ -429,7 +553,7 @@ export default function RTGSPanel({ currentUser }) {
         await navigator.share({
           files: [file],
           title: "Venkatesh Cotton Co - RTGS Report",
-          text: `Attached is the RTGS Transfer Status Report generated on ${new Date().toLocaleDateString()}.`
+          text: `Attached is the RTGS Transfer Status Report (${panelLabel}) generated on ${new Date().toLocaleDateString()}.`
         });
       } else {
         // Fallback method: Download PDF directly using file save
@@ -490,7 +614,37 @@ export default function RTGSPanel({ currentUser }) {
         </div>
       )}
 
-      {/* Stats Dashboard Grid */}
+      {/* Due Payments / Maturity Payments Sub-Panel Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/60 rounded-2xl w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab("DUE")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+            activeTab === "DUE"
+              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          }`}
+        >
+          <CalendarCheck2 className="w-4 h-4" />
+          Due Payments
+          <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px]">{dueTransactions.length}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("MATURITY")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+            activeTab === "MATURITY"
+              ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          }`}
+        >
+          <CalendarClock className="w-4 h-4" />
+          Maturity Payments
+          <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px]">{maturityTransactions.length}</span>
+        </button>
+      </div>
+
+      {/* Stats Dashboard Grid (scoped to the active sub-panel) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
           <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total RTGS Volume</p>
@@ -533,6 +687,16 @@ export default function RTGSPanel({ currentUser }) {
             {stats.clearancePendingCount > 0 && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
           </p>
         </div>
+        <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs">
+          <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Partially Passed</p>
+          <p className="text-2xl font-black text-violet-500 mt-2 flex items-center gap-2">
+            {stats.partiallyPassedCount}
+            {stats.partiallyPassedCount > 0 && <span className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />}
+          </p>
+          {stats.partiallyPassedCount > 0 && (
+            <p className="text-[10px] text-slate-400 uppercase font-bold mt-0.5">₹{stats.partiallyPassedAmount.toLocaleString("en-IN")} still unpassed</p>
+          )}
+        </div>
       </div>
 
       {/* Filter controls */}
@@ -558,6 +722,7 @@ export default function RTGSPanel({ currentUser }) {
             <option value="MAKER_PENDING">MAKER PENDING</option>
             <option value="PARTIAL_PAYMENT">PARTIAL PAYMENT</option>
             <option value="CLEARANCE_PENDING">CLEARANCE PENDING</option>
+            <option value="PARTIALLY_PASSED">PARTIALLY PASSED</option>
             <option value="PAYMENT_COMPLETED">PAYMENT COMPLETED</option>
           </select>
         </div>
@@ -568,7 +733,7 @@ export default function RTGSPanel({ currentUser }) {
         {/* Table Header with WhatsApp Share Action */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between flex-wrap gap-2">
           <h3 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight text-xs">
-            RTGS Transaction Queue
+            {activeTab === "MATURITY" ? "Maturity Payments Queue" : "Due Payments Queue"}
           </h3>
           <button
             onClick={handleShareWhatsAppPDF}
@@ -586,16 +751,17 @@ export default function RTGSPanel({ currentUser }) {
               <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest selection:bg-indigo-100">
                 <th className="px-6 py-4">Token No</th>
                 <th className="px-6 py-4">Farmer Name</th>
+                <th className="px-6 py-4">Due Date</th>
                 <th className="px-6 py-4 text-right">Amount (₹)</th>
                 <th className="px-6 py-4">Maker Amount (Split Payment)</th>
-                <th className="px-6 py-4 text-center">Cheque Passed</th>
+                <th className="px-6 py-4">Cheque / RTGS Passed (₹)</th>
                 <th className="px-6 py-4 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/65 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={7} className="px-6 py-10 text-center text-slate-400 dark:text-slate-500">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>Syncing live RTGS records...</span>
@@ -604,7 +770,7 @@ export default function RTGSPanel({ currentUser }) {
                 </tr>
               ) : filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Ban className="w-8 h-8 text-slate-300 dark:text-slate-700" />
                       <span>No records match the active criteria.</span>
@@ -613,10 +779,12 @@ export default function RTGSPanel({ currentUser }) {
                 </tr>
               ) : (
                 filteredTransactions.map((tx) => {
-                  const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassed);
+                  const statusInfo = getStatusInfo(tx.makerAmount, tx.amount, tx.makerDone, tx.chequePassedAmount);
                   const isLoadingRow = isUpdatingMap[tx.id];
-                  const balance = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount));
-                  const draftValue = makerAmountDrafts[tx.id] ?? String(tx.makerAmount);
+                  const makerBalance = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.makerAmount));
+                  const chequeBalance = Math.max(0, roundAmt(tx.amount) - roundAmt(tx.chequePassedAmount));
+                  const makerDraftValue = makerAmountDrafts[tx.id] ?? String(tx.makerAmount);
+                  const chequeDraftValue = chequePassedDrafts[tx.id] ?? String(tx.chequePassedAmount);
 
                   return (
                     <tr 
@@ -628,6 +796,12 @@ export default function RTGSPanel({ currentUser }) {
                       </td>
                       <td className="px-6 py-4.5 font-semibold text-slate-700 dark:text-slate-300">
                         {tx.farmerName}
+                      </td>
+                      <td className="px-6 py-4.5 text-slate-500 dark:text-slate-400 normal-case">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {formatDueDate(tx)}
+                        </div>
                       </td>
                       {/* Indian Number Formatting */}
                       <td className="px-6 py-4.5 text-right font-black text-slate-900 dark:text-slate-100 tabular-nums">
@@ -644,7 +818,7 @@ export default function RTGSPanel({ currentUser }) {
                               max={tx.amount}
                               step="1"
                               disabled={isLoadingRow}
-                              value={draftValue}
+                              value={makerDraftValue}
                               onChange={(e) => setMakerAmountDrafts(prev => ({ ...prev, [tx.id]: e.target.value }))}
                               onBlur={() => commitMakerAmount(tx)}
                               onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); } }}
@@ -665,32 +839,61 @@ export default function RTGSPanel({ currentUser }) {
                         </div>
                         {tx.makerAmount > 0 && !tx.makerDone && (
                           <p className="text-[9px] font-bold text-sky-600 dark:text-sky-400 mt-1 normal-case">
-                            Partial — Balance ₹{balance.toLocaleString("en-IN")} still unsettled
+                            Partial — Balance ₹{makerBalance.toLocaleString("en-IN")} still unsettled
                           </p>
                         )}
                       </td>
-                      {/* Cheque Passed Checkbox with Prevent Owner Mistake Guard (disabled until Maker Amount fully settles the bill) */}
-                      <td className="px-6 py-4.5 text-center">
-                        <div className="flex justify-center items-center">
-                          <input 
-                            type="checkbox"
-                            checked={tx.chequePassed}
-                            disabled={!tx.makerDone || isLoadingRow}
-                            onChange={() => handleCheckboxToggle(tx.id, tx.chequePassed)}
-                            className={`w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 transition-all ${
-                              tx.makerDone 
-                                ? "cursor-pointer" 
-                                : "cursor-not-allowed opacity-40 bg-slate-100 dark:bg-slate-800"
-                            }`}
-                            title={!tx.makerDone ? "Requires the Maker Amount to fully cover the bill before cheque authorization." : ""}
-                          />
+                      {/* Cheque / RTGS Passed Amount: mirrors the Maker Amount
+                          split-payment input, but for the bank-side clearance.
+                          Guarded (disabled) until the Maker Amount fully
+                          covers the bill. */}
+                      <td className="px-6 py-4.5">
+                        <div className="flex items-center gap-2 normal-case">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max={tx.amount}
+                              step="1"
+                              disabled={!tx.makerDone || isLoadingRow}
+                              value={chequeDraftValue}
+                              onChange={(e) => setChequePassedDrafts(prev => ({ ...prev, [tx.id]: e.target.value }))}
+                              onBlur={() => commitChequePassedAmount(tx)}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.currentTarget.blur(); } }}
+                              className={`w-28 pl-5 pr-2 py-1.5 text-xs font-bold rounded-lg border dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50 ${
+                                tx.makerDone
+                                  ? "border-slate-200 dark:border-slate-700"
+                                  : "border-slate-200 dark:border-slate-700 cursor-not-allowed bg-slate-100 dark:bg-slate-800"
+                              }`}
+                              title={!tx.makerDone ? "Requires the Maker Amount to fully cover the bill before cheque/RTGS authorization." : ""}
+                            />
+                          </div>
+                          {tx.makerDone && tx.chequePassedAmount < tx.amount && (
+                            <button
+                              type="button"
+                              disabled={isLoadingRow}
+                              onClick={() => markChequePassedFull(tx)}
+                              className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                              title="Mark full amount as passed by the bank"
+                            >
+                              <PieChart className="w-3 h-3" /> Full
+                            </button>
+                          )}
                         </div>
+                        {tx.makerDone && tx.chequePassedAmount > 0 && tx.chequePassedAmount < tx.amount && (
+                          <p className="text-[9px] font-bold text-violet-600 dark:text-violet-400 mt-1 normal-case">
+                            Partially Passed — Balance ₹{chequeBalance.toLocaleString("en-IN")} still unpassed
+                          </p>
+                        )}
                       </td>
                       {/* Status Flag badge - Calculated on-the-fly */}
                       <td className="px-6 py-4.5 text-right">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusInfo.colorClass}`}>
-                          {tx.makerDone && tx.chequePassed ? (
+                          {tx.makerDone && tx.chequePassedAmount >= tx.amount ? (
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          ) : tx.makerDone && tx.chequePassedAmount > 0 ? (
+                            <PieChart className="w-3.5 h-3.5 text-violet-500" />
                           ) : tx.makerDone ? (
                             <Clock className="w-3.5 h-3.5 text-amber-500" />
                           ) : tx.makerAmount > 0 ? (
