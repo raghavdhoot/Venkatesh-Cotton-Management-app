@@ -28,6 +28,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [grossWt, setGrossWt] = useState('');
     const [tareWt, setTareWt] = useState('');
     const [netWt, setNetWt] = useState('');
+    const [hamalName, setHamalName] = useState('');
+    const [hamalId, setHamalId] = useState('');
 
     const [isAdvancePayment, setIsAdvancePayment] = useState(false);
     const [advanceAmount, setAdvanceAmount] = useState('');
@@ -114,7 +116,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             (e.vehicleNumber && e.vehicleNumber.toLowerCase().includes(lowerSearch)) ||
             (e.destination && e.destination.toLowerCase().includes(lowerSearch)) ||
             (e.commodity && e.commodity.toLowerCase().includes(lowerSearch)) ||
-            (e.driverName && e.driverName.toLowerCase().includes(lowerSearch))
+            (e.driverName && e.driverName.toLowerCase().includes(lowerSearch)) ||
+            (e.hamalName && e.hamalName.toLowerCase().includes(lowerSearch))
         );
         setFilteredEntries(filtered);
     }, [searchQuery, entries]);
@@ -294,6 +297,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             return;
         }
 
+        if (!hamalName.trim()) {
+            setStatusMessage({ text: 'Hamal Name is required', type: 'error' });
+            return;
+        }
+
         // Submission Validation Guardrail (non-cotton items only): the chain
         // No. of Bales/Bags <= Bardana <= Sutli must hold strictly. Cotton
         // Bales never uses Bardana/Sutli, so this check is skipped for it.
@@ -321,6 +329,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setStatusMessage({ text: 'Saving Gatepass record...', type: 'info' });
 
         const resolvedCommodity = commodity === 'OTHER_PRODUCTS' ? customCommodity.trim().toUpperCase() : commodity;
+        const resolvedHamalName = hamalName.trim().toUpperCase();
+        const resolvedHamalId = normalizeItemName(resolvedHamalName);
 
         const payload = {
             gatePassNo: gatePassNo.toUpperCase() || null,
@@ -338,6 +348,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             grossWt: grossWt ? parseFloat(grossWt) : null,
             tareWt: tareWt ? parseFloat(tareWt) : null,
             netWt: netWt ? parseFloat(netWt) : null,
+            hamalName: resolvedHamalName,
+            hamalId: resolvedHamalId,
             isAdvancePayment: !!isAdvancePayment,
             advanceAmount: isAdvancePayment && advanceAmount ? roundAmt(advanceAmount) : null,
             driverPhoto: driverPhoto || null,
@@ -451,6 +463,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
+        setHamalName(entry.hamalName || '');
+        setHamalId(entry.hamalId || '');
         setIsAdvancePayment(!!entry.isAdvancePayment);
         setAdvanceAmount(entry.advanceAmount != null ? roundAmt(entry.advanceAmount) : '');
         setDriverPhoto(entry.driverPhoto || null);
@@ -473,6 +487,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             "Gross Weight (kg)": entry.grossWt || '',
             "Tare Weight (kg)": entry.tareWt || '',
             "Net Weight (kg)": entry.netWt || '',
+            "Hamal Name": entry.hamalName || '',
             "Driver Name": entry.driverName || '',
             "Driver Phone": entry.driverPhone || '',
             "Advance Payment Given": entry.isAdvancePayment ? 'YES' : 'NO',
@@ -568,6 +583,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setGrossWt('');
         setTareWt('');
         setNetWt('');
+        setHamalName('');
+        setHamalId('');
         setIsAdvancePayment(false);
         setAdvanceAmount('');
         setDriverPhoto(null);
@@ -588,6 +605,10 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     }, []);
 
     const finalPrintData = printEntry || {};
+    // Kata Operator signature line is auto-populated from the logged-in
+    // session user (currentUser), never from the Javak entry itself, so it
+    // always reflects whoever is printing the slip.
+    const kataOperatorName = currentUser?.name || currentUser?.employeeId || currentUser?.employeeName || '';
 
     return (
         <div className="space-y-6">
@@ -662,6 +683,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                         return val;
                     };
 
+                    // NOTE: Hamal is intentionally NOT included in this `data`
+                    // object — Hamal must never appear on the printed
+                    // Javak slip/PDF, only in the on-screen form & exports.
                     const data = {
                         GATE_PASS_NO: getVal(finalPrintData?.gatePassNo),
                         VEHICLE_NO: getVal(finalPrintData?.vehicleNumber),
@@ -780,6 +804,17 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     )}
                                 </div>
 
+                            </div>
+
+                            {/* Signature Block: Kata Operator (auto-filled from session user)
+                                sits above Accountant, per slip. */}
+                            <div style={{ marginTop: '3px', paddingTop: '2px', borderTop: '1px solid #000000', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                <div style={{ fontSize: '7.5pt', fontWeight: 'bold' }}>
+                                    KATA OPERATOR: <span style={{ textTransform: 'uppercase' }}>{kataOperatorName || '_______________'}</span>
+                                </div>
+                                <div style={{ fontSize: '7.5pt', fontWeight: 'bold' }}>
+                                    ACCOUNTANT: _______________
+                                </div>
                             </div>
                         </section>
                     );
@@ -978,6 +1013,21 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                     </div>
                                 </div>
 
+                                <div>
+                                    <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Hamal Name *</label>
+                                    <div className="relative">
+                                        <Users className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            className={`input-field pl-9 uppercase font-bold dark:bg-slate-800 ${!hamalName.trim() && fieldErrors.hamalName ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`}
+                                            value={hamalName}
+                                            onChange={(e) => setHamalName(e.target.value)}
+                                            required
+                                            placeholder="Hamal / loading labour name"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="p-5 bg-emerald-50/40 dark:bg-emerald-950/10 rounded-xl border border-emerald-100 dark:border-emerald-950/20 space-y-4">
                                     <label className="flex items-center gap-3 cursor-pointer select-none">
                                         <input
@@ -1123,6 +1173,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                     <div className="text-[10px] text-slate-400 font-mono font-bold">Qty: {e.numberOfBags} Bales</div>
                                                     {e.commodity !== 'BALES' && (
                                                         <div className="text-[10px] text-slate-400 font-mono">Bardana: {e.bardana || 0} | Sutli: {e.sutli || 0}</div>
+                                                    )}
+                                                    {e.hamalName && (
+                                                        <div className="text-[10px] text-slate-400 font-mono">Hamal: {e.hamalName}</div>
                                                     )}
                                                     {e.isAdvancePayment && parseFloat(e.advanceAmount || 0) > 0 && (
                                                         <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 mt-0.5">Advance Paid: {roundAmt(e.advanceAmount || 0)}</div>

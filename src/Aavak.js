@@ -36,6 +36,12 @@ function Aavak({ currentUser }) {
     const [balanceAmount, setBalanceAmount] = useState('');
     const [accountantName, setAccountantName] = useState('');
 
+    // Mandatory Hamal (loader/weighman) name — required on every Aavak entry.
+    // Deliberately excluded from all print/PDF layouts below (single-entry
+    // slip, blank print, and the bulk group report) even though it's saved
+    // to Firestore and included in the Excel export.
+    const [hamalName, setHamalName] = useState('');
+
     // New fields for expanded payment modes
     const [dueDate, setDueDate] = useState('');
     const [chequeNumber, setChequeNumber] = useState('');
@@ -172,6 +178,7 @@ function Aavak({ currentUser }) {
         setHamaliDeduction(entry.hamaliDeduction || 0);
         setWeighmentDeduction(entry.weighmentDeduction || 1);
         setNetAmount(entry.netAmount !== undefined && entry.netAmount !== null && entry.netAmount !== '' ? Math.round(entry.netAmount) : '');
+        setHamalName(entry.hamalName || '');
 
         // Normalize legacy payment mode values (from records saved before
         // the expanded payment-mode set) onto the new vocabulary.
@@ -265,6 +272,7 @@ function Aavak({ currentUser }) {
                 netAmount: '_____',
                 amountPaid: '_____',
                 balanceAmount: '_____'
+                // NOTE: hamalName intentionally omitted — never printed.
             });
         } else {
             setPrintEntry(entryToPrint);
@@ -358,6 +366,11 @@ function Aavak({ currentUser }) {
         
         if (!isNewEntry && !currentEntryId) return;
 
+        if (!hamalName.trim()) {
+            setStatusMessage({ text: 'Hamal Name is required', type: 'error' });
+            return;
+        }
+
         if (isRtgsMode(paymentMode)) {
             const { bankName, accountNumber, accountHolderName, ifscCode, phoneNo } = rtgsDetails;
             if (!bankName || !accountNumber || !accountHolderName || !ifscCode || !phoneNo) {
@@ -405,6 +418,7 @@ function Aavak({ currentUser }) {
             hamaliDeduction: parseFloat(hamaliDeduction),
             weighmentDeduction: parseFloat(weighmentDeduction),
             netAmount: netAmount !== '' ? Math.round(parseFloat(netAmount)) : null,
+            hamalName: hamalName.trim().toUpperCase(),
             paymentMode: paymentMode,
             paymentDueDate: isDueMode(paymentMode) ? (dueDate || null) : null,
             chequeNumber: isChequeMode(paymentMode) ? (chequeNumber.trim().toUpperCase() || null) : null,
@@ -419,6 +433,8 @@ function Aavak({ currentUser }) {
             amountPaid: amountPaid !== '' ? parseFloat(amountPaid) : null,
             balanceAmount: balanceAmount !== '' ? parseFloat(balanceAmount) : null,
             accountantName: (accountantName || currentUser?.name || 'Authorized Client').toUpperCase(),
+            kataOperatorId: currentUser?.employeeId || null,
+            kataOperatorName: currentUser?.name || null,
             updatedAt: serverTimestamp()
         };
 
@@ -476,6 +492,7 @@ function Aavak({ currentUser }) {
             "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : '',
             "Amount Paid": entry.amountPaid || '',
             "Balance": entry.balanceAmount || '',
+            "Hamal Name": entry.hamalName || '',
             "Payment Mode": getPaymentModeLabel(entry.paymentMode),
             "Due Date": entry.paymentDueDate || '',
             "Cheque Number": entry.chequeNumber || '',
@@ -485,7 +502,8 @@ function Aavak({ currentUser }) {
             "Account Holder": entry.rtgsDetails?.accountHolderName || '',
             "IFSC Code": entry.rtgsDetails?.ifscCode || '',
             "RTGS Phone No": entry.rtgsDetails?.phoneNo || '',
-            "Operator": entry.accountantName || entry.makerName || ''
+            "Operator": entry.accountantName || entry.makerName || '',
+            "Kata Operator": entry.kataOperatorName || ''
         }));
         
         const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -581,6 +599,7 @@ function Aavak({ currentUser }) {
         setHamaliDeduction(0);
         setWeighmentDeduction(1);
         setNetAmount('');
+        setHamalName('');
         setPaymentMode('CASH_IMMEDIATE');
         setDueDate('');
         setChequeNumber('');
@@ -759,6 +778,17 @@ function Aavak({ currentUser }) {
                         font-size: 10px !important;
                         text-transform: uppercase !important;
                     }
+                    .footer-line-stack {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: center !important;
+                        gap: 6px !important;
+                    }
+                    .kata-operator-name {
+                        font-size: 9px !important;
+                        font-weight: 700 !important;
+                        text-align: center !important;
+                    }
                     .label-tag {
                         position: absolute !important;
                         top: 10px !important;
@@ -790,6 +820,8 @@ function Aavak({ currentUser }) {
                                             </tr>
                                         </tbody>
                                     </table>
+                                    {/* NOTE: Hamal (hamalName) is intentionally never rendered anywhere
+                                        in this print layout — per PDF/print suppression requirement. */}
                                     <div className="metadata-grid">
                                         <div><strong>Token No:</strong> {printableAavak.tokenNo || ''}</div>
                                         <div><strong>Date:</strong> {printableAavak.billingDate || ''}</div>
@@ -848,7 +880,13 @@ function Aavak({ currentUser }) {
                                     <div className="footer-block">
                                         <div><strong>Payment Mode:</strong> {getPaymentModeLabel(printableAavak.paymentMode)}</div>
                                         <div className="footer-line">Farmer Signature</div>
-                                        <div className="footer-line">Accountant</div>
+                                        <div className="footer-line-stack">
+                                            <div>
+                                                <div className="kata-operator-name">{currentUser?.name || ''}</div>
+                                                <div className="footer-line">Kata Operator</div>
+                                            </div>
+                                            <div className="footer-line">Accountant</div>
+                                        </div>
                                     </div>
                                 </div>
                                 {copyIndex === 0 && (
@@ -867,6 +905,8 @@ function Aavak({ currentUser }) {
                         <div style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '1px' }}>VENKATESH COTTON COMPANY</div>
                         <div style={{ fontSize: '10px', marginTop: '2px' }}>NH752, Pomnala, Maharashtra 431801 | Aavak Group Report — {new Date().toLocaleDateString('en-CA')}</div>
                     </div>
+                    {/* NOTE: Hamal (hamalName) is intentionally excluded from this
+                        bulk report table as well. */}
                     <table>
                         <thead>
                             <tr>
@@ -1010,6 +1050,20 @@ function Aavak({ currentUser }) {
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Tare Weight (kg)</label>
                                         <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => setTareWt(e.target.value)} placeholder="e.g. 1200" />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Hamal Name *</label>
+                                        <input
+                                            type="text"
+                                            className="input-field uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                            value={hamalName}
+                                            onChange={(e) => setHamalName(e.target.value)}
+                                            placeholder="Loader / Hamal name"
+                                            required
+                                        />
                                     </div>
                                 </div>
 
