@@ -217,7 +217,7 @@ export default function CashManagement({ currentUser }) {
       .filter((e) => {
         const balance = roundAmt(e.balanceAmount || 0);
         return (
-          (e.paymentMode || "").toUpperCase() === "CASH" &&
+          (e.paymentMode || "").toUpperCase() === "CASH_IMMEDIATE" &&
           balance > 0 &&
           e.billingDate &&
           e.billingDate < todayStr
@@ -410,7 +410,7 @@ export default function CashManagement({ currentUser }) {
   const todaysImmediatePattis = React.useMemo(
     () =>
       aavakEntries.filter(
-        (e) => (e.paymentMode || "").toUpperCase() === "CASH" && e.billingDate === todayStr
+        (e) => (e.paymentMode || "").toUpperCase() === "CASH_IMMEDIATE" && e.billingDate === todayStr
       ),
     [aavakEntries, todayStr]
   );
