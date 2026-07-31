@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, limit, serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, Download, Save, X, Trash2, Copy, Printer, History, Settings, Share2, Users, CheckSquare, Square, FileSpreadsheet, Lock } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, Printer, Users, CheckSquare, Square, FileSpreadsheet, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { normalizeItemName } from './utils/normalization';
 import { subscribeToAavak } from './components/Dashboard';
+
+// Default billing settings used both as the initial state value and as the
+// fallback document written to Firestore when the settings doc doesn't
+// exist yet. Kept as a plain constant (not derived from state) so the
+// settings-fetch effect below never needs `billingSettings` itself in its
+// dependency array.
+const DEFAULT_BILLING_SETTINGS = {
+    generalDeductionPercent: 1.4,
+    hamaliPerQuintal: 4.5,
+    weighmentCharges: 10
+};
 
 function Aavak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -60,13 +70,7 @@ function Aavak({ currentUser }) {
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
-    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-    const [billingSettings, setBillingSettings] = useState({
-        generalDeductionPercent: 1.4,
-        hamaliPerQuintal: 4.5,
-        weighmentCharges: 10
-    });
+    const [billingSettings, setBillingSettings] = useState(DEFAULT_BILLING_SETTINGS);
     const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [paymentLogValue, setPaymentLogValue] = useState('');
     const [paymentHistoryEntry, setPaymentHistoryEntry] = useState(null);
@@ -127,7 +131,7 @@ function Aavak({ currentUser }) {
             if (snap.exists()) {
                 setBillingSettings(snap.data());
             } else {
-                setDoc(settingsDocRef, billingSettings);
+                setDoc(settingsDocRef, DEFAULT_BILLING_SETTINGS);
             }
         });
 
@@ -441,7 +445,7 @@ function Aavak({ currentUser }) {
         try {
             if (isNewEntry) {
                 // Doc ID format: [Token No.] - [Amount Paid]
-                const sanitize = (val) => String(val || '').trim().replace(/[\/\.\#\$\[\]]/g, '-');
+                const sanitize = (val) => String(val || '').trim().replace(/[/.#$[\]]/g, '-');
                 const tokenPart = sanitize(dataPayload.tokenNo) || 'TOKEN';
                 const amountPart = sanitize(dataPayload.amountPaid ?? 0) || '0';
                 const docId = `${tokenPart}-${amountPart}`;
