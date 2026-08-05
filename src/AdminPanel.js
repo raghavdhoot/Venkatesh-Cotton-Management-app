@@ -1,24 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { Save, Trash2, Plus, CheckSquare, IndianRupee, Shield, Mail, Clock, MessageSquare, Send, Edit, X } from 'lucide-react';
+import { Save, Trash2, Plus, IndianRupee, Shield, Mail, Edit, X } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
 function AdminPanel({ currentUser }) {
     const [note, setNote] = useState('');
-    const [task, setTask] = useState('');
-    const [assignedTo, setAssignedTo] = useState('');
-    const [employees, setEmployees] = useState([]);
     const [dashboardNotes, setDashboardNotes] = useState([]);
-    const [adminTasks, setAdminTasks] = useState([]);
-    const [employeeMessages, setEmployeeMessages] = useState([]);
     const [itemName, setItemName] = useState('');
     const [itemRate, setItemRate] = useState('');
     const [rateChart, setRateChart] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
-    const [replyingTo, setReplyingTo] = useState(null);
-    const [replyContent, setReplyContent] = useState('');
-    const [isSendingReply, setIsSendingReply] = useState(false);
 
     // Rate Edit States
     const [editingRateId, setEditingRateId] = useState(null);
@@ -76,29 +68,14 @@ function AdminPanel({ currentUser }) {
             setDashboardNotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const unsubscribeTasks = onSnapshot(query(collection(db, 'adminTasks'), orderBy('timestamp', 'desc')), (snapshot) => {
-            setAdminTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
         const unsubscribeRates = onSnapshot(query(collection(db, 'rateCharts'), orderBy('timestamp', 'desc')), (snapshot) => {
             const rates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setRateChart(rates);
         });
 
-        const unsubscribeEmployees = onSnapshot(query(collection(db, 'employees'), orderBy('name', 'asc')), (snapshot) => {
-            setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
-        const unsubscribeMessages = onSnapshot(query(collection(db, 'employeeMessages'), orderBy('timestamp', 'desc')), (snapshot) => {
-            setEmployeeMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        });
-
         return () => {
             unsubscribeNotes();
-            unsubscribeTasks();
             unsubscribeRates();
-            unsubscribeEmployees();
-            unsubscribeMessages();
         };
     }, [isAdmin]);
 
@@ -116,25 +93,6 @@ function AdminPanel({ currentUser }) {
         } catch (error) {
             console.error("Error adding note:", error);
             setStatusMessage({ text: 'Error adding note', type: 'error' });
-        }
-    };
-
-    const handleAssignTask = async (e) => {
-        e.preventDefault();
-        if (!task.trim() || !assignedTo) return;
-        try {
-            await addDoc(collection(db, 'adminTasks'), {
-                content: task.toUpperCase(),
-                author: currentUser.name,
-                assignedTo: assignedTo,
-                timestamp: serverTimestamp()
-            });
-            setTask('');
-            setAssignedTo('');
-            setStatusMessage({ text: 'Task assigned successfully', type: 'success' });
-        } catch (error) {
-            console.error("Error assigning task:", error);
-            setStatusMessage({ text: 'Error assigning task', type: 'error' });
         }
     };
 
@@ -214,26 +172,6 @@ function AdminPanel({ currentUser }) {
         }
     };
 
-    const handleSendReply = async (msgId) => {
-        if (!replyContent.trim()) return;
-        setIsSendingReply(true);
-        try {
-            await updateDoc(doc(db, 'employeeMessages', msgId), {
-                reply: replyContent.toUpperCase(),
-                replyTimestamp: serverTimestamp(),
-                repliedBy: currentUser.name
-            });
-            setReplyContent('');
-            setReplyingTo(null);
-            setStatusMessage({ text: 'Reply sent successfully', type: 'success' });
-        } catch (error) {
-            console.error("Error sending reply:", error);
-            setStatusMessage({ text: 'Error sending reply', type: 'error' });
-        } finally {
-            setIsSendingReply(false);
-        }
-    };
-
     if (!isAdmin) {
         return (
             <div className="flex items-center justify-center p-12">
@@ -302,70 +240,6 @@ function AdminPanel({ currentUser }) {
                                 ))
                             ) : (
                                 <div className="p-8 text-center text-slate-400 dark:text-slate-500 italic text-sm">No notes posted yet.</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tasks Management */}
-                <div className="space-y-6">
-                    <div className="card">
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <CheckSquare className="w-5 h-5 text-amber-600" />
-                            Assign Private Tasks
-                        </h3>
-                        <form onSubmit={handleAssignTask} className="space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Assign To Employee</label>
-                                <select 
-                                    className="input-field dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                    value={assignedTo}
-                                    onChange={(e) => setAssignedTo(e.target.value)}
-                                    required
-                                >
-                                    <option value="">SELECT EMPLOYEE...</option>
-                                    {employees.map(emp => (
-                                        <option key={emp.employeeId} value={emp.employeeId}>{emp.name} ({emp.employeeId})</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <textarea 
-                                className="input-field min-h-[80px] uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
-                                placeholder="DESCRIBE THE PRIVATE TASK..."
-                                value={task}
-                                onChange={(e) => setTask(e.target.value.toUpperCase())}
-                                required
-                            />
-                            <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 border-amber-600">
-                                <Plus className="w-4 h-4" /> Assign Task
-                            </button>
-                        </form>
-                    </div>
-
-                    <div className="card !p-0 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                            <h4 className="font-bold text-slate-700 dark:text-slate-300">Recent Private Tasks</h4>
-                        </div>
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[300px] overflow-y-auto">
-                            {adminTasks.length > 0 ? (
-                                adminTasks.map(n => (
-                                    <div key={n.id} className="p-4 flex justify-between items-start gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                                                    To: {n.assignedTo}
-                                                </span>
-                                            </div>
-                                            <p className="text-sm text-slate-900 dark:text-slate-100 font-medium whitespace-pre-wrap">{n.content}</p>
-                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 uppercase">By {n.author} • {n.timestamp?.toDate().toLocaleString()}</p>
-                                        </div>
-                                        <button onClick={() => handleDelete('adminTasks', n.id)} className="text-slate-300 hover:text-red-600 transition-colors">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="p-8 text-center text-slate-400 dark:text-slate-500 italic text-sm">No tasks assigned yet.</div>
                             )}
                         </div>
                     </div>
@@ -486,92 +360,6 @@ function AdminPanel({ currentUser }) {
                                     )}
                                 </div>
                             ))}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Employee Messages Section */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="card !p-0 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
-                            <Mail className="w-5 h-5 text-indigo-600" />
-                            <h4 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Messages from Employees</h4>
-                        </div>
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[400px] overflow-y-auto">
-                            {employeeMessages.length > 0 ? (
-                                employeeMessages.map(msg => (
-                                    <div key={msg.id} className="p-4 flex justify-between items-start gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                                    From: {msg.senderName} ({msg.senderId})
-                                                </span>
-                                            </div>
-                                            <p className="text-sm text-slate-900 dark:text-slate-100 font-medium whitespace-pre-wrap">{msg.content}</p>
-                                            <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400 dark:text-slate-500 uppercase">
-                                                <Clock className="w-3 h-3" />
-                                                {msg.timestamp?.toDate().toLocaleString()}
-                                            </div>
-
-                                            {msg.reply && (
-                                                <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-lg">
-                                                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mb-1 flex items-center gap-1">
-                                                        <MessageSquare className="w-3 h-3" /> Admin Reply:
-                                                    </p>
-                                                    <p className="text-sm text-slate-800 dark:text-slate-200 font-medium whitespace-pre-wrap">{msg.reply}</p>
-                                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase">
-                                                        By {msg.repliedBy} • {msg.replyTimestamp?.toDate().toLocaleString()}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {replyingTo === msg.id ? (
-                                                <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-top-2">
-                                                    <textarea 
-                                                        className="input-field min-h-[60px] text-xs uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                                        placeholder="TYPE YOUR REPLY..."
-                                                        value={replyContent}
-                                                        onChange={(e) => setReplyContent(e.target.value.toUpperCase())}
-                                                        autoFocus
-                                                    />
-                                                    <div className="flex justify-end gap-2">
-                                                        <button 
-                                                            onClick={() => setReplyingTo(null)}
-                                                            className="px-3 py-1.5 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleSendReply(msg.id)}
-                                                            disabled={isSendingReply}
-                                                            className="btn-primary py-1.5 px-3 text-[10px] flex items-center gap-1"
-                                                        >
-                                                            {isSendingReply ? 'Sending...' : <><Send className="w-3 h-3" /> Send Reply</>}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <button 
-                                                    onClick={() => {
-                                                        setReplyingTo(msg.id);
-                                                        setReplyContent(msg.reply || '');
-                                                    }}
-                                                    className="mt-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase hover:underline flex items-center gap-1"
-                                                >
-                                                    <MessageSquare className="w-3 h-3" /> {msg.reply ? 'Edit Reply' : 'Reply'}
-                                                </button>
-                                            )}
-                                        </div>
-                                        <button onClick={() => handleDelete('employeeMessages', msg.id)} className="text-slate-300 hover:text-red-600 transition-colors">
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="p-8 text-center text-slate-400 dark:text-slate-500 italic text-sm">
-                                    No messages from employees yet.
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
