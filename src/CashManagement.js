@@ -28,7 +28,11 @@ import {
   Clock,
   CalendarDays,
   AlertTriangle,
-  X
+  X,
+  ListChecks,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -71,6 +75,11 @@ export default function CashManagement({ currentUser }) {
   // of those pattis that are fully settled — cashier must explicitly
   // acknowledge before the counter is allowed to close.
   const [isCloseWarningOpen, setIsCloseWarningOpen] = useState(false);
+  // Toggles the actual Patti-by-Patti breakdown open/closed in the EOD
+  // panel — collapsed by default so the summary stays compact, but the
+  // real entries (token, farmer, amount, settled/unsettled) are always
+  // just one click away instead of only ever showing a bare count.
+  const [showImmediatePattiDetails, setShowImmediatePattiDetails] = useState(false);
 
   const isAuthorized =
     currentUser?.role?.toUpperCase() === "ADMIN" ||
@@ -424,6 +433,53 @@ export default function CashManagement({ currentUser }) {
   );
   const immediatePaymentCountMismatch =
     todaysImmediatePattis.length !== todaysSettledImmediatePattis.length;
+
+  // Renders the actual Patti entries (token, farmer, amount, settled state)
+  // for the EOD panel — used in place of a bare count so the cashier can see
+  // exactly which bills are behind, not just how many.
+  const renderImmediatePattiRow = (entry) => {
+    const net = roundAmt(entry.netAmount || entry.amount || 0);
+    const paid = roundAmt(entry.amountPaid || 0);
+    const due = roundAmt(entry.balanceAmount || 0);
+    const isSettled = due <= 0;
+    return (
+      <div
+        key={entry.id}
+        className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+      >
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-black text-slate-800 dark:text-slate-100 font-mono">
+              #{entry.tokenNo || entry.id}
+            </span>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1 ${
+                isSettled
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              }`}
+            >
+              {isSettled ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+              {isSettled ? "Settled" : "Unsettled"}
+            </span>
+          </div>
+          <p className="font-bold text-slate-700 dark:text-slate-300 uppercase mt-0.5">
+            {entry.Name || entry.farmerName || "UNKNOWN"}
+          </p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">
+            Village: {entry.Village || "N/A"} • Phone: {entry.farmerPhone || "N/A"}
+          </p>
+        </div>
+        <div className="text-right font-mono">
+          <p className="font-black text-slate-800 dark:text-slate-100">₹{net.toLocaleString("en-IN")}</p>
+          <p className="text-[10px] text-slate-400">Paid: ₹{paid.toLocaleString("en-IN")}</p>
+          {!isSettled && (
+            <p className="text-[10px] font-bold text-red-500 dark:text-red-400">Due: ₹{due.toLocaleString("en-IN")}</p>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const executeCloseCounter = async () => {
     try {
@@ -867,14 +923,18 @@ export default function CashManagement({ currentUser }) {
                   ? `Counter for today (${todayStr}) is successfully locked.`
                   : `Daily counter balance verification for today (${todayStr}).`}
               </p>
-              {!todayClosure && todaysImmediatePattis.length > 0 && (
-                <p
-                  className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${
+              {todaysImmediatePattis.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowImmediatePattiDetails((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider mt-1 cursor-pointer hover:underline ${
                     immediatePaymentCountMismatch ? "text-red-500" : "text-emerald-500"
                   }`}
                 >
+                  <ListChecks className="w-3.5 h-3.5" />
                   Immediate Pattis Today: {todaysSettledImmediatePattis.length} / {todaysImmediatePattis.length} Settled
-                </p>
+                  {showImmediatePattiDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
               )}
             </div>
           </div>
@@ -889,6 +949,17 @@ export default function CashManagement({ currentUser }) {
             </button>
           )}
         </div>
+
+        {/* Actual Patti-by-Patti breakdown — replaces the bare count with the
+            real entries (token, farmer, amount, settled/unsettled) so the
+            cashier can see exactly which bills are involved, not just how
+            many. Works the same whether the counter is open or already
+            closed for today, since it's driven by today's live Aavak data. */}
+        {todaysImmediatePattis.length > 0 && showImmediatePattiDetails && (
+          <div className="mt-4 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 max-h-72 overflow-y-auto">
+            {todaysImmediatePattis.map((entry) => renderImmediatePattiRow(entry))}
+          </div>
+        )}
 
         {todayClosure ? (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4">
@@ -926,11 +997,19 @@ export default function CashManagement({ currentUser }) {
               </p>
             </div>
             {todayClosure.closedWithUnsettledImmediatePayments && (
-              <div className="col-span-2 md:col-span-5 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900/40 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
-                  Closed with {(todayClosure.immediatePattisToday || 0) - (todayClosure.immediatePattisSettledToday || 0)} unsettled Immediate/Cash patti(s) — {todayClosure.immediatePattisSettledToday || 0} / {todayClosure.immediatePattisToday || 0} settled at close time.
-                </p>
+              <div className="col-span-2 md:col-span-5 space-y-2">
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900/40 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                    Closed with {(todayClosure.immediatePattisToday || 0) - (todayClosure.immediatePattisSettledToday || 0)} unsettled Immediate/Cash patti(s) — {todayClosure.immediatePattisSettledToday || 0} / {todayClosure.immediatePattisToday || 0} settled at close time.
+                  </p>
+                </div>
+                {/* Real entries for what's still unsettled, not just the count above. */}
+                {todaysUnsettledImmediatePattis.length > 0 && (
+                  <div className="border border-red-100 dark:border-red-900/40 rounded-xl divide-y divide-red-100 dark:divide-red-900/40 max-h-56 overflow-y-auto">
+                    {todaysUnsettledImmediatePattis.map((entry) => renderImmediatePattiRow(entry))}
+                  </div>
+                )}
               </div>
             )}
           </div>
