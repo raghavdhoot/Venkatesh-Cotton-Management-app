@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, getDoc, getDocs, documentId, where, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, serverTimestamp, doc, getDocs, documentId, where, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Trash2, Camera, History, Copy, Phone, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet, Download } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Camera, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet, Download } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
+
+// Formats a Date (or Firestore Timestamp-like object with toDate()) as
+// dd-mm HH:MM, the required display format for Gross/Tare weight capture
+// timestamps everywhere they appear (form, dispatch log, printed slip,
+// Excel export).
+const formatWeightTimestamp = (value) => {
+    if (!value) return '';
+    const d = typeof value?.toDate === 'function' ? value.toDate() : new Date(value);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const HH = String(d.getHours()).padStart(2, '0');
+    const MIN = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}-${mm} ${HH}:${MIN}`;
+};
 
 function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
@@ -30,6 +45,13 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [netWt, setNetWt] = useState('');
     const [hamalName, setHamalName] = useState('');
     const [hamalId, setHamalId] = useState('');
+
+    // Weight Timestamp Capture: the exact moment Gross Wt / Tare Wt was
+    // first entered on this form. Captured once (on the empty -> non-empty
+    // transition), not re-stamped on every keystroke of an already-entered
+    // value, and cleared if the field is cleared back to empty.
+    const [grossWtTimestamp, setGrossWtTimestamp] = useState(null);
+    const [tareWtTimestamp, setTareWtTimestamp] = useState(null);
 
     const [isAdvancePayment, setIsAdvancePayment] = useState(false);
     const [advanceAmount, setAdvanceAmount] = useState('');
@@ -90,6 +112,27 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             setBardana('');
             setSutli('');
         }
+    };
+
+    // Weight Timestamp Capture handlers: stamp the moment a weight value
+    // transitions from empty to non-empty; clear the stamp if the field is
+    // cleared back to empty so a stale time never lingers on a blank field.
+    const handleGrossWtChange = (val) => {
+        if (val && !grossWt) {
+            setGrossWtTimestamp(new Date());
+        } else if (!val) {
+            setGrossWtTimestamp(null);
+        }
+        setGrossWt(val);
+    };
+
+    const handleTareWtChange = (val) => {
+        if (val && !tareWt) {
+            setTareWtTimestamp(new Date());
+        } else if (!val) {
+            setTareWtTimestamp(null);
+        }
+        setTareWt(val);
     };
 
     useEffect(() => {
@@ -348,6 +391,11 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             grossWt: grossWt ? parseFloat(grossWt) : null,
             tareWt: tareWt ? parseFloat(tareWt) : null,
             netWt: netWt ? parseFloat(netWt) : null,
+            // Weight Timestamp Capture: exact moment each weight was entered,
+            // stored as ISO strings so both the form and the printed slip can
+            // render them in dd-mm HH:MM.
+            grossWtTimestamp: grossWtTimestamp ? grossWtTimestamp.toISOString() : null,
+            tareWtTimestamp: tareWtTimestamp ? tareWtTimestamp.toISOString() : null,
             hamalName: resolvedHamalName,
             hamalId: resolvedHamalId,
             isAdvancePayment: !!isAdvancePayment,
@@ -363,7 +411,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                 // The date segment was added so a gate pass number reused
                 // against the same destination on a different day gets its
                 // own document instead of silently overwriting an earlier one.
-                const sanitize = (val) => String(val || '').trim().replace(/[\/\.\#\$\[\]]/g, '-');
+                const sanitize = (val) => String(val || '').trim().replace(/[/.#$[\]]/g, '-');
                 const billPart = sanitize(payload.gatePassNo) || 'GP';
                 const destinationPart = sanitize(payload.destination) || 'DEST';
                 const datePart = sanitize(payload.date) || sanitize(new Date().toLocaleDateString('en-CA'));
@@ -463,6 +511,10 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
+        // Weight Timestamp Capture: restore previously captured times so
+        // re-opening a saved entry doesn't lose or reset them.
+        setGrossWtTimestamp(entry.grossWtTimestamp ? new Date(entry.grossWtTimestamp) : null);
+        setTareWtTimestamp(entry.tareWtTimestamp ? new Date(entry.tareWtTimestamp) : null);
         setHamalName(entry.hamalName || '');
         setHamalId(entry.hamalId || '');
         setIsAdvancePayment(!!entry.isAdvancePayment);
@@ -485,7 +537,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
             "Bardana": entry.bardana || '',
             "Sutli": entry.sutli || '',
             "Gross Weight (kg)": entry.grossWt || '',
+            "Gross Wt Time": formatWeightTimestamp(entry.grossWtTimestamp),
             "Tare Weight (kg)": entry.tareWt || '',
+            "Tare Wt Time": formatWeightTimestamp(entry.tareWtTimestamp),
             "Net Weight (kg)": entry.netWt || '',
             "Hamal Name": entry.hamalName || '',
             "Driver Name": entry.driverName || '',
@@ -583,6 +637,8 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
         setGrossWt('');
         setTareWt('');
         setNetWt('');
+        setGrossWtTimestamp(null);
+        setTareWtTimestamp(null);
         setHamalName('');
         setHamalId('');
         setIsAdvancePayment(false);
@@ -692,7 +748,9 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                         DESTINATION: getVal(finalPrintData?.destination),
                         COMMODITY: getVal(finalPrintData?.commodity),
                         GROSS: getVal(finalPrintData?.grossWt),
+                        GROSS_TIME: getVal(formatWeightTimestamp(finalPrintData?.grossWtTimestamp)),
                         TARE: getVal(finalPrintData?.tareWt),
+                        TARE_TIME: getVal(formatWeightTimestamp(finalPrintData?.tareWtTimestamp)),
                         NET: getVal(finalPrintData?.netWt),
                         BAGS: getVal(finalPrintData?.numberOfBags),
                         DATE: getVal(finalPrintData?.date),
@@ -766,6 +824,18 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                         <div style={{ width: '50%', fontSize: '8.5pt' }}>
                                             <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>TARE: </span>
                                             <span style={{ fontWeight: 'bold' }}>{data.TARE || "________"} kg</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3b: GROSS TIME | TARE TIME — Weight Timestamp Capture */}
+                                    <div style={{ display: 'flex', borderBottom: '1px solid #000000', paddingBottom: '1px' }}>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>GROSS TIME: </span>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{data.GROSS_TIME || "___________"}</span>
+                                        </div>
+                                        <div style={{ width: '50%', fontSize: '8.5pt' }}>
+                                            <span style={{ fontWeight: 'bold', display: 'inline', fontSize: '8pt' }}>TARE TIME: </span>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{data.TARE_TIME || "___________"}</span>
                                         </div>
                                     </div>
 
@@ -1001,11 +1071,17 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                 <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-5 border border-slate-100 dark:border-slate-800">
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Gross Weight (kg) *</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} required placeholder="Gross Wt" />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={grossWt} onChange={(e) => handleGrossWtChange(e.target.value)} required placeholder="Gross Wt" />
+                                        {grossWtTimestamp && (
+                                            <p className="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide font-mono">Captured: {formatWeightTimestamp(grossWtTimestamp)}</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Truck Tare Weight (kg) *</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => setTareWt(e.target.value)} required placeholder="Tare Wt" />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800" value={tareWt} onChange={(e) => handleTareWtChange(e.target.value)} required placeholder="Tare Wt" />
+                                        {tareWtTimestamp && (
+                                            <p className="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide font-mono">Captured: {formatWeightTimestamp(tareWtTimestamp)}</p>
+                                        )}
                                     </div>
                                     <div className="flex flex-col justify-center items-center p-3 bg-indigo-50/50 dark:bg-indigo-950/10 rounded-lg">
                                         <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-1">Calculated Net Weight</span>
@@ -1098,7 +1174,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                         
                                         {driverPhoto ? (
                                             <div className="relative border border-slate-300 dark:border-slate-700 p-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                                                <img src={driverPhoto} className="w-[120px] h-[150px] object-cover rounded" />
+                                                <img src={driverPhoto} className="w-[120px] h-[150px] object-cover rounded" alt="Driver" />
                                                 <button 
                                                     type="button" 
                                                     onClick={() => setDriverPhoto(null)} 
@@ -1184,10 +1260,16 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                                 <td className="px-5 py-4 font-mono font-semibold">
                                                     <div>Net: <span className="font-bold text-slate-900 dark:text-white">{e.netWt} kg</span></div>
                                                     <div className="text-[9px] text-slate-400">G: {e.grossWt} | T: {e.tareWt}</div>
+                                                    {(e.grossWtTimestamp || e.tareWtTimestamp) && (
+                                                        <div className="text-[9px] text-slate-400">
+                                                            {e.grossWtTimestamp && <>G-Time: {formatWeightTimestamp(e.grossWtTimestamp)} </>}
+                                                            {e.tareWtTimestamp && <>T-Time: {formatWeightTimestamp(e.tareWtTimestamp)}</>}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-5 py-4 flex items-center gap-2">
                                                     {e.driverPhoto && (
-                                                        <img src={e.driverPhoto} className="w-8 h-10 object-cover rounded border border-slate-200" />
+                                                        <img src={e.driverPhoto} className="w-8 h-10 object-cover rounded border border-slate-200" alt={e.driverName || 'Driver'} />
                                                     )}
                                                     <div>
                                                         <div className="font-extrabold text-slate-900 dark:text-white">{e.driverName || 'N/A'}</div>
