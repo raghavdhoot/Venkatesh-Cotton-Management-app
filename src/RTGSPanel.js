@@ -113,9 +113,15 @@ export default function RTGSPanel({ currentUser }) {
     }
 
     const collectionPath = "cottonEntries";
+    // RTGS Panel Visibility Fix: Aavak's payment mode now saves as
+    // 'RTGS_IMMEDIATE' or 'RTGS_DUE' (expanded payment mode set) instead of
+    // the old bare 'RTGS' value. A strict equality query on 'RTGS' silently
+    // excluded every entry saved after that change — switched to an 'in'
+    // query so both new values match, while 'RTGS' is kept in the list so
+    // any legacy entries saved before the expansion still show up too.
     const q = query(
       collection(db, collectionPath),
-      where("paymentMode", "==", "RTGS")
+      where("paymentMode", "in", ["RTGS", "RTGS_IMMEDIATE", "RTGS_DUE"])
     );
 
     // 2. REAL-TIME DATA SOURCE PIPELINE WITH SNAPSHOT LISTENER
@@ -166,7 +172,14 @@ export default function RTGSPanel({ currentUser }) {
             const chequePassedAmount = makerDone ? Math.min(chequePassedAmountUnclamped, amount) : 0;
             const chequePassed = amount > 0 && chequePassedAmount >= amount;
 
-            const dueDateRaw = data.dueDate || data.rtgsDetails?.dueDate || null;
+            // Due date field fix: Aavak stores the payment due date as
+            // `paymentDueDate` (see isDueMode()/dataPayload in Aavak.js),
+            // not `dueDate`. Reading the wrong field meant every RTGS_DUE
+            // entry silently fell back to `null` and got misclassified as
+            // "DUE" instead of "MATURITY" here. `dueDate` and
+            // `rtgsDetails?.dueDate` are kept as fallbacks only for any
+            // older/legacy records that may have used those field names.
+            const dueDateRaw = data.paymentDueDate || data.dueDate || data.rtgsDetails?.dueDate || null;
             const { category, dueDateObj } = classifyDueOrMaturity(dueDateRaw);
 
             return {
