@@ -17,6 +17,20 @@ const DEFAULT_BILLING_SETTINGS = {
     weighmentCharges: 10
 };
 
+// Formats any Date / ISO-string / Firestore-ish timestamp as "dd-mm HH:MM"
+// (24-hour clock). Returns '' for anything that can't be parsed so callers
+// can decide their own fallback display.
+const formatDdMmHm = (value) => {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}-${mm} ${hh}:${min}`;
+};
+
 function Aavak({ currentUser }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
     const [searchToken, setSearchToken] = useState('');
@@ -33,6 +47,15 @@ function Aavak({ currentUser }) {
     const [grossWt, setGrossWt] = useState('');
     const [tareWt, setTareWt] = useState('');
     const [netWt, setNetWt] = useState('');
+
+    // Weight Timestamp Capture: the exact client-side moment each weight
+    // field first receives a value (not the moment the record is finally
+    // saved). Stored as ISO strings so they survive round-tripping through
+    // Firestore and re-editing. Cleared if the field is emptied again so a
+    // re-entered weight gets a fresh capture.
+    const [grossWtTimestamp, setGrossWtTimestamp] = useState(null);
+    const [tareWtTimestamp, setTareWtTimestamp] = useState(null);
+
     const [rate, setRate] = useState('');
     const [moisture, setMoisture] = useState('');
     const [generalDeductionPercent, setGeneralDeductionPercent] = useState('');
@@ -121,6 +144,28 @@ function Aavak({ currentUser }) {
         return [state, rto, series, number].filter(Boolean).join('-');
     };
 
+    // Wrapped weight setters that capture an entry timestamp the moment a
+    // field transitions from empty to non-empty, and clear that timestamp
+    // if the field is emptied out again (so a corrected re-entry gets a
+    // fresh capture instead of keeping the stale one).
+    const handleGrossWtChange = (val) => {
+        setGrossWt(val);
+        if (val !== '' && !grossWtTimestamp) {
+            setGrossWtTimestamp(new Date().toISOString());
+        } else if (val === '') {
+            setGrossWtTimestamp(null);
+        }
+    };
+
+    const handleTareWtChange = (val) => {
+        setTareWt(val);
+        if (val !== '' && !tareWtTimestamp) {
+            setTareWtTimestamp(new Date().toISOString());
+        } else if (val === '') {
+            setTareWtTimestamp(null);
+        }
+    };
+
     useEffect(() => {
         const unsubscribe = subscribeToAavak((data) => {
             setEntries(data);
@@ -174,6 +219,8 @@ function Aavak({ currentUser }) {
         setGrossWt(entry.grossWt || '');
         setTareWt(entry.tareWt || '');
         setNetWt(entry.netWt || '');
+        setGrossWtTimestamp(entry.grossWtTimestamp || null);
+        setTareWtTimestamp(entry.tareWtTimestamp || null);
         setRate(entry.rate || '');
         setMoisture(entry.moisture || '');
         setGeneralDeductionPercent(entry.generalDeductionPercentage !== undefined ? entry.generalDeductionPercentage : (entry.generalDeductionPercent !== undefined ? entry.generalDeductionPercent : ''));
@@ -264,6 +311,8 @@ function Aavak({ currentUser }) {
                 itemName: '__________',
                 grossWt: '_____',
                 tareWt: '_____',
+                grossWtTimestamp: null,
+                tareWtTimestamp: null,
                 netWt: '_____',
                 moisture: '_____',
                 netWtAfterDeduction: '_____',
@@ -413,6 +462,8 @@ function Aavak({ currentUser }) {
             vehicleNo: vehicleNo ? formatVehicleNoInput(vehicleNo) : null,
             grossWt: grossWt !== '' ? parseFloat(grossWt) : null,
             tareWt: tareWt !== '' ? parseFloat(tareWt) : null,
+            grossWtTimestamp: grossWtTimestamp || null,
+            tareWtTimestamp: tareWtTimestamp || null,
             netWt: netWt !== '' ? parseFloat(netWt) : null,
             rate: rate !== '' ? parseFloat(rate) : null,
             moisture: moisture !== '' ? parseFloat(moisture) : null,
@@ -490,7 +541,9 @@ function Aavak({ currentUser }) {
             "Vehicle No": entry.vehicleNo || '',
             "Item": entry.itemName || '',
             "Gross Weight": entry.grossWt || '',
+            "Gross Wt Time": formatDdMmHm(entry.grossWtTimestamp),
             "Tare Weight": entry.tareWt || '',
+            "Tare Wt Time": formatDdMmHm(entry.tareWtTimestamp),
             "Net Weight": entry.netWt || '',
             "Rate": entry.rate || '',
             "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : '',
@@ -594,6 +647,8 @@ function Aavak({ currentUser }) {
         setCustomItemName('');
         setGrossWt('');
         setTareWt('');
+        setGrossWtTimestamp(null);
+        setTareWtTimestamp(null);
         setNetWt('');
         setRate('');
         setMoisture('');
@@ -810,6 +865,8 @@ function Aavak({ currentUser }) {
                     {['OFFICE COPY', 'FARMER COPY'].map((copyLabel, copyIndex) => {
                         const hamaliVal = (parseFloat(printableAavak.hamaliDeduction || 0) + parseFloat(printableAavak.weighmentDeduction || 0)).toFixed(2);
                         const dedPercent = printableAavak.generalDeductionPercentage !== undefined ? printableAavak.generalDeductionPercentage : (printableAavak.generalDeductionPercent !== undefined ? printableAavak.generalDeductionPercent : 1.4);
+                        const grossTimeStr = formatDdMmHm(printableAavak.grossWtTimestamp) || '--';
+                        const tareTimeStr = formatDdMmHm(printableAavak.tareWtTimestamp) || '--';
                         return (
                             <React.Fragment key={copyLabel}>
                                 <div className="slip">
@@ -844,8 +901,13 @@ function Aavak({ currentUser }) {
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td>Gross Weight / Tare Weight</td>
-                                                <td>{printableAavak.grossWt || 0} kg / {printableAavak.tareWt || 0} kg</td>
+                                                <td>Gross Weight (Time)</td>
+                                                <td>{printableAavak.grossWt || 0} kg ({grossTimeStr})</td>
+                                                <td>--</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Tare Weight (Time)</td>
+                                                <td>{printableAavak.tareWt || 0} kg ({tareTimeStr})</td>
                                                 <td>--</td>
                                             </tr>
                                             <tr>
@@ -1049,11 +1111,17 @@ function Aavak({ currentUser }) {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Gross Weight * (kg)</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => setGrossWt(e.target.value)} placeholder="e.g. 4500" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => handleGrossWtChange(e.target.value)} placeholder="e.g. 4500" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        {grossWtTimestamp && (
+                                            <p className="mt-1 text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide">Captured: {formatDdMmHm(grossWtTimestamp)}</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Tare Weight (kg)</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => setTareWt(e.target.value)} placeholder="e.g. 1200" />
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => handleTareWtChange(e.target.value)} placeholder="e.g. 1200" />
+                                        {tareWtTimestamp && (
+                                            <p className="mt-1 text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide">Captured: {formatDdMmHm(tareWtTimestamp)}</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1305,6 +1373,13 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4 font-medium text-xs">
                                                     <span className="font-extrabold text-slate-900 dark:text-white">{entry.netWtAfterDeduction || entry.netWt} kg</span>
                                                     <div className="text-[10px] text-slate-400">{entry.itemName} @ {entry.rate}/qtl</div>
+                                                    {(entry.grossWtTimestamp || entry.tareWtTimestamp) && (
+                                                        <div className="text-[9px] text-indigo-500 dark:text-indigo-400 mt-0.5">
+                                                            {entry.grossWtTimestamp && <>G: {formatDdMmHm(entry.grossWtTimestamp)}</>}
+                                                            {entry.grossWtTimestamp && entry.tareWtTimestamp && ' | '}
+                                                            {entry.tareWtTimestamp && <>T: {formatDdMmHm(entry.tareWtTimestamp)}</>}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-xs font-bold font-mono text-slate-900 dark:text-white">
