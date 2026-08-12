@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { collection, query, serverTimestamp, doc, getDocs, documentId, where, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Camera, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet, Download } from 'lucide-react';
+import { Search, Plus, FileText, X, Truck, MapPin, Package, Save, Hash, Camera, Share2, Printer, IndianRupee, Users, CheckSquare, Square, FileSpreadsheet, Download, AlertTriangle } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 import { subscribeToJavak } from './components/Dashboard';
 
@@ -25,6 +25,10 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [currentEntryId, setCurrentEntryId] = useState(null);
     const [isNewEntry, setIsNewEntry] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    // Separate from the main table's `searchQuery` filter — this powers the
+    // dedicated Quick Verify Gate Pass side panel, an exact-match lookup
+    // with its own result card, mirroring Aavak's Quick Verify Token panel.
+    const [verifyGatePassNo, setVerifyGatePassNo] = useState('');
     const [entries, setEntries] = useState([]);
     const [filteredEntries, setFilteredEntries] = useState([]);
     const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
@@ -44,7 +48,6 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [tareWt, setTareWt] = useState('');
     const [netWt, setNetWt] = useState('');
     const [hamalName, setHamalName] = useState('');
-    // eslint-disable-next-line no-unused-vars
     const [hamalId, setHamalId] = useState('');
 
     // Weight Timestamp Capture: the exact moment Gross Wt / Tare Wt was
@@ -69,6 +72,15 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [bulkPrintEntries, setBulkPrintEntries] = useState(null);
 
     const commodityOptions = ['BALES', 'COTTON SEED', 'KAPAS'];
+
+    // Javak Guardrail: instant duplicate warning for Gate Pass No. Checked
+    // live against every other entry (excluding the one currently being
+    // edited, so re-saving an existing gatepass doesn't flag itself) — this
+    // is advisory only, it doesn't block submission.
+    const gatePassNoTrimmed = gatePassNo.trim().toUpperCase();
+    const isDuplicateGatePassNo = !!gatePassNoTrimmed && entries.some(
+        (en) => (en.gatePassNo || '').toUpperCase() === gatePassNoTrimmed && en.id !== currentEntryId
+    );
 
     // Bardana & Sutli (packing material) only apply to loose/raw commodities.
     // Cotton Bales are pre-packed, so those two fields are irrelevant for
@@ -999,8 +1011,16 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Gate Pass No *</label>
                                         <div className="relative">
                                             <Hash className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                                            <input type="text" className="input-field pl-9 uppercase font-mono font-bold dark:bg-slate-800 dark:border-slate-700" value={gatePassNo} onChange={(e) => setGatePassNo(e.target.value)} required placeholder="GP-750" />
+                                            <input type="text" className={`input-field pl-9 uppercase font-mono font-bold dark:bg-slate-800 ${isDuplicateGatePassNo ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500' : 'dark:border-slate-700'}`} value={gatePassNo} onChange={(e) => setGatePassNo(e.target.value)} required placeholder="GP-750" />
                                         </div>
+                                        {isDuplicateGatePassNo && (
+                                            <div className="mt-2 flex items-center gap-2 p-2 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg">
+                                                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                                                <p className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">
+                                                    Gate Pass No "{gatePassNoTrimmed}" already exists — verify before saving
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Billing date</label>
@@ -1218,7 +1238,19 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     )}
 
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4">
-                        <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">Active Dispatch Log</h3>
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-widest">Active Dispatch Log</h3>
+                            <div className="relative w-full sm:w-80">
+                                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    className="input-field pl-9 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                    placeholder="Search driver, destination, vehicle, gate pass or hamal..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
                         
                         <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
                             <table className="w-full text-left border-collapse">
@@ -1327,15 +1359,45 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
                     <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-xs space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                             <Search className="w-4 h-4 text-slate-400" />
-                            <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Verify Outlet Gate Pass</h4>
+                            <h4 className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-widest">Quick Verify Gate Pass</h4>
                         </div>
-                        <input 
-                            type="text" 
-                            className="input-field font-mono font-bold dark:bg-slate-800 text-xs" 
-                            placeholder="SEARCH/VERIFY RECORD..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                className="input-field font-mono font-bold dark:bg-slate-800 text-xs"
+                                placeholder="ENTER GATE PASS NO."
+                                value={verifyGatePassNo}
+                                onChange={(e) => setVerifyGatePassNo(e.target.value)}
+                            />
+                            {verifyGatePassNo && (
+                                <button onClick={() => setVerifyGatePassNo('')} className="text-xs text-red-500 font-bold uppercase cursor-pointer">Clear</button>
+                            )}
+                        </div>
+
+                        {verifyGatePassNo && (
+                            <div className="space-y-3 pt-3">
+                                {entries.filter(e => e.gatePassNo && e.gatePassNo.toLowerCase() === verifyGatePassNo.toLowerCase()).map(entry => (
+                                    <div key={entry.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-3 border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{entry.date}</p>
+                                            <h4 className="text-lg font-black text-amber-600 dark:text-amber-400 uppercase">{entry.gatePassNo}</h4>
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">{entry.driverName || 'N/A'} • {entry.vehicleNumber}</p>
+                                        <div className="flex gap-1">
+                                            <button onClick={() => generateJavakPdf(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer">
+                                                <FileText className="w-5 h-5" />
+                                            </button>
+                                            <button onClick={() => setDeleteConfirmId(entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 cursor-pointer">
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {entries.filter(e => e.gatePassNo && e.gatePassNo.toLowerCase() === verifyGatePassNo.toLowerCase()).length === 0 && (
+                                    <p className="text-slate-400 dark:text-slate-500 text-xs italic text-center py-4">No matching gate pass found.</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
