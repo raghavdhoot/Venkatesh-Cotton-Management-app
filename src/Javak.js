@@ -48,6 +48,7 @@ function Javak({ currentUser, onBardanaStockUpdate, onInventoryUpdate }) {
     const [tareWt, setTareWt] = useState('');
     const [netWt, setNetWt] = useState('');
     const [hamalName, setHamalName] = useState('');
+    // eslint-disable-next-line no-unused-vars
     const [hamalId, setHamalId] = useState('');
 
     // Weight Timestamp Capture: the exact moment Gross Wt / Tare Wt was
