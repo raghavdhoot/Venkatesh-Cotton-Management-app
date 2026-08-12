@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, serverTimestamp, doc, addDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 import { Save, Trash2, Plus, IndianRupee, Shield, Mail, Edit, X } from 'lucide-react';
 import { normalizeItemName } from './utils/normalization';
 
