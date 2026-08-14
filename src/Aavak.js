@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebaseConfig';
 import { serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, Download, Save, Printer, Users, CheckSquare, Square, FileSpreadsheet, Lock, AlertTriangle } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, Printer, Users, CheckSquare, Square, FileSpreadsheet, Lock, AlertTriangle, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToAavak } from './components/Dashboard';
 
@@ -108,6 +108,11 @@ function Aavak({ currentUser }) {
     const [bulkSearchQuery, setBulkSearchQuery] = useState('');
     const [selectedBulkIds, setSelectedBulkIds] = useState(new Set());
     const [bulkPrintEntries, setBulkPrintEntries] = useState(null);
+
+    // --- TEMP: Excel Import state (safe to remove along with the handler
+    // below and the file input / button in the header JSX) ---
+    const [isImportingExcel, setIsImportingExcel] = useState(false);
+    const excelImportInputRef = useRef(null);
 
     const commodityOptions = ['KAPAS', 'SOYABEAN', 'CHANA', 'TUAAR', 'WHEAT'];
 
@@ -374,6 +379,122 @@ function Aavak({ currentUser }) {
         }
         setRePrintWarning(null);
     };
+
+    // --- TEMP: Excel Import handler -----------------------------------
+    // Reads the selected .xlsx/.xls file, maps each row onto the Aavak
+    // schema, skips rows whose Token No already exists in `entries`, and
+    // writes the rest straight to Firestore (`cottonEntries`) using the
+    // same doc-id convention as handleFormSubmit. The `entries` state is
+    // already live via subscribeToAavak, so the table updates on its own
+    // once the writes land — no manual refresh needed.
+    // Safe to delete: this function, the ref/state above, the hidden
+    // <input type="file"> and the "Upload Excel (Temp)" button in the JSX.
+    // --------------------------------------------------------------------
+    const handleExcelImportFile = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        setIsImportingExcel(true);
+        let inserted = 0;
+        let skipped = 0;
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+            for (const row of rows) {
+                const tokenNoRaw = String(row['Token No'] ?? '').trim().toUpperCase();
+
+                // No token no. -> can't dedupe/identify the row, skip it.
+                if (!tokenNoRaw) {
+                    skipped++;
+                    continue;
+                }
+
+                // Duplicate guardrail: skip if this Token No already exists
+                // in the live entries list.
+                const alreadyExists = entries.some(
+                    (en) => (en.tokenNo || '').trim().toUpperCase() === tokenNoRaw
+                );
+                if (alreadyExists) {
+                    skipped++;
+                    continue;
+                }
+
+                const grossWtVal = parseFloat(row['Gross Weight (Kg)']) || 0;
+                const tareWtVal = parseFloat(row['Tare Weight (Kg)']) || 0;
+
+                // Net Weight column is given in Quintals in the sheet; convert
+                // to kg to match the schema. Fallback to Gross - Tare (kg) if
+                // the column is missing/blank/zero.
+                let netWtVal = parseFloat(row['Net Weight (Qtl)']);
+                if (!netWtVal || isNaN(netWtVal)) {
+                    netWtVal = Math.max(0, grossWtVal - tareWtVal);
+                } else {
+                    netWtVal = netWtVal * 100;
+                }
+
+                const parseTimestamp = (val) => {
+                    if (!val) return null;
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? null : d.toISOString();
+                };
+
+                const resolvedItemName = String(row['Commodity'] || 'KAPAS').trim().toUpperCase();
+
+                const importedPayload = {
+                    billingDate: new Date().toISOString().split('T')[0],
+                    tokenNo: tokenNoRaw,
+                    itemName: resolvedItemName || 'KAPAS',
+                    Name: String(row['Farmer Name'] || '').trim().toUpperCase() || null,
+                    farmerPhone: '',
+                    Village: String(row['Village'] || '').trim().toUpperCase() || null,
+                    vehicleNo: String(row['Vehicle No'] || '').trim().toUpperCase() || null,
+                    grossWt: grossWtVal || null,
+                    tareWt: tareWtVal || null,
+                    grossWtTimestamp: parseTimestamp(row['Gross Timestamp']),
+                    tareWtTimestamp: parseTimestamp(row['Tare Timestamp']),
+                    netWt: netWtVal || null,
+                    rate: parseFloat(row['Rate (₹/Qtl)']) || null,
+                    hamalName: 'IMPORTED (EXCEL)',
+                    paymentMode: 'CASH_IMMEDIATE',
+                    amountPaid: null,
+                    balanceAmount: null,
+                    accountantName: (currentUser?.name || 'IMPORTED').toUpperCase(),
+                    kataOperatorId: currentUser?.employeeId || null,
+                    kataOperatorName: currentUser?.name || null,
+                    makerId: currentUser?.employeeId || 'ADMIN',
+                    makerName: currentUser?.name || 'ADMIN',
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    installmentLogs: [],
+                    importedFromExcel: true
+                };
+
+                const sanitize = (val) => String(val || '').trim().replace(/[/.#$[\]]/g, '-');
+                const docId = `${sanitize(tokenNoRaw)}-IMPORT-${Date.now()}-${inserted}`;
+
+                try {
+                    await setDoc(doc(db, 'cottonEntries', docId), importedPayload);
+                    inserted++;
+                } catch (err) {
+                    console.error('Excel import: failed to write row', tokenNoRaw, err);
+                    skipped++;
+                }
+            }
+
+            alert(`Excel import complete.\nInserted: ${inserted}\nSkipped: ${skipped}`);
+        } catch (err) {
+            console.error('Excel import failed:', err);
+            alert('Could not read the Excel file. Please check the format and try again.');
+        } finally {
+            setIsImportingExcel(false);
+            if (excelImportInputRef.current) excelImportInputRef.current.value = '';
+        }
+    };
+    // --- END TEMP: Excel Import handler ---------------------------------
 
     const hasTareWtBeenEntered = tareWt !== '' && tareWt !== null && parseFloat(tareWt) > 0;
 
@@ -1069,6 +1190,23 @@ function Aavak({ currentUser }) {
                     </button>
                     <button onClick={handleExportToExcel} className="btn-secondary flex items-center gap-2 cursor-pointer">
                         <Download className="w-4 h-4" /> Export
+                    </button>
+                    {/* TEMP: Excel Import (safe to remove along with the handler,
+                        state, and ref declared above) */}
+                    <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        ref={excelImportInputRef}
+                        onChange={handleExcelImportFile}
+                        style={{ display: 'none' }}
+                    />
+                    <button
+                        onClick={() => excelImportInputRef.current && excelImportInputRef.current.click()}
+                        disabled={isImportingExcel}
+                        className="btn-secondary flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        title="Temporary bulk import from Excel"
+                    >
+                        <Upload className="w-4 h-4" /> {isImportingExcel ? 'Importing...' : '📁 Upload Excel (Temp)'}
                     </button>
                     {(currentUser?.role?.toUpperCase() === 'ADMIN' || currentUser?.employeeId === 'ADMIN') && (
                         <button onClick={() => generatePdf(null, true)} className="btn-secondary flex-shrink-0 flex items-center justify-center gap-2 cursor-pointer">
