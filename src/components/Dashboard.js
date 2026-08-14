@@ -4,10 +4,7 @@ import {
   collection,
   onSnapshot,
   query,
-  orderBy,
-  addDoc,
-  serverTimestamp,
-  where
+  orderBy
 } from "firebase/firestore";
 import {
   TrendingUp,
@@ -21,9 +18,6 @@ import {
   Clock,
   Share2,
   Calculator,
-  CheckSquare,
-  MessageSquare,
-  Send,
   Bell,
   Phone
 } from "lucide-react";
@@ -100,14 +94,11 @@ export default function Dashboard({ currentUser }) {
   const [itemBreakdown, setItemBreakdown] = useState({});
   const [rawData, setRawData] = useState({ aavak: [], javak: [] });
   const [selectedItem, setSelectedItem] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [bardanaStock, setBardanaStock] = useState(0);
   const [bardanaBreakdown, setBardanaBreakdown] = useState({});
   const [adminNotes, setAdminNotes] = useState([]);
-  const [adminTasks, setAdminTasks] = useState([]);
   const [rateChart, setRateChart] = useState([]);
-  const [myMessages, setMyMessages] = useState([]);
-  const [employeeMessage, setEmployeeMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
   const [messageStatus, setMessageStatus] = useState({ text: "", type: "" });
 
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
@@ -186,31 +177,10 @@ export default function Dashboard({ currentUser }) {
       }
     );
 
-    const unsubscribeTasks = onSnapshot(
-      query(collection(db, "adminTasks"), orderBy("timestamp", "desc")),
-      (snapshot) => {
-        const allTasks = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        const myTasks = allTasks.filter((task) => {
-          if (currentUser?.role?.toUpperCase() === "ADMIN" || currentUser?.employeeId === "ADMIN") return true;
-          return task.assignedTo === currentUser?.employeeId;
-        });
-        setAdminTasks(myTasks);
-      }
-    );
-
     const unsubscribeRates = onSnapshot(
       query(collection(db, "rateCharts"), orderBy("timestamp", "desc")),
       (snapshot) => {
         setRateChart(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      }
-    );
-
-    const unsubscribeMyMessages = onSnapshot(
-      query(collection(db, "employeeMessages"), orderBy("timestamp", "desc")),
-      (snapshot) => {
-        const allMsgs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        const filtered = allMsgs.filter((msg) => msg.senderId === currentUser?.employeeId);
-        setMyMessages(filtered);
       }
     );
 
@@ -270,35 +240,10 @@ export default function Dashboard({ currentUser }) {
       unsubscribeJavak();
       unsubscribeBardana();
       unsubscribeNotes();
-      unsubscribeTasks();
       unsubscribeRates();
-      unsubscribeMyMessages();
       unsubscribeCash();
     };
   }, [currentUser?.employeeId, currentUser?.role]);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!employeeMessage.trim() || !currentUser) return;
-
-    setIsSending(true);
-    try {
-      await addDoc(collection(db, "employeeMessages"), {
-        content: employeeMessage.toUpperCase(),
-        senderName: currentUser.name,
-        senderId: currentUser.employeeId,
-        timestamp: serverTimestamp()
-      });
-      setEmployeeMessage("");
-      setMessageStatus({ text: "Message sent to Admin!", type: "success" });
-      setTimeout(() => setMessageStatus({ text: "", type: "" }), 3000);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setMessageStatus({ text: "Failed to send message", type: "error" });
-    } finally {
-      setIsSending(false);
-    }
-  };
 
   const handleShareSummary = () => {
     const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long" });
@@ -591,6 +536,7 @@ export default function Dashboard({ currentUser }) {
       });
     });
 
+    // eslint-disable-next-line no-unused-vars
     const totalJavakAdvanceFromCash = manualCashOutToday
       .filter((t) => t.source === "JAVAK")
       .reduce((acc, t) => acc + (parseFloat(t.amount || 0) || 0), 0);
@@ -620,6 +566,7 @@ export default function Dashboard({ currentUser }) {
 
     // ---- PDF assembly ----
     const docRef = new jsPDF();
+    // eslint-disable-next-line no-unused-vars
     const pageWidth = docRef.internal.pageSize.width;
     const pageHeight = docRef.internal.pageSize.height;
 
@@ -805,6 +752,17 @@ export default function Dashboard({ currentUser }) {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">Dashboard Overview</h2>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {messageStatus.text && (
+            <div
+              className={`px-4 py-2 rounded-lg text-sm font-bold animate-in fade-in slide-in-from-right-4 ${
+                messageStatus.type === "success"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              }`}
+            >
+              {messageStatus.text}
+            </div>
+          )}
           {(currentUser?.role?.toUpperCase() === "ADMIN" || currentUser?.employeeId === "ADMIN") && (
             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1 shadow-sm">
               <input
@@ -1000,37 +958,6 @@ export default function Dashboard({ currentUser }) {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
-            <CheckSquare className="w-5 h-5 text-amber-600" />
-            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">
-              My Private Tasks
-            </h3>
-          </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[250px] overflow-y-auto">
-            {adminTasks.length > 0 ? (
-              adminTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-l-4 border-amber-500"
-                >
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase leading-relaxed">
-                    {task.content}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
-                    <Clock className="w-3 h-3" />
-                    {task.timestamp?.toDate().toLocaleString()} • FROM ADMIN
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-slate-400 dark:text-slate-500 text-sm italic text-center py-8">
-                No private tasks assigned to you
-              </p>
-            )}
-          </div>
-        </div>
-
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Coins className="w-5 h-5 text-emerald-600" />
@@ -1055,74 +982,6 @@ export default function Dashboard({ currentUser }) {
               </p>
             )}
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <MessageSquare className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Message Admin</h3>
-            </div>
-            <form onSubmit={handleSendMessage} className="space-y-3">
-              <textarea
-                className="input-field w-full min-h-[80px] p-3 border rounded-xl text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                placeholder="SEND A NOTE OR REPORT TO ADMIN..."
-                value={employeeMessage}
-                onChange={(e) => setEmployeeMessage(e.target.value.toUpperCase())}
-                required
-              />
-              <div className="flex items-center justify-between gap-2">
-                {messageStatus.text && (
-                  <span
-                    className={`text-[10px] font-bold ${
-                      messageStatus.type === "success" ? "text-emerald-600" : "text-red-650"
-                    }`}
-                  >
-                    {messageStatus.text}
-                  </span>
-                )}
-                <button
-                  type="submit"
-                  disabled={isSending}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase ml-auto cursor-pointer"
-                >
-                  {isSending ? "Sending..." : "Send"}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {myMessages.length > 0 && (
-            <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-              <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">
-                My Recent Messages
-              </h4>
-              <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-                {myMessages.map((msg) => (
-                  <div key={msg.id} className="space-y-2">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                      <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{msg.content}</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase">
-                        {msg.timestamp?.toDate().toLocaleString()}
-                      </p>
-                    </div>
-                    {msg.reply && (
-                      <div className="ml-6 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl relative">
-                        <div className="absolute -left-3 top-4 w-3 h-px bg-indigo-200 dark:bg-indigo-800"></div>
-                        <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mb-1 flex items-center gap-1">
-                          <MessageSquare className="w-3 h-3" /> Admin Reply:
-                        </p>
-                        <p className="text-sm text-slate-800 dark:text-slate-200 font-medium">{msg.reply}</p>
-                        <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-1 uppercase">
-                          {msg.replyTimestamp?.toDate().toLocaleString()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
