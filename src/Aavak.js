@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { serverTimestamp, doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { Search, Plus, FileText, Download, Save, Printer, Users, CheckSquare, Square, FileSpreadsheet, Lock } from 'lucide-react';
+import { Search, Plus, FileText, Download, Save, Printer, Users, CheckSquare, Square, FileSpreadsheet, Lock, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { subscribeToAavak } from './components/Dashboard';
 
@@ -29,14 +29,6 @@ const formatDdMmHm = (value) => {
     const hh = String(d.getHours()).padStart(2, '0');
     const min = String(d.getMinutes()).padStart(2, '0');
     return `${dd}-${mm} ${hh}:${min}`;
-};
-
-const EMPTY_INSTALLMENT_RTGS = {
-    bankName: '',
-    accountNumber: '',
-    accountHolderName: '',
-    ifscCode: '',
-    phoneNo: ''
 };
 
 function Aavak({ currentUser }) {
@@ -107,12 +99,10 @@ function Aavak({ currentUser }) {
     const [paymentHistoryEntry, setPaymentHistoryEntry] = useState(null);
     const [printEntry, setPrintEntry] = useState(null);
 
-    // Flexible Payment Installment Type: each installment logged against a
-    // bill can use its own payment method (Cash or RTGS), independent of
-    // the bill's primary Payment Mode. Reset every time the Installments
-    // modal is opened/closed so a stale selection never carries over.
-    const [installmentMethod, setInstallmentMethod] = useState('CASH');
-    const [installmentRtgsDetails, setInstallmentRtgsDetails] = useState(EMPTY_INSTALLMENT_RTGS);
+    // Re-print guardrail: holds { entry, isBlank } when a print request is
+    // made for an entry that has already been printed before, so the person
+    // must explicitly confirm before it prints again.
+    const [rePrintWarning, setRePrintWarning] = useState(null);
 
     const [isBulkExportOpen, setIsBulkExportOpen] = useState(false);
     const [bulkSearchQuery, setBulkSearchQuery] = useState('');
@@ -131,6 +121,13 @@ function Aavak({ currentUser }) {
     // e.g. MH-26-AB-1991, MH-26-A-123, MH-26-ABC-12345 is NOT valid (5 digits) etc.
     const VEHICLE_NO_REGEX = /^[A-Z]{2}-[0-9]{2}-[A-Z]{1,3}-[0-9]{1,4}$/;
     const isValidVehicleNo = (val) => VEHICLE_NO_REGEX.test(val || '');
+
+    // Duplicate Entry Guardrail: flags when the Token No typed into a NEW
+    // bill already belongs to an existing entry. Never triggers while
+    // editing an existing entry (isNewEntry is false in that case).
+    const isDuplicateToken = isNewEntry && tokenNo.trim() !== '' && entries.some(
+        (e) => (e.tokenNo || '').trim().toUpperCase() === tokenNo.trim().toUpperCase()
+    );
 
     // Expanded payment mode vocabulary + helpers. Legacy records saved
     // before this change used bare 'CASH' / 'RTGS' / 'CHEQUE' / 'CREDIT' —
@@ -208,8 +205,7 @@ function Aavak({ currentUser }) {
                 (e.Name && e.Name.toLowerCase().includes(queryLower)) ||
                 (e.Village && e.Village.toLowerCase().includes(queryLower)) ||
                 (e.vehicleNo && e.vehicleNo.toLowerCase().includes(queryLower)) ||
-                (e.itemName && e.itemName.toLowerCase().includes(queryLower)) ||
-                (e.hamalName && e.hamalName.toLowerCase().includes(queryLower))
+                (e.itemName && e.itemName.toLowerCase().includes(queryLower))
             );
         }
 
@@ -270,29 +266,6 @@ function Aavak({ currentUser }) {
         setIsNewEntry(false);
     };
 
-    // Resets the installment-method selector to Cash + blank bank details.
-    // Called whenever the Installments modal is opened (a fresh log) or
-    // closed, so leftover state from a previous entry/installment never
-    // bleeds into the next one.
-    const resetInstallmentMethod = () => {
-        setInstallmentMethod('CASH');
-        setInstallmentRtgsDetails(EMPTY_INSTALLMENT_RTGS);
-    };
-
-    const openPaymentHistory = (entry) => {
-        resetInstallmentMethod();
-        setPaymentHistoryEntry(entry);
-    };
-
-    const closePaymentHistory = () => {
-        setPaymentHistoryEntry(null);
-        resetInstallmentMethod();
-    };
-
-    const handleInstallmentRtgsChange = (field, value) => {
-        setInstallmentRtgsDetails(prev => ({ ...prev, [field]: value }));
-    };
-
     const handleSavePaymentLog = async () => {
         if (!paymentHistoryEntry || !paymentLogValue || isNaN(paymentLogValue)) return;
         const toPay = parseFloat(paymentLogValue);
@@ -308,17 +281,6 @@ function Aavak({ currentUser }) {
             return;
         }
 
-        // Flexible Payment Installment Type: RTGS installments require bank
-        // details for THIS specific installment, regardless of what the
-        // bill's primary Payment Mode is (Cash or otherwise).
-        if (installmentMethod === 'RTGS') {
-            const { bankName, accountNumber, accountHolderName, ifscCode, phoneNo } = installmentRtgsDetails;
-            if (!bankName.trim() || !accountNumber.trim() || !accountHolderName.trim() || !ifscCode.trim() || !phoneNo.trim()) {
-                setStatusMessage({ text: 'Please fill all RTGS bank details for this installment', type: 'error' });
-                return;
-            }
-        }
-
         const newPaid = parseFloat(paymentHistoryEntry.amountPaid || 0) + toPay;
         const newBalance = currentBalance - toPay;
 
@@ -326,15 +288,7 @@ function Aavak({ currentUser }) {
             amount: toPay,
             date: new Date().toLocaleDateString('en-CA'),
             time: new Date().toLocaleTimeString(),
-            operator: currentUser?.name || 'Staff',
-            method: installmentMethod,
-            rtgsDetails: installmentMethod === 'RTGS' ? {
-                bankName: installmentRtgsDetails.bankName.toUpperCase(),
-                accountNumber: installmentRtgsDetails.accountNumber,
-                accountHolderName: installmentRtgsDetails.accountHolderName.toUpperCase(),
-                ifscCode: installmentRtgsDetails.ifscCode.toUpperCase(),
-                phoneNo: installmentRtgsDetails.phoneNo
-            } : null
+            operator: currentUser?.name || 'Staff'
         };
 
         const existingLogs = paymentHistoryEntry.installmentLogs || [];
@@ -348,7 +302,6 @@ function Aavak({ currentUser }) {
             });
             setStatusMessage({ text: 'Installment saved successfully!', type: 'success' });
             setPaymentLogValue('');
-            resetInstallmentMethod();
             const updatedDoc = await getDoc(doc(db, 'cottonEntries', paymentHistoryEntry.id));
             if (updatedDoc.exists()) {
                 setPaymentHistoryEntry({ id: updatedDoc.id, ...updatedDoc.data() });
@@ -392,6 +345,34 @@ function Aavak({ currentUser }) {
         setTimeout(() => {
             window.print();
         }, 150);
+    };
+
+    // Re-print Guardrail: single entry point every print trigger below goes
+    // through. If the entry has already been printed before, hold off and
+    // show a confirmation modal instead of printing immediately.
+    const executePrint = (entry, isBlank = false) => {
+        generatePdf(entry, isBlank);
+        if (!isBlank && entry?.id) {
+            updateDoc(doc(db, 'cottonEntries', entry.id), {
+                printCount: (entry.printCount || 0) + 1,
+                lastPrintedAt: new Date().toISOString()
+            }).catch((err) => console.error('Error updating print tracking:', err));
+        }
+    };
+
+    const requestPrint = (entry, isBlank = false) => {
+        if (!isBlank && entry && (entry.printCount || 0) > 0) {
+            setRePrintWarning({ entry, isBlank });
+            return;
+        }
+        executePrint(entry, isBlank);
+    };
+
+    const confirmRePrint = () => {
+        if (rePrintWarning) {
+            executePrint(rePrintWarning.entry, rePrintWarning.isBlank);
+        }
+        setRePrintWarning(null);
     };
 
     const hasTareWtBeenEntered = tareWt !== '' && tareWt !== null && parseFloat(tareWt) > 0;
@@ -477,6 +458,13 @@ function Aavak({ currentUser }) {
         e.preventDefault();
         
         if (!isNewEntry && !currentEntryId) return;
+
+        // Duplicate Entry Guardrail: hard stop on a new bill reusing an
+        // existing Token No unless explicitly confirmed.
+        if (isNewEntry && isDuplicateToken) {
+            const proceedAnyway = window.confirm(`Token No. "${tokenNo.toUpperCase()}" already exists in the registry. Continue saving anyway?`);
+            if (!proceedAnyway) return;
+        }
 
         if (!hamalName.trim()) {
             setStatusMessage({ text: 'Hamal Name is required', type: 'error' });
@@ -1124,7 +1112,12 @@ function Aavak({ currentUser }) {
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Token No *</label>
-                                        <input type="text" className="input-field uppercase font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tokenNo} onChange={(e) => setTokenNo(e.target.value)} placeholder="T-100" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        <input type="text" className={`input-field uppercase font-mono dark:bg-slate-800 dark:text-white ${isDuplicateToken ? 'border-amber-500 dark:border-amber-500 focus:ring-amber-500 focus:border-amber-500' : 'dark:border-slate-700'}`} value={tokenNo} onChange={(e) => setTokenNo(e.target.value)} placeholder="T-100" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        {isDuplicateToken && (
+                                            <p className="mt-1 text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1">
+                                                <AlertTriangle className="w-3 h-3" /> Token No. already exists — verify before saving
+                                            </p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Item / Commodity</label>
@@ -1394,7 +1387,7 @@ function Aavak({ currentUser }) {
                                 <input
                                     type="text"
                                     className="input-field pl-9 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                    placeholder="Search farmer, village, vehicle, hamal or token..."
+                                    placeholder="Search farmer, village, vehicle or token..."
                                     value={globalSearch}
                                     onChange={(e) => setGlobalSearch(e.target.value)}
                                 />
@@ -1427,9 +1420,6 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4">
                                                     <div className="font-extrabold text-slate-900 dark:text-white text-xs">{entry.Name}</div>
                                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider">{entry.Village} {entry.farmerPhone && `| Mob ${entry.farmerPhone}`}</div>
-                                                    {entry.hamalName && (
-                                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Hamal: {entry.hamalName}</div>
-                                                    )}
                                                 </td>
                                                 <td className="px-6 py-4 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">{entry.vehicleNo}</td>
                                                 <td className="px-6 py-4 font-medium text-xs">
@@ -1462,7 +1452,7 @@ function Aavak({ currentUser }) {
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center justify-end gap-1">
                                                         <button 
-                                                            onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 50); }}
+                                                            onClick={() => requestPrint(entry)}
                                                             className="p-2 text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
                                                             title="Print"
                                                         >
@@ -1471,7 +1461,7 @@ function Aavak({ currentUser }) {
                                                         
                                                         {parseFloat(entry.balanceAmount || 0) > 0 && (
                                                             <button 
-                                                                onClick={() => openPaymentHistory(entry)}
+                                                                onClick={() => setPaymentHistoryEntry(entry)}
                                                                 className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded-xl mr-1 cursor-pointer"
                                                             >
                                                                 Installments
@@ -1532,7 +1522,7 @@ function Aavak({ currentUser }) {
                                             <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 uppercase">{entry.tokenNo}</h4>
                                         </div>
                                         <div className="flex gap-1">
-                                            <button onClick={() => { setPrintEntry(entry); setTimeout(() => window.print(), 50); }} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer">
+                                            <button onClick={() => requestPrint(entry)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer">
                                                 <FileText className="w-5 h-5" />
                                             </button>
                                             <button onClick={() => setDeleteConfirmId(entry.tokenNo || entry.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 cursor-pointer">
@@ -1723,6 +1713,24 @@ function Aavak({ currentUser }) {
                     </div>
                 )}
 
+                {rePrintWarning && (
+                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl shadow-xl text-center space-y-4">
+                            <div className="w-14 h-14 mx-auto bg-amber-50 dark:bg-amber-950/30 rounded-full flex items-center justify-center">
+                                <AlertTriangle className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <h4 className="font-extrabold text-slate-900 dark:text-white uppercase text-base">Already Printed</h4>
+                            <p className="text-xs text-slate-500">
+                                Token <strong>{rePrintWarning.entry?.tokenNo || rePrintWarning.entry?.id}</strong> was already printed {rePrintWarning.entry?.printCount || 0} time(s){rePrintWarning.entry?.lastPrintedAt ? `, last on ${new Date(rePrintWarning.entry.lastPrintedAt).toLocaleString()}` : ''}. Print again?
+                            </p>
+                            <div className="flex items-center justify-center gap-3 pt-2">
+                                <button onClick={confirmRePrint} className="p-2.5 px-6 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl uppercase tracking-wider shadow-md shadow-amber-200 dark:shadow-none cursor-pointer">Print Again</button>
+                                <button onClick={() => setRePrintWarning(null)} className="p-2.5 px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-white font-bold text-xs rounded-xl uppercase tracking-wider cursor-pointer">Cancel</button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
                 {deleteConfirmId && (
                     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="bg-white dark:bg-slate-900 max-w-sm w-full p-6 rounded-2xl shadow-xl text-center space-y-4">
@@ -1744,7 +1752,7 @@ function Aavak({ currentUser }) {
                                     <h4 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Installment & Credit logs</h4>
                                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Token: {paymentHistoryEntry.tokenNo} | Farmer: {paymentHistoryEntry.Name}</p>
                                 </div>
-                                <button onClick={closePaymentHistory} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
+                                <button onClick={() => setPaymentHistoryEntry(null)} className="p-1 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs rounded-lg dark:text-white cursor-pointer">✕</button>
                             </div>
 
                             <div className="grid grid-cols-3 gap-3">
@@ -1774,15 +1782,8 @@ function Aavak({ currentUser }) {
                                             <div className="space-y-0.5">
                                                 <p className="font-bold text-slate-900 dark:text-white font-mono"> {install.amount}</p>
                                                 <p className="text-[9px] text-slate-400 font-medium">Logged by {install.operator} | {install.date} {install.time}</p>
-                                                {install.method === 'RTGS' && install.rtgsDetails?.bankName && (
-                                                    <p className="text-[9px] text-indigo-500 dark:text-indigo-400 font-semibold">
-                                                        {install.rtgsDetails.bankName} • A/C ...{String(install.rtgsDetails.accountNumber || '').slice(-4)}
-                                                    </p>
-                                                )}
                                             </div>
-                                            <span className={`text-[9px] font-black uppercase tracking-widest ${install.method === 'RTGS' ? 'text-indigo-500' : 'text-[#ef4444]'}`}>
-                                                {install.method === 'RTGS' ? 'RTGS' : 'CASH'}
-                                            </span>
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-[#ef4444]">Installment</span>
                                         </div>
                                     ))}
                                 </div>
@@ -1791,65 +1792,21 @@ function Aavak({ currentUser }) {
                             {parseFloat(paymentHistoryEntry.balanceAmount) > 0 && (
                                 <div className="space-y-3 pt-3 border-t border-slate-150 dark:border-slate-800">
                                     <h5 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Log New Installment</h5>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">Payment Method</label>
-                                            <select
-                                                className="input-field text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                                value={installmentMethod}
-                                                onChange={(e) => setInstallmentMethod(e.target.value)}
-                                            >
-                                                <option value="CASH">CASH</option>
-                                                <option value="RTGS">RTGS</option>
-                                            </select>
-                                            <p className="mt-1 text-[9px] text-slate-400 font-semibold">Independent of the bill's primary Payment Mode ({getPaymentModeLabel(paymentHistoryEntry.paymentMode)}).</p>
+                                    <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs"> </span>
+                                            <input 
+                                                type="number" 
+                                                step="0.01"
+                                                placeholder="Amount to pay" 
+                                                className="input-field pl-7 dark:bg-slate-800"
+                                                value={paymentLogValue}
+                                                onChange={(e) => setPaymentLogValue(e.target.value)}
+                                            />
                                         </div>
-                                        <div>
-                                            <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">Amount to Pay</label>
-                                            <div className="relative flex-1">
-                                                <input 
-                                                    type="number" 
-                                                    step="0.01"
-                                                    placeholder="Amount to pay" 
-                                                    className="input-field text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                                    value={paymentLogValue}
-                                                    onChange={(e) => setPaymentLogValue(e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {installmentMethod === 'RTGS' && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-indigo-50/40 dark:bg-indigo-950/10 rounded-xl border border-indigo-100/50 dark:border-indigo-950/20">
-                                            <div>
-                                                <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">Bank Name *</label>
-                                                <input type="text" className="input-field uppercase text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="e.g. STATE BANK OF INDIA" value={installmentRtgsDetails.bankName} onChange={(e) => handleInstallmentRtgsChange('bankName', e.target.value)} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">Account Number *</label>
-                                                <input type="text" className="input-field font-mono text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="e.g. 123456789012" value={installmentRtgsDetails.accountNumber} onChange={(e) => handleInstallmentRtgsChange('accountNumber', e.target.value.replace(/[^0-9]/g, ''))} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">Account Holder Name *</label>
-                                                <input type="text" className="input-field uppercase text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="As per bank passbook" value={installmentRtgsDetails.accountHolderName} onChange={(e) => handleInstallmentRtgsChange('accountHolderName', e.target.value)} />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">IFSC Code *</label>
-                                                    <input type="text" className="input-field uppercase font-mono text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="e.g. SBIN0001234" maxLength={11} value={installmentRtgsDetails.ifscCode} onChange={(e) => handleInstallmentRtgsChange('ifscCode', e.target.value.toUpperCase())} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[9px] uppercase font-black text-slate-400 mb-1 tracking-widest">Phone No *</label>
-                                                    <input type="text" className="input-field font-mono text-xs py-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="e.g. 9876543210" maxLength={10} value={installmentRtgsDetails.phoneNo} onChange={(e) => handleInstallmentRtgsChange('phoneNo', e.target.value.replace(/[^0-9]/g, ''))} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex justify-end">
                                         <button 
                                             onClick={handleSavePaymentLog} 
-                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 dark:shadow-none cursor-pointer"
+                                            className="px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md shadow-emerald-200 dark:shadow-none cursor-pointer"
                                         >
                                             Submit Payment
                                         </button>
