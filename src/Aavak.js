@@ -435,10 +435,39 @@ function Aavak({ currentUser }) {
                     netWtVal = Math.max(0, grossWtVal - tareWtVal);
                 }
 
-                const parseTimestamp = (val) => {
-                    if (!val) return null;
-                    const d = new Date(val);
-                    return isNaN(d.getTime()) ? null : d.toISOString();
+                // Simplified date-only handling: exact hours/minutes in the
+                // source cell are intentionally ignored. We only pull the
+                // calendar date out of the cell (handles JS Dates, Excel
+                // serial date numbers, and date-like strings) and pin the
+                // time to midnight local time. If nothing parseable is
+                // found, fall back to 1 Jan of the current year at midnight
+                // rather than leaving the timestamp blank.
+                const dateOnlyOrDefault = (val) => {
+                    let d = null;
+
+                    if (val instanceof Date && !isNaN(val.getTime())) {
+                        d = val;
+                    } else if (typeof val === 'number' && val > 0) {
+                        // Excel serial date number.
+                        const parsedSerial = XLSX.SSF.parse_date_code(val);
+                        if (parsedSerial) {
+                            d = new Date(parsedSerial.y, parsedSerial.m - 1, parsedSerial.d);
+                        }
+                    } else if (typeof val === 'string' && val.trim() !== '') {
+                        const parsed = new Date(val.trim());
+                        if (!isNaN(parsed.getTime())) {
+                            d = parsed;
+                        }
+                    }
+
+                    if (!d || isNaN(d.getTime())) {
+                        // Fallback: 1 Jan of the current year, midnight.
+                        d = new Date(new Date().getFullYear(), 0, 1);
+                    }
+
+                    // Pin to midnight local time, date portion only.
+                    d.setHours(0, 0, 0, 0);
+                    return d.toISOString();
                 };
 
                 const resolvedItemName = String(row['Commodity'] || 'KAPAS').trim().toUpperCase();
@@ -453,8 +482,8 @@ function Aavak({ currentUser }) {
                     vehicleNo: String(row['Vehicle No'] || '').trim().toUpperCase() || null,
                     grossWt: grossWtVal || null,
                     tareWt: tareWtVal || null,
-                    grossWtTimestamp: parseTimestamp(row['Gross Timestamp']),
-                    tareWtTimestamp: parseTimestamp(row['Tare Timestamp']),
+                    grossWtTimestamp: dateOnlyOrDefault(row['Gross Timestamp']),
+                    tareWtTimestamp: dateOnlyOrDefault(row['Tare Timestamp']),
                     netWt: netWtVal || null,
                     rate: parseFloat(row['Rate (₹/Qtl)']) || null,
                     hamalName: 'IMPORTED (EXCEL)',
@@ -484,7 +513,7 @@ function Aavak({ currentUser }) {
                 }
             }
 
-            alert(`Excel import complete.\nInserted: ${inserted}\nSkipped: ${skipped}`);
+            alert(`Imported ${inserted} rows, Skipped ${skipped} duplicates`);
         } catch (err) {
             console.error('Excel import failed:', err);
             alert('Could not read the Excel file. Please check the format and try again.');
