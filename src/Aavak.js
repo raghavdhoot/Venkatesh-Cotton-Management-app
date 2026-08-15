@@ -423,17 +423,16 @@ function Aavak({ currentUser }) {
                     continue;
                 }
 
-                const grossWtVal = parseFloat(row['Gross Weight (Kg)']) || 0;
-                const tareWtVal = parseFloat(row['Tare Weight (Kg)']) || 0;
+                // Gross/Tare/Net Weight columns are all given in Quintals in the
+                // sheet, matching the app's Quintal-based schema — no unit
+                // conversion needed. Fallback to Gross - Tare (Qtl) if the Net
+                // Weight column is missing/blank/zero.
+                const grossWtVal = parseFloat(row['Gross Weight (Qtl)']) || 0;
+                const tareWtVal = parseFloat(row['Tare Weight (Qtl)']) || 0;
 
-                // Net Weight column is given in Quintals in the sheet; convert
-                // to kg to match the schema. Fallback to Gross - Tare (kg) if
-                // the column is missing/blank/zero.
                 let netWtVal = parseFloat(row['Net Weight (Qtl)']);
                 if (!netWtVal || isNaN(netWtVal)) {
                     netWtVal = Math.max(0, grossWtVal - tareWtVal);
-                } else {
-                    netWtVal = netWtVal * 100;
                 }
 
                 const parseTimestamp = (val) => {
@@ -528,7 +527,9 @@ function Aavak({ currentUser }) {
 
     useEffect(() => {
         if (parsedRate > 0 && parsedNetWtAfterDed > 0) {
-            const grossAmt = (parsedNetWtAfterDed / 100) * parsedRate;
+            // netWtAfterDeduction is stored in Quintals and rate is per Quintal,
+            // so this is a direct multiplication (no unit conversion needed).
+            const grossAmt = parsedNetWtAfterDed * parsedRate;
             setGrossAmount(parseFloat(grossAmt.toFixed(2)));
         } else {
             setGrossAmount('');
@@ -539,7 +540,9 @@ function Aavak({ currentUser }) {
         const parsedGrossAmt = parseFloat(grossAmount || 0);
         const parsedNetWt = parseFloat(netWt || 0);
         if (parsedGrossAmt > 0 && parsedNetWt > 0) {
-            const hamali = (parsedNetWt / 100) * billingSettings.hamaliPerQuintal;
+            // netWt is stored in Quintals and hamaliPerQuintal is a per-Quintal
+            // rate, so this is a direct multiplication (no unit conversion needed).
+            const hamali = parsedNetWt * billingSettings.hamaliPerQuintal;
             const weighment = billingSettings.weighmentCharges;
             setHamaliDeduction(parseFloat(hamali.toFixed(2)));
             setWeighmentDeduction(parseFloat(weighment.toFixed(2)));
@@ -708,11 +711,11 @@ function Aavak({ currentUser }) {
             "Village": entry.Village || '',
             "Vehicle No": entry.vehicleNo || '',
             "Item": entry.itemName || '',
-            "Gross Weight": entry.grossWt || '',
+            "Gross Weight (Qtl)": entry.grossWt || '',
             "Gross Wt Time": formatDdMmHm(entry.grossWtTimestamp),
-            "Tare Weight": entry.tareWt || '',
+            "Tare Weight (Qtl)": entry.tareWt || '',
             "Tare Wt Time": formatDdMmHm(entry.tareWtTimestamp),
-            "Net Weight": entry.netWt || '',
+            "Net Weight (Qtl)": entry.netWt || '',
             "Rate": entry.rate || '',
             "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : '',
             "Amount Paid": entry.amountPaid || '',
@@ -782,7 +785,7 @@ function Aavak({ currentUser }) {
             "Token No": entry.tokenNo || '',
             "Farmer Name": entry.Name || '',
             "Village": entry.Village || '',
-            "Net Wt (kg)": entry.netWtAfterDeduction || entry.netWt || '',
+            "Net Wt (Qtl)": entry.netWtAfterDeduction || entry.netWt || '',
             "Net Amount": entry.netAmount !== undefined && entry.netAmount !== null ? Math.round(entry.netAmount) : ''
         }));
         const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -1070,22 +1073,22 @@ function Aavak({ currentUser }) {
                                         <tbody>
                                             <tr>
                                                 <td>Gross Weight (Time)</td>
-                                                <td>{printableAavak.grossWt || 0} kg ({grossTimeStr})</td>
+                                                <td>{printableAavak.grossWt || 0} Qtl ({grossTimeStr})</td>
                                                 <td>--</td>
                                             </tr>
                                             <tr>
                                                 <td>Tare Weight (Time)</td>
-                                                <td>{printableAavak.tareWt || 0} kg ({tareTimeStr})</td>
+                                                <td>{printableAavak.tareWt || 0} Qtl ({tareTimeStr})</td>
                                                 <td>--</td>
                                             </tr>
                                             <tr>
                                                 <td>Net Weight</td>
-                                                <td>{printableAavak.netWt || 0} kg</td>
+                                                <td>{printableAavak.netWt || 0} Qtl</td>
                                                 <td>--</td>
                                             </tr>
                                             <tr>
                                                 <td>Net Wt (After {dedPercent}% Ded.)</td>
-                                                <td>{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} kg</td>
+                                                <td>{printableAavak.netWtAfterDeduction || printableAavak.netWt || 0} Qtl</td>
                                                 <td>--</td>
                                             </tr>
                                             <tr>
@@ -1148,7 +1151,7 @@ function Aavak({ currentUser }) {
                                 <th>Token</th>
                                 <th>Farmer</th>
                                 <th>Village</th>
-                                <th>Net Wt (kg)</th>
+                                <th>Net Wt (Qtl)</th>
                                 <th>Net Amount</th>
                             </tr>
                         </thead>
@@ -1300,15 +1303,15 @@ function Aavak({ currentUser }) {
                                         )}
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Gross Weight * (kg)</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => handleGrossWtChange(e.target.value)} placeholder="e.g. 4500" required disabled={hasTareWtBeenEntered && !isNewEntry} />
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Gross Weight * (Qtl)</label>
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={grossWt} onChange={(e) => handleGrossWtChange(e.target.value)} placeholder="e.g. 45.00" required disabled={hasTareWtBeenEntered && !isNewEntry} />
                                         {grossWtTimestamp && (
                                             <p className="mt-1 text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide">Captured: {formatDdMmHm(grossWtTimestamp)}</p>
                                         )}
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Tare Weight (kg)</label>
-                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => handleTareWtChange(e.target.value)} placeholder="e.g. 1200" />
+                                        <label className="block text-[10px] uppercase font-black text-slate-400 mb-1 tracking-widest">Tare Weight (Qtl)</label>
+                                        <input type="number" step="0.01" className="input-field font-bold dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={tareWt} onChange={(e) => handleTareWtChange(e.target.value)} placeholder="e.g. 12.00" />
                                         {tareWtTimestamp && (
                                             <p className="mt-1 text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide">Captured: {formatDdMmHm(tareWtTimestamp)}</p>
                                         )}
@@ -1334,7 +1337,7 @@ function Aavak({ currentUser }) {
                                         <div>
                                             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold tracking-wider mb-1">Net Weight</span>
-                                                <span className="text-base font-black text-slate-800 dark:text-white">{netWt} kg</span>
+                                                <span className="text-base font-black text-slate-800 dark:text-white">{netWt} Qtl</span>
                                             </div>
                                         </div>
                                         <div>
@@ -1359,7 +1362,7 @@ function Aavak({ currentUser }) {
                                         <div className="md:col-span-2">
                                             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-center">
                                                 <span className="block text-[8px] text-slate-400 uppercase font-bold tracking-wider mb-1">Net Wt after Deduction</span>
-                                                <span className="text-base font-black text-indigo-600 dark:text-blue-400">{netWtAfterDeduction || '0.00'} kg</span>
+                                                <span className="text-base font-black text-indigo-600 dark:text-blue-400">{netWtAfterDeduction || '0.00'} Qtl</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1561,7 +1564,7 @@ function Aavak({ currentUser }) {
                                                 </td>
                                                 <td className="px-6 py-4 font-mono text-xs font-bold text-slate-700 dark:text-slate-300">{entry.vehicleNo}</td>
                                                 <td className="px-6 py-4 font-medium text-xs">
-                                                    <span className="font-extrabold text-slate-900 dark:text-white">{entry.netWtAfterDeduction || entry.netWt} kg</span>
+                                                    <span className="font-extrabold text-slate-900 dark:text-white">{entry.netWtAfterDeduction || entry.netWt} Qtl</span>
                                                     <div className="text-[10px] text-slate-400">{entry.itemName} @ {entry.rate}/qtl</div>
                                                     {(entry.grossWtTimestamp || entry.tareWtTimestamp) && (
                                                         <div className="text-[9px] text-indigo-500 dark:text-indigo-400 mt-0.5">
@@ -1816,7 +1819,7 @@ function Aavak({ currentUser }) {
                                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider">{entry.Village} | {entry.billingDate}</div>
                                                 </div>
                                                 <div className="text-right font-mono font-bold text-slate-700 dark:text-slate-300">
-                                                    {entry.netWtAfterDeduction || entry.netWt} kg
+                                                    {entry.netWtAfterDeduction || entry.netWt} Qtl
                                                 </div>
                                             </div>
                                         </label>
