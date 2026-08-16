@@ -435,14 +435,16 @@ function Aavak({ currentUser }) {
                     netWtVal = Math.max(0, grossWtVal - tareWtVal);
                 }
 
-                // Simplified date-only handling: exact hours/minutes in the
-                // source cell are intentionally ignored. We only pull the
-                // calendar date out of the cell (handles JS Dates, Excel
-                // serial date numbers, and date-like strings) and pin the
-                // time to midnight local time. If nothing parseable is
-                // found, fall back to 1 Jan of the current year at midnight
-                // rather than leaving the timestamp blank.
-                const dateOnlyOrDefault = (val) => {
+                // ---- Date-only parsing helpers -------------------------------
+                // We deliberately IGNORE exact hours/minutes from the source
+                // cell for every date/timestamp column. Only the calendar date
+                // is extracted (handles JS Dates, Excel serial date numbers,
+                // and date-like strings); the time portion is always pinned to
+                // 00:00:00 (midnight). `parseDateOnly` returns a Date (or
+                // null if nothing parseable was found) with the time zeroed
+                // out; the two formatters below turn that into whichever
+                // string shape a given field expects.
+                const parseDateOnly = (val) => {
                     let d = null;
 
                     if (val instanceof Date && !isNaN(val.getTime())) {
@@ -460,17 +462,65 @@ function Aavak({ currentUser }) {
                         }
                     }
 
-                    if (!d || isNaN(d.getTime())) {
-                        // Fallback: 1 Jan of the current year, midnight.
-                        d = new Date(new Date().getFullYear(), 0, 1);
-                    }
+                    if (!d || isNaN(d.getTime())) return null;
 
                     // Pin to midnight local time, date portion only.
                     d.setHours(0, 0, 0, 0);
-                    return d.toISOString();
+                    return d;
                 };
 
+                // Full ISO string (matches how Gross/Tare Wt timestamps are
+                // stored elsewhere in this file). Falls back to today
+                // (midnight) when the cell is empty/unparseable and
+                // `fallbackToToday` is true; otherwise returns null.
+                const dateOnlyIsoOrDefault = (val, fallbackToToday = true) => {
+                    const d = parseDateOnly(val) || (fallbackToToday ? (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; })() : null);
+                    return d ? d.toISOString() : null;
+                };
+
+                // Plain "YYYY-MM-DD" string (matches how billingDate /
+                // paymentDueDate are stored elsewhere, since those back
+                // plain <input type="date"> fields). Returns null (never a
+                // fallback date) when the cell is empty/unparseable — a due
+                // date shouldn't silently default to "today".
+                const dateOnlyYmdOrNull = (val) => {
+                    const d = parseDateOnly(val);
+                    if (!d) return null;
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
+                };
+                // ---------------------------------------------------------------
+
                 const resolvedItemName = String(row['Commodity'] || 'KAPAS').trim().toUpperCase();
+
+                // Payment Mode: free-text from Excel (e.g. "Cash", "RTGS",
+                // "Cheque", "Cash Due", "Credit") mapped onto the app's
+                // internal payment-mode vocabulary.
+                const normalizePaymentModeFromExcel = (raw) => {
+                    const val = String(raw || '').trim().toUpperCase();
+                    if (!val) return 'CASH_IMMEDIATE';
+                    const isCheque = val.includes('CHEQUE') || val.includes('CHECK');
+                    const isRtgs = val.includes('RTGS') || val.includes('BANK') || val.includes('ONLINE');
+                    const isDue = val.includes('DUE') || val.includes('CREDIT') || val.includes('UDHAR');
+                    if (isCheque) return 'CHEQUE';
+                    if (isRtgs) return isDue ? 'RTGS_DUE' : 'RTGS_IMMEDIATE';
+                    return isDue ? 'CASH_DUE' : 'CASH_IMMEDIATE';
+                };
+                const resolvedPaymentMode = normalizePaymentModeFromExcel(row['Payment Mode']);
+
+                // Amount Paid: parse whatever numeric value is present;
+                // strip stray currency symbols / commas just in case.
+                const amountPaidRaw = row['Amount Paid'];
+                const amountPaidVal = parseFloat(String(amountPaidRaw ?? '').replace(/[^0-9.-]/g, ''));
+                const resolvedAmountPaid = !isNaN(amountPaidVal) ? amountPaidVal : null;
+
+                // "Date of Patti Nill" -> paymentDueDate, date-only, no
+                // fallback (null if blank/unparseable or mode isn't a Due mode).
+                const resolvedDueDate = (resolvedPaymentMode === 'CASH_DUE' || resolvedPaymentMode === 'RTGS_DUE')
+                    ? dateOnlyYmdOrNull(row['Date of Patti Nill'])
+                    : null;
 
                 const importedPayload = {
                     billingDate: new Date().toISOString().split('T')[0],
@@ -482,13 +532,14 @@ function Aavak({ currentUser }) {
                     vehicleNo: String(row['Vehicle No'] || '').trim().toUpperCase() || null,
                     grossWt: grossWtVal || null,
                     tareWt: tareWtVal || null,
-                    grossWtTimestamp: dateOnlyOrDefault(row['Gross Timestamp']),
-                    tareWtTimestamp: dateOnlyOrDefault(row['Tare Timestamp']),
+                    grossWtTimestamp: dateOnlyIsoOrDefault(row['Gross Timestamp'], true),
+                    tareWtTimestamp: dateOnlyIsoOrDefault(row['Tare Timestamp'], true),
                     netWt: netWtVal || null,
                     rate: parseFloat(row['Rate (₹/Qtl)']) || null,
                     hamalName: 'IMPORTED (EXCEL)',
-                    paymentMode: 'CASH_IMMEDIATE',
-                    amountPaid: null,
+                    paymentMode: resolvedPaymentMode,
+                    paymentDueDate: resolvedDueDate,
+                    amountPaid: resolvedAmountPaid,
                     balanceAmount: null,
                     accountantName: (currentUser?.name || 'IMPORTED').toUpperCase(),
                     kataOperatorId: currentUser?.employeeId || null,
@@ -513,7 +564,7 @@ function Aavak({ currentUser }) {
                 }
             }
 
-            alert(`Imported ${inserted} rows, Skipped ${skipped} duplicates`);
+            alert(`Import complete! Inserted: ${inserted}, Skipped duplicates: ${skipped}`);
         } catch (err) {
             console.error('Excel import failed:', err);
             alert('Could not read the Excel file. Please check the format and try again.');
